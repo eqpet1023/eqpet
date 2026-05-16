@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000/api/sim/status)",
+      "Bash(curl *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -c \"import json,sys; agents=json.load\\(sys.stdin\\); print\\(f'エージェント数: {len\\(agents\\)}'\\)\")",
+      "Bash(python3 -c \"import json,sys; posts=json.load\\(sys.stdin\\); print\\(f'投稿数: {len\\(posts\\)}'\\)\")",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"ts-node src/server\")",
+      "Bash(jobs *)",
+      "Read(//tmp/**)",
+      "Bash(pkill -f \"nodemon\")",
+      "Bash(python3 *)",
+      "Bash(dotenvx run *)",
+      "Bash(./node_modules/.bin/dotenvx run *)",
+      "Bash(ps -o pid,lstart,cmd -p 10508)",
+      "Bash(./node_modules/.bin/ts-node *)"
+    ]
+  }
+}

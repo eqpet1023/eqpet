@@ -3,9 +3,10 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "server":     "dotenvx run -- ts-node src/server.ts",
-    "server:dev": "nodemon --watch src --watch .env --ext ts,json --exec 'dotenvx run -- ts-node src/server.ts'",
-    "sim":        "dotenvx run -- ts-node -e \"require('./src/services/SimulateLoop').SimulateLoop.runOnce()\""
+    "server":       "ts-node src/server.ts",
+    "server:local": "dotenvx run --env-file=.env.local -- ts-node src/server.ts",
+    "server:dev":   "nodemon --watch src --ext ts,json --exec 'ts-node src/server.ts'",
+    "sim":          "ts-node -e \"require('./src/services/SimulateLoop').SimulateLoop.runOnce()\""
   },
   "dependencies": {
     "@anthropic-ai/sdk":  "^0.39.0",
