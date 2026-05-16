@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: eqpet-v2
+    env: node
+    buildCommand: npm install
+    startCommand: npm run server
+    envVars:
+      - key: EQPET_API_KEY
+        sync: false
+      - key: PORT
+        value: 10000
