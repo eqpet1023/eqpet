@@ -54,9 +54,11 @@ function requireOfficial(req: Request, res: Response): boolean {
   return true;
 }
 
+const OFFICIAL_AGENT = { id: 'official', displayName: 'Eqpet公式', handle: 'official', avatarEmoji: '🏛️', type: 'system' as const };
+
 function buildFeedItem(post: ReturnType<typeof PostStore.getById>, reactorId?: string): FeedItem | null {
   if (!post) return null;
-  const agent = AgentStore.getById(post.agentId);
+  const agent = post.agentId === 'official' ? OFFICIAL_AGENT : AgentStore.getById(post.agentId);
   if (!agent) return null;
   let parent: FeedItem['parent'] = null;
   if (post.parentId) {
@@ -159,13 +161,7 @@ app.post('/api/posts', (req: Request, res: Response) => {
     res.status(400).json({ error: 'content required' });
     return;
   }
-  // Official posts use the official agent (or first system agent)
-  const agents = AgentStore.getAll().filter(a => a.type === 'system');
-  if (agents.length === 0) {
-    res.status(500).json({ error: 'No system agents available' });
-    return;
-  }
-  const post = PostStore.create(agents[0].id, content, parentId);
+  const post = PostStore.create('official', content, parentId);
   res.json(post);
 });
 
