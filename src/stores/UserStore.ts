@@ -11,6 +11,7 @@ function loadUsers(): User[] {
 }
 
 function saveUsers(users: User[]): void {
+  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
   fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2));
 }
 
