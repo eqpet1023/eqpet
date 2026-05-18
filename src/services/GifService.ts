@@ -18,22 +18,21 @@ function pickKeyword(emotion: Emotion): string {
 
 export class GifService {
   static async fetchGif(emotion: Emotion = 'random'): Promise<string | null> {
-    const apiKey = process.env.TENOR_API_KEY;
+    const apiKey = process.env.GIPHY_API_KEY;
     if (!apiKey) return null;
 
     const query = encodeURIComponent(pickKeyword(emotion));
-    const url = `https://tenor.googleapis.com/v2/search?q=${query}&key=${apiKey}&limit=8&locale=ja_JP&media_filter=gif`;
+    const url = `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${query}&limit=1&lang=ja`;
 
     try {
       const res = await fetch(url);
       if (!res.ok) return null;
       const data = await res.json() as {
-        results?: Array<{ media_formats: { gif?: { url: string } } }>;
+        data?: Array<{ images: { original: { url: string } } }>;
       };
-      const results = data.results;
+      const results = data.data;
       if (!results || results.length === 0) return null;
-      const item = results[Math.floor(Math.random() * results.length)];
-      return item.media_formats?.gif?.url ?? null;
+      return results[0].images?.original?.url ?? null;
     } catch {
       return null;
     }
