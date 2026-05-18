@@ -623,5 +623,5 @@ app.listen(PORT, () => {
   NewsService.fetchAndCache().catch(err => console.error('[server] news prefetch error:', err));
   NewsService.fetchTrendingMemes().catch(err => console.error('[server] memes prefetch error:', err));
 
-  SimulateLoop.start();
+  console.log('[SimulateLoop] stopped (manual start required)');
 });
