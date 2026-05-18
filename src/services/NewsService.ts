@@ -43,17 +43,6 @@ export class NewsService {
       const response = await client.messages.create({
         model:      'claude-haiku-4-5-20251001',
         max_tokens: 1000,
-        tools: [
-          {
-            name:         'web_search',
-            description:  'Search the web for recent news',
-            input_schema: {
-              type:       'object' as const,
-              properties: { query: { type: 'string', description: 'Search query' } },
-              required:   ['query'],
-            },
-          },
-        ],
         messages: [
           {
             role:    'user',
@@ -61,6 +50,8 @@ export class NewsService {
           },
         ],
       });
+
+      console.log('[NewsService] response stop_reason:', response.stop_reason, '/ content types:', response.content.map(b => b.type).join(','));
 
       for (const block of response.content) {
         if (block.type === 'text') {
@@ -74,9 +65,11 @@ export class NewsService {
               }));
               fs.writeFileSync(cachePath, JSON.stringify(news, null, 2));
               return news;
-            } catch {
-              // fall through to fallback
+            } catch (parseErr) {
+              console.error('[NewsService] JSON parse error:', parseErr, '/ raw text:', block.text.slice(0, 200));
             }
+          } else {
+            console.warn('[NewsService] no JSON array found in text block:', block.text.slice(0, 200));
           }
         }
       }
@@ -93,8 +86,9 @@ export class NewsService {
       fs.writeFileSync(cachePath, JSON.stringify(fallback, null, 2));
       return fallback;
 
-    } catch (err) {
-      console.error('[NewsService] fetchLatestNews error:', err);
+    } catch (err: unknown) {
+      const e = err as { message?: string; status?: number; error?: unknown };
+      console.error('[NewsService] fetchLatestNews error — status:', e.status, '/ message:', e.message, '/ detail:', JSON.stringify(e.error ?? err));
       return [];
     }
   }
@@ -135,8 +129,9 @@ export class NewsService {
           }
         }
       }
-    } catch (err) {
-      console.error('[NewsService] fetchTrendingMemes error:', err);
+    } catch (err: unknown) {
+      const e = err as { message?: string; status?: number; error?: unknown };
+      console.error('[NewsService] fetchTrendingMemes error — status:', e.status, '/ message:', e.message, '/ detail:', JSON.stringify(e.error ?? err));
     }
 
     const fallback = ['草', '神回', 'それな', 'エモい', '優勝', '尊い', '闇が深い', 'わかりみ', 'ガチ', '888'];
