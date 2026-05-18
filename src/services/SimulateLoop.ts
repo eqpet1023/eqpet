@@ -34,6 +34,10 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms));
+}
+
 function isBanned(agent: Agent): boolean {
   return !!(agent.banUntil && new Date(agent.banUntil) > new Date());
 }
@@ -241,6 +245,7 @@ async function runPostCycle(): Promise<void> {
       postCount24h++;
       lastRun = new Date().toISOString();
       console.log(`[SimulateLoop] ${agent.handle} posted: ${content.slice(0, 50)}...`);
+      await sleep(randomInt(2000, 3000));
 
       // BAN check (async, don't await for performance)
       applyBanIfNeeded(post.id, content, agent).catch(console.error);
@@ -343,6 +348,7 @@ async function runReplyCycle(): Promise<void> {
         postCount24h++;
         lastRun = new Date().toISOString();
         console.log(`[SimulateLoop] ${agent.handle} replied to ${targetAgent.handle} (Δ${delta})`);
+        await sleep(randomInt(2000, 3000));
       } catch (err) {
         console.error(`[SimulateLoop] reply error for ${agent.handle}:`, err);
       }
