@@ -69,9 +69,9 @@ function buildFeedItem(post: ReturnType<typeof PostStore.getById>, reactorId?: s
   }
   return {
     ...post,
-    agent:      { id: agent.id, displayName: agent.displayName, handle: agent.handle, avatarEmoji: agent.avatarEmoji, type: agent.type },
+    agent:     { id: agent.id, displayName: agent.displayName, handle: agent.handle, avatarEmoji: agent.avatarEmoji, type: agent.type },
     parent,
-    likedByMe:  reactorId ? PostStore.isLikedBy(post.id, reactorId) : false,
+    likedByMe: reactorId ? PostStore.isLikedBy(post.id, reactorId) : false,
   };
 }
 
@@ -150,7 +150,7 @@ app.get('/api/posts/:id', (req: Request, res: Response) => {
 
 app.get('/api/posts/:id/replies', (req: Request, res: Response) => {
   const replies = PostStore.getReplies(param(req, 'id'));
-  const items = replies.map(p => buildFeedItem(p)).filter(Boolean);
+  const items   = replies.map(p => buildFeedItem(p)).filter(Boolean);
   res.json(items);
 });
 
@@ -172,14 +172,12 @@ app.post('/api/posts/:id/like', (req: Request, res: Response) => {
   const { agentId } = req.body;
 
   if (agentId) {
-    // AI like — one-time, no toggle
     const reaction = PostStore.addReaction(postId, agentId, 'like');
-    const post = PostStore.getById(postId);
+    const post     = PostStore.getById(postId);
     res.json({ ok: !!reaction, liked: !!reaction, likeCount: post?.likeCount ?? 0 });
     return;
   }
 
-  // Human like — add only (toggle via DELETE)
   const userId = req.headers['x-user-id'] as string;
   if (!userId) { res.status(401).json({ error: 'Auth required' }); return; }
   const result = PostStore.addLike(postId, `user_${userId}`);
@@ -193,19 +191,18 @@ app.delete('/api/posts/:id/like', (req: Request, res: Response) => {
   res.json(result);
 });
 
-// Repost: AI only (SimulateLoop internal). Endpoint kept for completeness.
 app.post('/api/posts/:id/repost', (req: Request, res: Response) => {
   const { agentId } = req.body;
   if (!agentId) { res.status(400).json({ error: 'agentId required' }); return; }
   const reaction = PostStore.addReaction(param(req, 'id'), agentId, 'repost');
-  const post = PostStore.getById(param(req, 'id'));
+  const post     = PostStore.getById(param(req, 'id'));
   res.json({ ok: !!reaction, repostCount: post?.repostCount ?? 0 });
 });
 
 // ─── Agents ──────────────────────────────────────────────────────────────────
 
 app.get('/api/agents', (req: Request, res: Response) => {
-  const type = req.query.type as string | undefined;
+  const type   = req.query.type as string | undefined;
   let agents = AgentStore.getAll();
   if (type) agents = agents.filter(a => a.type === type);
   res.json(agents);
@@ -234,9 +231,9 @@ app.post('/api/agents', (req: Request, res: Response) => {
   const userId = requireUser(req, res);
   if (!userId) return;
 
-  const user = UserStore.getById(userId)!;
+  const user     = UserStore.getById(userId)!;
   const existing = AgentStore.getByOwnerId(userId);
-  const plan = PLAN_CONFIG[user.plan];
+  const plan     = PLAN_CONFIG[user.plan];
 
   if (existing.length >= plan.maxAgents) {
     res.status(403).json({ error: `Plan limit: max ${plan.maxAgents} agent(s)` });
@@ -255,20 +252,22 @@ app.post('/api/agents', (req: Request, res: Response) => {
   }
 
   const agent: Agent = {
-    id:          `agent_${uuidv4()}`,
-    type:        'user_ai',
-    ownerId:     userId,
-    displayName: displayName.slice(0, 20),
+    id:           `agent_${uuidv4()}`,
+    type:         'user_ai',
+    ownerId:      userId,
+    displayName:  displayName.slice(0, 20),
     handle,
-    avatarEmoji: avatarEmoji || '🤖',
-    bio:         bio || '',
+    avatarEmoji:  avatarEmoji || '🤖',
+    bio:          bio || '',
     systemPrompt,
-    personality: personality || [],
-    interests:   interests || [],
-    isActive:    true,
-    createdAt:   new Date().toISOString(),
-    postCount:   0,
+    personality:  personality || [],
+    interests:    interests   || [],
+    isActive:     true,
+    createdAt:    new Date().toISOString(),
+    postCount:    0,
     followerCount: 0,
+    banUntil:     null,
+    banCount:     0,
   };
 
   AgentStore.create(agent);
@@ -277,7 +276,7 @@ app.post('/api/agents', (req: Request, res: Response) => {
 });
 
 app.put('/api/agents/:id', (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const userId  = requireUser(req, res);
   if (!userId) return;
   const agentId = param(req, 'id');
 
@@ -305,7 +304,7 @@ app.put('/api/agents/:id', (req: Request, res: Response) => {
 });
 
 app.delete('/api/agents/:id', (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const userId  = requireUser(req, res);
   if (!userId) return;
   const agentId = param(req, 'id');
 
@@ -325,6 +324,41 @@ app.delete('/api/agents/:id', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// ─── BAN ─────────────────────────────────────────────────────────────────────
+
+app.post('/api/agents/:id/ban', (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  const agentId = param(req, 'id');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
+
+  const { level, reason } = req.body as { level: 1 | 2 | 3; reason?: string };
+  if (![1, 2, 3].includes(level)) { res.status(400).json({ error: 'level must be 1, 2, or 3' }); return; }
+
+  const durMs    = { 1: 1, 2: 6, 3: 24 }[level] * 60 * 60 * 1000;
+  const banUntil = new Date(Date.now() + durMs).toISOString();
+  const banCount = (agent.banCount ?? 0) + 1;
+  const isActive = level < 3;
+
+  AgentStore.update(agentId, { banUntil, banCount, isActive });
+  res.json({ ok: true, banUntil, banCount });
+});
+
+app.post('/api/agents/:id/unban', (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  const agentId = param(req, 'id');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
+
+  AgentStore.update(agentId, { banUntil: null, isActive: true });
+  res.json({ ok: true });
+});
+
+app.get('/api/banned', (_req: Request, res: Response) => {
+  const banned = SimulateLoop.getBannedAgents();
+  res.json(banned);
+});
+
 // ─── Search / Trending / Ranking ─────────────────────────────────────────────
 
 app.get('/api/search', (req: Request, res: Response) => {
@@ -335,7 +369,7 @@ app.get('/api/search', (req: Request, res: Response) => {
   }
   const results = AgentStore.getAll().filter(a =>
     a.displayName.toLowerCase().includes(q) ||
-    a.handle.toLowerCase().includes(q) ||
+    a.handle.toLowerCase().includes(q)      ||
     a.bio.toLowerCase().includes(q)
   );
   res.json(results);
@@ -347,12 +381,12 @@ app.get('/api/trending', (req: Request, res: Response) => {
   res.json(items);
 });
 
-app.get('/api/ranking/agents', (req: Request, res: Response) => {
+app.get('/api/ranking/agents', (_req: Request, res: Response) => {
   const agents = AgentStore.getAll().sort((a, b) => b.followerCount - a.followerCount);
   res.json(agents);
 });
 
-app.get('/api/ranking/posts', (req: Request, res: Response) => {
+app.get('/api/ranking/posts', (_req: Request, res: Response) => {
   const posts = PostStore.getTrending(24 * 7, 20);
   res.json(posts);
 });
@@ -360,13 +394,13 @@ app.get('/api/ranking/posts', (req: Request, res: Response) => {
 // ─── Follow ──────────────────────────────────────────────────────────────────
 
 app.post('/api/agents/:id/follow', (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const userId  = requireUser(req, res);
   if (!userId) return;
 
   const agentId = param(req, 'id');
-  const agent = AgentStore.getById(agentId);
-  if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
-  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' }); return; }
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                    { res.status(404).json({ error: 'Agent not found' });  return; }
+  if (agent.ownerId !== userId)  { res.status(403).json({ error: 'Not your agent' });   return; }
 
   const { targetAgentId } = req.body;
   if (!targetAgentId) { res.status(400).json({ error: 'targetAgentId required' }); return; }
@@ -382,18 +416,18 @@ app.post('/api/agents/:id/follow', (req: Request, res: Response) => {
 });
 
 app.delete('/api/agents/:id/follow', (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const userId  = requireUser(req, res);
   if (!userId) return;
 
   const agentId = param(req, 'id');
-  const agent = AgentStore.getById(agentId);
-  if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
-  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' }); return; }
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
 
   const { targetAgentId } = req.body;
   if (!targetAgentId) { res.status(400).json({ error: 'targetAgentId required' }); return; }
 
-  const target = AgentStore.getById(targetAgentId);
+  const target    = AgentStore.getById(targetAgentId);
   const unfollowed = FollowStore.unfollow(agentId, targetAgentId);
   if (unfollowed && target) {
     AgentStore.update(targetAgentId, { followerCount: Math.max(0, target.followerCount - 1) });
@@ -418,13 +452,13 @@ app.get('/api/agents/:id/followers', (req: Request, res: Response) => {
 const CHAT_KEY = (userId: string) => `chat_${userId}`;
 
 app.get('/api/agents/:id/chat', (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
+  const userId  = requireUser(req, res);
   if (!userId) return;
 
   const agentId = param(req, 'id');
-  const agent = AgentStore.getById(agentId);
-  if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
-  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' }); return; }
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
 
   const history = MemoryStore.get(agentId, CHAT_KEY(userId)).map(e => ({
     role:      e.type === 'post' ? 'user' : 'assistant',
@@ -445,24 +479,23 @@ app.post('/api/agents/:id/chat', async (req: Request, res: Response) => {
   }
 
   const agentId = param(req, 'id');
-  const agent = AgentStore.getById(agentId);
-  if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
-  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' }); return; }
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
 
   const { message } = req.body;
   if (!message?.trim()) { res.status(400).json({ error: 'message required' }); return; }
 
   const chatKey = CHAT_KEY(userId);
 
-  // ── Follow / Unfollow command detection ──
   const followMatch   = message.match(/(.+?)をフォローして/);
   const unfollowMatch = message.match(/(.+?)(?:のフォローを外して|をアンフォローして)/);
-  const cmdMatch = unfollowMatch || followMatch;
+  const cmdMatch      = unfollowMatch || followMatch;
 
   if (cmdMatch) {
     const targetName = cmdMatch[1].trim();
     const allAgents  = AgentStore.getAll();
-    const target = allAgents.find(a =>
+    const target     = allAgents.find(a =>
       a.displayName === targetName || a.handle === targetName ||
       a.displayName.includes(targetName) || a.handle.includes(targetName)
     );
@@ -495,7 +528,6 @@ app.post('/api/agents/:id/chat', async (req: Request, res: Response) => {
     return;
   }
 
-  // ── Normal chat ──
   const history = MemoryStore.get(agentId, chatKey);
   const messages: Array<{ role: 'user' | 'assistant'; content: string }> = history.map(e => ({
     role:    e.type === 'post' ? 'user' : 'assistant',
@@ -528,9 +560,9 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
   }
 
   const agentId = param(req, 'id');
-  const agent = AgentStore.getById(agentId);
-  if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
-  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' }); return; }
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
 
   const { systemPrompt } = req.body;
   if (!systemPrompt?.trim()) { res.status(400).json({ error: 'systemPrompt required' }); return; }
@@ -586,5 +618,10 @@ app.post('/api/sim/trigger', async (req: Request, res: Response) => {
 const PORT = parseInt(process.env.PORT || '3000');
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);
+
+  // 起動時に即座にニュースとミームを取得
+  NewsService.fetchAndCache().catch(err => console.error('[server] news prefetch error:', err));
+  NewsService.fetchTrendingMemes().catch(err => console.error('[server] memes prefetch error:', err));
+
   SimulateLoop.start();
 });

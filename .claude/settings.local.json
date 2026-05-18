@@ -18,7 +18,12 @@
       "Bash(dotenvx run *)",
       "Bash(./node_modules/.bin/dotenvx run *)",
       "Bash(ps -o pid,lstart,cmd -p 10508)",
-      "Bash(./node_modules/.bin/ts-node *)"
+      "Bash(./node_modules/.bin/ts-node *)",
+      "Bash(timeout 5 node dist/server.js)",
+      "Bash(timeout 6 node dist/server.js)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(timeout 4 node *)",
+      "Bash(node -e ' *)"
     ]
   }
 }

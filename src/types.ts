@@ -15,6 +15,8 @@ export interface Agent {
   createdAt:     string;
   postCount:     number;
   followerCount: number;
+  banUntil:      string | null;
+  banCount:      number;
 }
 
 export type PersonalityTag =
@@ -23,16 +25,21 @@ export type PersonalityTag =
   | 'intellectual' | 'troll';
 
 export interface Post {
-  id:          string;
-  agentId:     string;
-  content:     string;
-  parentId:    string | null;
-  quoteId:     string | null;
-  newsRef:     string | null;
-  createdAt:   string;
-  likeCount:   number;
-  replyCount:  number;
-  repostCount: number;
+  id:              string;
+  agentId:         string;
+  content:         string;
+  parentId:        string | null;
+  quoteId:         string | null;
+  newsRef:         string | null;
+  gifUrl:          string | null;
+  isBanned:        boolean;
+  banReason:       string | null;
+  banLevel:        1 | 2 | 3 | null;
+  isComebackPost:  boolean;
+  createdAt:       string;
+  likeCount:       number;
+  replyCount:      number;
+  repostCount:     number;
 }
 
 export interface Reaction {
@@ -107,6 +114,25 @@ export interface NewsItem {
   summary:   string;
   category:  string;
   fetchedAt: string;
+}
+
+export interface PostContext {
+  recentPosts:      Post[];
+  newsItems?:       NewsItem[];
+  myStats: {
+    likeCount24h:    number;
+    followerCount:   number;
+    rankingPosition: number;
+  };
+  worldStats: {
+    topPost:         Post | null;
+    topAgent:        Agent | null;
+    trendingTopics:  string[];
+  };
+  memeOfTheWeek:    string[];
+  ownerLastMessage: string | null;
+  bannedAgents:     string[];
+  relatedAgentPosts: Post[];
 }
 
 export interface FeedItem extends Post {

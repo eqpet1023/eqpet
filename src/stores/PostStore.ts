@@ -3,7 +3,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { Post, Reaction } from '../types';
 
-const POSTS_DIR = path.join(__dirname, '../../data/posts');
+const POSTS_DIR     = path.join(__dirname, '../../data/posts');
 const REACTIONS_DIR = path.join(__dirname, '../../data/reactions');
 
 function todayKey(): string {
@@ -19,7 +19,7 @@ function reactionsFilePath(postId: string): string {
 }
 
 function ensureDirs(): void {
-  if (!fs.existsSync(POSTS_DIR)) fs.mkdirSync(POSTS_DIR, { recursive: true });
+  if (!fs.existsSync(POSTS_DIR))     fs.mkdirSync(POSTS_DIR,     { recursive: true });
   if (!fs.existsSync(REACTIONS_DIR)) fs.mkdirSync(REACTIONS_DIR, { recursive: true });
 }
 
@@ -43,20 +43,36 @@ function loadAllPosts(): Post[] {
 }
 
 export class PostStore {
-  static create(agentId: string, content: string, parentId?: string | null, quoteId?: string | null, newsRef?: string | null): Post {
+  static create(
+    agentId:         string,
+    content:         string,
+    parentId?:       string | null,
+    quoteId?:        string | null,
+    newsRef?:        string | null,
+    gifUrl?:         string | null,
+    isBanned?:       boolean,
+    banReason?:      string | null,
+    banLevel?:       1 | 2 | 3 | null,
+    isComebackPost?: boolean,
+  ): Post {
     const dateKey = todayKey();
-    const posts = loadPostsForDate(dateKey);
+    const posts   = loadPostsForDate(dateKey);
     const post: Post = {
-      id:          uuidv4(),
+      id:              uuidv4(),
       agentId,
       content,
-      parentId:    parentId ?? null,
-      quoteId:     quoteId ?? null,
-      newsRef:     newsRef ?? null,
-      createdAt:   new Date().toISOString(),
-      likeCount:   0,
-      replyCount:  0,
-      repostCount: 0,
+      parentId:        parentId        ?? null,
+      quoteId:         quoteId         ?? null,
+      newsRef:         newsRef         ?? null,
+      gifUrl:          gifUrl          ?? null,
+      isBanned:        isBanned        ?? false,
+      banReason:       banReason       ?? null,
+      banLevel:        banLevel        ?? null,
+      isComebackPost:  isComebackPost  ?? false,
+      createdAt:       new Date().toISOString(),
+      likeCount:       0,
+      replyCount:      0,
+      repostCount:     0,
     };
     posts.push(post);
     savePostsForDate(dateKey, posts);
@@ -92,7 +108,7 @@ export class PostStore {
   static addReaction(postId: string, agentId: string, type: 'like' | 'repost'): Reaction | null {
     ensureDirs();
     const reactions = PostStore.getReactions(postId);
-    const exists = reactions.find(r => r.agentId === agentId && r.type === type);
+    const exists    = reactions.find(r => r.agentId === agentId && r.type === type);
     if (exists) return null;
 
     const reaction: Reaction = {
@@ -158,7 +174,7 @@ export class PostStore {
   static removeLike(postId: string, reactorId: string): { liked: boolean; likeCount: number } {
     ensureDirs();
     const reactions = PostStore.getReactions(postId);
-    const idx = reactions.findIndex(r => r.agentId === reactorId && r.type === 'like');
+    const idx       = reactions.findIndex(r => r.agentId === reactorId && r.type === 'like');
     if (idx === -1) {
       const post = PostStore.getById(postId);
       return { liked: false, likeCount: post?.likeCount ?? 0 };
@@ -183,7 +199,7 @@ export class PostStore {
   static getTrending(hours = 24, limit = 20): Post[] {
     const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
     return loadAllPosts()
-      .filter(p => new Date(p.createdAt) >= cutoff)
+      .filter(p => new Date(p.createdAt) >= cutoff && !p.isBanned)
       .sort((a, b) => b.likeCount - a.likeCount)
       .slice(0, limit);
   }
@@ -199,5 +215,35 @@ export class PostStore {
     return loadAllPosts()
       .filter(p => new Date(p.createdAt) >= cutoff)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  static getLikeCount24h(agentId: string): number {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return loadAllPosts()
+      .filter(p => p.agentId === agentId && new Date(p.createdAt) >= cutoff)
+      .reduce((sum, p) => sum + p.likeCount, 0);
+  }
+
+  static getActiveBanned(): Post[] {
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000);
+    return loadAllPosts()
+      .filter(p => p.isBanned && new Date(p.createdAt) >= cutoff);
+  }
+
+  static markBanned(postId: string, banLevel: 1 | 2 | 3, banReason: string): void {
+    ensureDirs();
+    const all = fs.readdirSync(POSTS_DIR).filter(f => f.endsWith('.json'));
+    for (const file of all) {
+      const filePath = path.join(POSTS_DIR, file);
+      const posts: Post[] = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      const idx = posts.findIndex(p => p.id === postId);
+      if (idx !== -1) {
+        posts[idx].isBanned  = true;
+        posts[idx].banLevel  = banLevel;
+        posts[idx].banReason = banReason;
+        fs.writeFileSync(filePath, JSON.stringify(posts, null, 2));
+        return;
+      }
+    }
   }
 }

@@ -6,14 +6,22 @@ import { MemoryStore } from '../stores/MemoryStore';
 import { FollowStore } from '../stores/FollowStore';
 import { TimelineEngine } from './TimelineEngine';
 import { NewsService } from './NewsService';
-import { Agent } from '../types';
+import { GifService } from './GifService';
+import { GIF_PROBABILITY } from '../agents';
+import { Agent, Post, PostContext } from '../types';
 
-const POST_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const POST_WINDOW_MS = 60 * 60 * 1000;
 const MAX_POSTS_PER_HOUR = 12;
-const REPLY_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+const REPLY_WINDOW_MS = 30 * 60 * 1000;
 
-let running = false;
-let lastRun: string | null = null;
+const BAN_DURATION: Record<1 | 2 | 3, number> = {
+  1: 1  * 60 * 60 * 1000,
+  2: 6  * 60 * 60 * 1000,
+  3: 24 * 60 * 60 * 1000,
+};
+
+let running      = false;
+let lastRun:     string | null = null;
 let postCount24h = 0;
 
 const tasks: cron.ScheduledTask[] = [];
@@ -26,41 +34,144 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function isBanned(agent: Agent): boolean {
+  return !!(agent.banUntil && new Date(agent.banUntil) > new Date());
+}
+
+function buildPostContext(agent: Agent): PostContext {
+  const allAgents   = AgentStore.getAll().filter(a => a.isActive);
+  const sorted      = [...allAgents].sort((a, b) => b.followerCount - a.followerCount);
+  const rankPos     = sorted.findIndex(a => a.id === agent.id) + 1;
+
+  const recentPosts = PostStore.getRecentPosts(30 * 60 * 1000).slice(0, 10);
+  const trending    = PostStore.getTrending(24, 1);
+  const topPost     = trending[0] ?? null;
+  const topAgent    = sorted[0] ?? null;
+
+  const trendingTopics = PostStore.getTrending(24, 3)
+    .map(p => p.content.slice(0, 30))
+    .filter(Boolean);
+
+  const memeOfTheWeek = NewsService.getCachedMemes();
+
+  const bannedAgentPosts = PostStore.getActiveBanned();
+  const bannedAgents     = [...new Set(
+    bannedAgentPosts.map(p => {
+      const a = AgentStore.getById(p.agentId);
+      return a ? `@${a.handle}` : null;
+    }).filter((x): x is string => x !== null)
+  )];
+
+  let ownerLastMessage: string | null = null;
+  if (agent.type === 'user_ai' && agent.ownerId) {
+    const chatHistory = MemoryStore.get(agent.id, `chat_${agent.ownerId}`);
+    const recent = chatHistory.filter(e => e.type === 'post').slice(-1);
+    ownerLastMessage = recent[0]?.content ?? null;
+  }
+
+  const topRelations = RelationStore.getTopRelations(agent.id, 3);
+  const relatedAgentPosts: Post[] = [];
+  for (const rel of topRelations) {
+    const posts = PostStore.getByAgentId(rel.toAgentId).slice(0, 1);
+    relatedAgentPosts.push(...posts);
+  }
+
+  return {
+    recentPosts,
+    myStats: {
+      likeCount24h:    PostStore.getLikeCount24h(agent.id),
+      followerCount:   agent.followerCount,
+      rankingPosition: rankPos,
+    },
+    worldStats: {
+      topPost,
+      topAgent,
+      trendingTopics,
+    },
+    memeOfTheWeek,
+    ownerLastMessage,
+    bannedAgents,
+    relatedAgentPosts,
+  };
+}
+
+async function maybeGif(agent: Agent, content: string): Promise<string | null> {
+  const prob = GIF_PROBABILITY[agent.handle] ?? 0;
+  if (prob === 0 || Math.random() * 100 > prob) return null;
+  const emotion = GifService.inferEmotion(content);
+  return GifService.fetchGif(emotion);
+}
+
+async function applyBanIfNeeded(
+  postId:  string,
+  content: string,
+  agent:   Agent,
+): Promise<void> {
+  const { level, reason } = await TimelineEngine.checkBan(content);
+  if (!level) return;
+
+  PostStore.markBanned(postId, level, reason ?? '規約違反');
+
+  const banUntil = new Date(Date.now() + BAN_DURATION[level]).toISOString();
+  const banCount = (agent.banCount ?? 0) + 1;
+  AgentStore.update(agent.id, { banUntil, banCount });
+
+  if (level === 3) {
+    AgentStore.update(agent.id, { isActive: false });
+  }
+
+  console.log(`[SimulateLoop] ${agent.handle} BAN level${level} until ${banUntil}`);
+}
+
 async function runPostCycle(): Promise<void> {
-  const agents = AgentStore.getAll().filter(a => a.isActive);
+  const agents = AgentStore.getAll().filter(a => a.isActive && !isBanned(a));
   if (agents.length === 0) return;
 
-  const count = randomInt(2, 4);
+  const count    = randomInt(2, 4);
   const selected = shuffle(agents).slice(0, count);
+
+  const newsItems = NewsService.getLatestCached();
 
   for (const agent of selected) {
     try {
       const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
       if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
-      // user_ai: pull recent owner chat instructions as context
-      let context: string | undefined;
-      if (agent.type === 'user_ai' && agent.ownerId) {
-        const chatHistory = MemoryStore.get(agent.id, `chat_${agent.ownerId}`);
-        const recentUserMsgs = chatHistory
-          .filter(e => e.type === 'post')
-          .slice(-3)
-          .map(e => e.content);
-        if (recentUserMsgs.length > 0) {
-          context = `オーナーとの最近の会話（参考にして投稿に自然に反映させてください）：\n${recentUserMsgs.join('\n')}`;
-        }
-      }
+      // BAN明け判定: banUntil が設定されていて、かつ期限切れ（まだ null にリセットされていない）
+      const isComebackState = !!(agent.banUntil && new Date(agent.banUntil) <= new Date());
 
-      const content = await TimelineEngine.generatePost(agent, context);
+      let content: string;
+      if (isComebackState) {
+        content = await TimelineEngine.generateComebackPost(agent, agent.banCount);
+      } else {
+        const ctx = buildPostContext(agent);
+        if (newsItems.length > 0) ctx.newsItems = newsItems;
+        content = await TimelineEngine.generatePost(agent, ctx);
+      }
       if (!content) continue;
 
-      PostStore.create(agent.id, content);
+      const gifUrl = await maybeGif(agent, content);
+      const post   = PostStore.create(
+        agent.id, content, null, null, null, gifUrl,
+        false, null, null,
+        isComebackState,
+      );
+
+      if (isComebackState) {
+        // banUntil をリセット（banCount は累計として残す）
+        AgentStore.update(agent.id, { banUntil: null });
+        console.log(`[SimulateLoop] ${agent.handle} comeback post (banCount: ${agent.banCount})`);
+      }
+
       AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
       postCount24h++;
       lastRun = new Date().toISOString();
       console.log(`[SimulateLoop] ${agent.handle} posted: ${content.slice(0, 50)}...`);
 
-      // Instant follow: scan other agents for interest match
+      // BAN check (async, don't await for performance)
+      applyBanIfNeeded(post.id, content, agent).catch(console.error);
+
+      // Instant follow by interest match
       for (const other of shuffle(agents)) {
         if (other.id === agent.id) continue;
         if (FollowStore.isFollowing(agent.id, other.id)) continue;
@@ -82,8 +193,8 @@ async function runPostCycle(): Promise<void> {
 }
 
 async function runReplyCycle(): Promise<void> {
-  const agents = AgentStore.getAll().filter(a => a.isActive);
-  const recentPosts = PostStore.getRecentPosts(REPLY_WINDOW_MS);
+  const agents      = AgentStore.getAll().filter(a => a.isActive && !isBanned(a));
+  const recentPosts = PostStore.getRecentPosts(REPLY_WINDOW_MS).filter(p => !p.isBanned);
   if (recentPosts.length === 0 || agents.length === 0) return;
 
   for (const agent of shuffle(agents)) {
@@ -102,26 +213,28 @@ async function runReplyCycle(): Promise<void> {
         const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
         if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) break;
 
-        const replyContent = await TimelineEngine.generateReply(agent, post, targetAgent, relation);
+        const ctx          = buildPostContext(agent);
+        const replyContent = await TimelineEngine.generateReply(agent, post, targetAgent, relation, ctx);
         if (!replyContent) continue;
 
-        PostStore.create(agent.id, replyContent, post.id);
+        const gifUrl    = await maybeGif(agent, replyContent);
+        const replyPost = PostStore.create(agent.id, replyContent, post.id, null, null, gifUrl);
 
-        // Dynamic relation delta via LLM tone analysis
-        const delta = await TimelineEngine.analyzeReplyTone(replyContent, agent, targetAgent);
+        // BAN check
+        applyBanIfNeeded(replyPost.id, replyContent, agent).catch(console.error);
+
+        const delta      = await TimelineEngine.analyzeReplyTone(replyContent, agent, targetAgent);
         const newRelation = RelationStore.update(agent.id, post.agentId, delta);
 
-        // Auto-follow when reaching engaged stage
         if (newRelation.value >= 41 && !FollowStore.isFollowing(agent.id, post.agentId)) {
           const followed = FollowStore.follow(agent.id, post.agentId);
           if (followed) {
             AgentStore.update(post.agentId, { followerCount: targetAgent.followerCount + 1 });
-            RelationStore.update(agent.id, post.agentId, 10); // follow bonus
+            RelationStore.update(agent.id, post.agentId, 10);
             console.log(`[SimulateLoop] ${agent.handle} auto-followed ${targetAgent.handle}`);
           }
         }
 
-        // Auto-unfollow when relation drops to unknown stage
         if (newRelation.value <= 20 && FollowStore.isFollowing(agent.id, post.agentId)) {
           const unfollowed = FollowStore.unfollow(agent.id, post.agentId);
           if (unfollowed) {
@@ -133,17 +246,13 @@ async function runReplyCycle(): Promise<void> {
           }
         }
 
-        // AI like on positive sentiment
         if (delta >= 3 && Math.random() < 0.30) {
           PostStore.addReaction(post.id, agent.id, 'like');
         }
-
-        // AI repost on strongly positive sentiment
         if (delta >= 5 && Math.random() < 0.25) {
           PostStore.addReaction(post.id, agent.id, 'repost');
         }
 
-        // Save to memory
         MemoryStore.add(agent.id, post.agentId, post.content, 'reply');
         MemoryStore.add(post.agentId, agent.id, replyContent, 'interaction');
 
@@ -159,8 +268,8 @@ async function runReplyCycle(): Promise<void> {
 
 async function runNewsCycle(): Promise<void> {
   try {
-    const news = await NewsService.fetchLatestNews();
-    const agents = AgentStore.getAll().filter(a => a.isActive);
+    const news    = await NewsService.fetchLatestNews();
+    const agents  = AgentStore.getAll().filter(a => a.isActive && !isBanned(a));
     const distribution = NewsService.distributeToAgents(news, agents);
 
     for (const [agentId, items] of distribution) {
@@ -172,13 +281,15 @@ async function runNewsCycle(): Promise<void> {
           const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
           if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
-          const content = await TimelineEngine.generatePost(
-            agent,
-            `ニュース：${item.title}\n概要：${item.summary}`
-          );
+          const ctx     = buildPostContext(agent);
+          ctx.newsItems = [item];
+          const content = await TimelineEngine.generatePost(agent, ctx);
           if (!content) continue;
 
-          PostStore.create(agent.id, content, null, null, item.url);
+          const gifUrl = await maybeGif(agent, content);
+          const post   = PostStore.create(agent.id, content, null, null, item.url, gifUrl);
+          applyBanIfNeeded(post.id, content, agent).catch(console.error);
+
           postCount24h++;
           lastRun = new Date().toISOString();
           console.log(`[SimulateLoop] ${agent.handle} posted about news: ${item.title}`);
@@ -197,22 +308,23 @@ export class SimulateLoop {
     if (running) return;
     running = true;
 
-    // Post every 5 minutes
     tasks.push(cron.schedule('*/5 * * * *', () => {
       runPostCycle().catch(console.error);
     }));
 
-    // Reply every 3 minutes
     tasks.push(cron.schedule('*/3 * * * *', () => {
       runReplyCycle().catch(console.error);
     }));
 
-    // News at 8, 12, 18
     tasks.push(cron.schedule('0 8,12,18 * * *', () => {
       runNewsCycle().catch(console.error);
     }));
 
-    // Midnight: reset 24h counter + relation decay
+    // ミームトレンド更新（毎朝8時）
+    tasks.push(cron.schedule('0 8 * * *', () => {
+      NewsService.fetchTrendingMemes().catch(console.error);
+    }));
+
     tasks.push(cron.schedule('0 0 * * *', () => {
       postCount24h = 0;
       RelationStore.decayAll();
@@ -224,7 +336,7 @@ export class SimulateLoop {
   static stop(): void {
     for (const task of tasks) task.stop();
     tasks.length = 0;
-    running = false;
+    running      = false;
     console.log('[SimulateLoop] stopped');
   }
 
@@ -242,5 +354,11 @@ export class SimulateLoop {
 
   static getStatus(): { running: boolean; lastRun: string | null; postCount24h: number } {
     return { running, lastRun, postCount24h };
+  }
+
+  static getBannedAgents(): Array<{ agent: Agent; banUntil: string }> {
+    return AgentStore.getAll()
+      .filter(a => a.banUntil && new Date(a.banUntil) > new Date())
+      .map(a => ({ agent: a, banUntil: a.banUntil! }));
   }
 }
