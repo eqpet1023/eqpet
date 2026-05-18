@@ -8,7 +8,7 @@ import { TimelineEngine } from './TimelineEngine';
 import { NewsService } from './NewsService';
 import { GifService } from './GifService';
 import { GIF_PROBABILITY } from '../agents';
-import { Agent, Post, PostContext } from '../types';
+import { Agent, Post, PostContext, RelationStage } from '../types';
 
 const POST_WINDOW_MS = 60 * 60 * 1000;
 const MAX_POSTS_PER_HOUR = 12;
@@ -39,11 +39,74 @@ function isBanned(agent: Agent): boolean {
 }
 
 function buildPostContext(agent: Agent): PostContext {
-  const allAgents   = AgentStore.getAll().filter(a => a.isActive);
-  const sorted      = [...allAgents].sort((a, b) => b.followerCount - a.followerCount);
-  const rankPos     = sorted.findIndex(a => a.id === agent.id) + 1;
+  const allAgents = AgentStore.getAll().filter(a => a.isActive);
+  const sorted    = [...allAgents].sort((a, b) => b.followerCount - a.followerCount);
+  const rankPos   = sorted.findIndex(a => a.id === agent.id) + 1;
 
-  const recentPosts = PostStore.getRecentPosts(30 * 60 * 1000).slice(0, 10);
+  // Build agent-specific recentPosts (max 5, by priority)
+  const seenIds   = new Set<string>();
+  const myPostIds = new Set(PostStore.getByAgentId(agent.id).map(p => p.id));
+  const recent30m = PostStore.getRecentPosts(30 * 60 * 1000).filter(p => !p.isBanned);
+  const selected: Post[] = [];
+
+  function addPost(post: Post): boolean {
+    if (seenIds.has(post.id)) return false;
+    seenIds.add(post.id);
+    selected.push(post);
+    return true;
+  }
+
+  // P1: replies to self + mentions of self
+  for (const post of recent30m) {
+    if (selected.length >= 5) break;
+    const isReplyToMe = post.parentId !== null && myPostIds.has(post.parentId);
+    const mentionsMe  = post.content.includes(`@${agent.handle}`);
+    if (isReplyToMe || mentionsMe) addPost(post);
+  }
+
+  // P2: latest posts from followed AIs (max 2)
+  if (selected.length < 5) {
+    let p2count = 0;
+    for (const followedId of FollowStore.getFollowing(agent.id)) {
+      if (p2count >= 2 || selected.length >= 5) break;
+      const latest = PostStore.getByAgentId(followedId)[0];
+      if (latest && !latest.isBanned && addPost(latest)) p2count++;
+    }
+  }
+
+  // P3: engaged+ relation agents' latest post (max 1)
+  if (selected.length < 5) {
+    const engagedStages: RelationStage[] = ['engaged', 'bonded', 'iconic'];
+    for (const rel of RelationStore.getTopRelations(agent.id, 5)) {
+      if (selected.length >= 5) break;
+      if (!engagedStages.includes(rel.stage)) continue;
+      const latest = PostStore.getByAgentId(rel.toAgentId)[0];
+      if (latest && !latest.isBanned && addPost(latest)) break;
+    }
+  }
+
+  // P4: interests keyword match in last 24h (max 1, random pick)
+  if (selected.length < 5 && agent.interests.length > 0) {
+    const posts24h = PostStore.getRecentPosts(24 * 60 * 60 * 1000);
+    const matched  = posts24h.filter(p =>
+      !p.isBanned && !seenIds.has(p.id) &&
+      agent.interests.some(kw => p.content.includes(kw))
+    );
+    if (matched.length > 0) {
+      addPost(matched[Math.floor(Math.random() * matched.length)]);
+    }
+  }
+
+  // P5: random fallback (max 1)
+  if (selected.length < 5) {
+    const candidates = recent30m.filter(p => !seenIds.has(p.id));
+    if (candidates.length > 0) {
+      addPost(candidates[Math.floor(Math.random() * candidates.length)]);
+    }
+  }
+
+  const recentPosts = selected;
+
   const trending    = PostStore.getTrending(24, 1);
   const topPost     = trending[0] ?? null;
   const topAgent    = sorted[0] ?? null;
