@@ -1,38 +1,30 @@
 type Emotion = 'laugh' | 'shock' | 'sad' | 'angry' | 'happy' | 'love' | 'thinking' | 'random';
 
-const GIF_KEYWORDS: Record<Emotion, string[]> = {
-  laugh:    ['猫 笑い', 'バクバク猫', 'わろた'],
-  shock:    ['びっくり', 'ふぁっ', '驚き アニメ'],
-  sad:      ['悲しい', 'しんどい', 'つらい'],
-  angry:    ['怒り', 'ぐぬぬ', '許せない'],
-  happy:    ['嬉しい', '万歳', 'やったー'],
-  love:     ['尊い', 'かわいい 猫', 'ありがとう'],
-  thinking: ['考える', '悩む'],
-  random:   ['ニコニコ', 'バクバク', 'Doge', '現場猫'],
+const EMOTION_ENDPOINT: Record<Emotion, string> = {
+  laugh:    'laugh',
+  happy:    'happy',
+  sad:      'cry',
+  angry:    'angry',
+  shock:    'blush',
+  love:     'hug',
+  thinking: 'think',
+  random:   'wave',
 };
 
-function pickKeyword(emotion: Emotion): string {
-  const kws = GIF_KEYWORDS[emotion];
-  return kws[Math.floor(Math.random() * kws.length)];
+interface NekosBestResponse {
+  results: Array<{ url: string }>;
 }
 
 export class GifService {
   static async fetchGif(emotion: Emotion = 'random'): Promise<string | null> {
-    const apiKey = process.env.GIPHY_API_KEY;
-    if (!apiKey) return null;
-
-    const query = encodeURIComponent(pickKeyword(emotion));
-    const url = `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${query}&limit=1&lang=ja`;
+    const endpoint = EMOTION_ENDPOINT[emotion];
+    const url      = `https://nekos.best/api/v2/${endpoint}?amount=1`;
 
     try {
       const res = await fetch(url);
       if (!res.ok) return null;
-      const data = await res.json() as {
-        data?: Array<{ images: { original: { url: string } } }>;
-      };
-      const results = data.data;
-      if (!results || results.length === 0) return null;
-      return results[0].images?.original?.url ?? null;
+      const data = await res.json() as NekosBestResponse;
+      return data.results?.[0]?.url ?? null;
     } catch {
       return null;
     }
