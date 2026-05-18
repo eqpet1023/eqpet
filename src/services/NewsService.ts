@@ -5,14 +5,15 @@ import { NewsItem, Agent } from '../types';
 const NEWS_DIR   = path.join(__dirname, '../../data/news');
 const TRENDS_DIR = path.join(__dirname, '../../data/trends');
 
-const NEWS_API_KEY = process.env.NEWS_API_KEY;
-const BASE_URL     = 'https://newsapi.org/v2/top-headlines';
+const NEWS_API_KEY   = process.env.NEWS_API_KEY;
+const EVERYTHING_URL = 'https://newsapi.org/v2/everything';
+const HEADLINES_URL  = 'https://newsapi.org/v2/top-headlines';
 
-const CATEGORY_MAP: Record<string, string> = {
-  technology:    'テクノロジー',
-  sports:        'スポーツ',
-  entertainment: '芸能',
-  business:      '経済',
+const KEYWORD_CATEGORY: Record<string, string> = {
+  '日本':       '一般',
+  'スポーツ':   'スポーツ',
+  'テクノロジー': 'テクノロジー',
+  'エンタメ':   '芸能',
 };
 
 interface NewsApiArticle {
@@ -53,14 +54,14 @@ function toNewsItem(article: NewsApiArticle, category: string): NewsItem {
   };
 }
 
-async function fetchFromApi(params: Record<string, string>): Promise<NewsApiArticle[]> {
+async function fetchFromApi(baseUrl: string, params: Record<string, string>): Promise<NewsApiArticle[]> {
   if (!NEWS_API_KEY) {
     console.warn('[NewsService] NEWS_API_KEY is not set');
     return [];
   }
 
   const qs  = new URLSearchParams({ ...params, apiKey: NEWS_API_KEY, pageSize: '10' });
-  const url = `${BASE_URL}?${qs.toString()}`;
+  const url = `${baseUrl}?${qs.toString()}`;
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -96,14 +97,14 @@ export class NewsService {
     try {
       const allNews: NewsItem[] = [];
 
-      // トップヘッドライン（カテゴリなし）
-      const top = await fetchFromApi({ country: 'jp' });
-      allNews.push(...top.map(a => toNewsItem(a, '一般')));
-
-      // カテゴリ別
-      for (const [enCat, jaCat] of Object.entries(CATEGORY_MAP)) {
-        const articles = await fetchFromApi({ country: 'jp', category: enCat });
-        allNews.push(...articles.map(a => toNewsItem(a, jaCat)));
+      // language=ja + キーワード別
+      for (const [q, category] of Object.entries(KEYWORD_CATEGORY)) {
+        const articles = await fetchFromApi(EVERYTHING_URL, {
+          language: 'ja',
+          sortBy:   'publishedAt',
+          q,
+        });
+        allNews.push(...articles.map(a => toNewsItem(a, category)));
       }
 
       // 重複URL除去
@@ -116,11 +117,22 @@ export class NewsService {
 
       if (dedup.length > 0) {
         fs.writeFileSync(cachePath, JSON.stringify(dedup, null, 2));
-        console.log(`[NewsService] cached ${dedup.length} articles`);
+        console.log(`[NewsService] cached ${dedup.length} ja articles`);
         return dedup;
       }
 
-      console.warn('[NewsService] no articles fetched, using empty cache');
+      // フォールバック: 英語トップヘッドライン
+      console.warn('[NewsService] no ja articles found, falling back to US headlines');
+      const usArticles = await fetchFromApi(HEADLINES_URL, { country: 'us' });
+      const usNews     = usArticles.map(a => toNewsItem(a, 'world'));
+
+      if (usNews.length > 0) {
+        fs.writeFileSync(cachePath, JSON.stringify(usNews, null, 2));
+        console.log(`[NewsService] cached ${usNews.length} US fallback articles`);
+        return usNews;
+      }
+
+      console.warn('[NewsService] no articles fetched at all');
       fs.writeFileSync(cachePath, JSON.stringify([], null, 2));
       return [];
 
