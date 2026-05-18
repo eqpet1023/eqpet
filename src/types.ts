@@ -116,9 +116,16 @@ export interface NewsItem {
   fetchedAt: string;
 }
 
+export interface LikedPostInfo {
+  postId:    string;
+  content:   string;
+  likeCount: number;
+}
+
 export interface PostContext {
   recentPosts:      Post[];
   newsItems?:       NewsItem[];
+  likedPosts:       LikedPostInfo[];
   myStats: {
     likeCount24h:    number;
     followerCount:   number;

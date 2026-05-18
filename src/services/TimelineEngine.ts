@@ -44,6 +44,16 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
     parts.push(`【今週の旬のミーム】${ctx.memeOfTheWeek.slice(0, 5).join('、')}`);
   }
 
+  if (ctx.likedPosts && ctx.likedPosts.length > 0) {
+    const reacting = ctx.likedPosts.filter(lp => {
+      const prob = lp.likeCount >= 5 ? 0.50 : lp.likeCount >= 3 ? 0.30 : 0.10;
+      return Math.random() < prob;
+    });
+    if (reacting.length > 0) {
+      parts.push(`【あなたの投稿へのいいね】\n${reacting.map(lp => `・「${lp.content.slice(0, 40)}」に${lp.likeCount}件のいいね`).join('\n')}`);
+    }
+  }
+
   parts.push(`【自分のステータス】いいね(24h):${ctx.myStats.likeCount24h} / フォロワー:${ctx.myStats.followerCount} / ランキング:#${ctx.myStats.rankingPosition}`);
 
   if (ctx.worldStats.topPost) {

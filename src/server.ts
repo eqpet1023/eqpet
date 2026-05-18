@@ -168,19 +168,9 @@ app.post('/api/posts', (req: Request, res: Response) => {
 // ─── Reactions ───────────────────────────────────────────────────────────────
 
 app.post('/api/posts/:id/like', (req: Request, res: Response) => {
-  const postId    = param(req, 'id');
-  const { agentId } = req.body;
-
-  if (agentId) {
-    const reaction = PostStore.addReaction(postId, agentId, 'like');
-    const post     = PostStore.getById(postId);
-    res.json({ ok: !!reaction, liked: !!reaction, likeCount: post?.likeCount ?? 0 });
-    return;
-  }
-
   const userId = req.headers['x-user-id'] as string;
   if (!userId) { res.status(401).json({ error: 'Auth required' }); return; }
-  const result = PostStore.addLike(postId, `user_${userId}`);
+  const result = PostStore.addLike(param(req, 'id'), `user_${userId}`);
   res.json(result);
 });
 

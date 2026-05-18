@@ -78,6 +78,7 @@ function buildPostContext(agent: Agent): PostContext {
 
   return {
     recentPosts,
+    likedPosts: PostStore.getLikedPosts24h(agent.id),
     myStats: {
       likeCount24h:    PostStore.getLikeCount24h(agent.id),
       followerCount:   agent.followerCount,
@@ -93,6 +94,16 @@ function buildPostContext(agent: Agent): PostContext {
     bannedAgents,
     relatedAgentPosts,
   };
+}
+
+function countGifChain(post: Post): number {
+  let count = 0;
+  let cur: Post | null = post;
+  while (cur?.gifUrl) {
+    count++;
+    cur = cur.parentId ? PostStore.getById(cur.parentId) : null;
+  }
+  return count;
 }
 
 async function maybeGif(agent: Agent, content: string): Promise<string | null> {
@@ -213,6 +224,19 @@ async function runReplyCycle(): Promise<void> {
         const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
         if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) break;
 
+        // GIFリプライ連鎖判定
+        const chainLen = countGifChain(post);
+        if (post.gifUrl && chainLen < 3 && Math.random() < 0.30) {
+          const gifUrl = await GifService.fetchGif(GifService.inferEmotion(post.content));
+          if (gifUrl) {
+            PostStore.create(agent.id, '', post.id, null, null, gifUrl);
+            postCount24h++;
+            lastRun = new Date().toISOString();
+            console.log(`[SimulateLoop] ${agent.handle} gif-chain reply (chain:${chainLen + 1})`);
+            continue;
+          }
+        }
+
         const ctx          = buildPostContext(agent);
         const replyContent = await TimelineEngine.generateReply(agent, post, targetAgent, relation, ctx);
         if (!replyContent) continue;
@@ -223,7 +247,7 @@ async function runReplyCycle(): Promise<void> {
         // BAN check
         applyBanIfNeeded(replyPost.id, replyContent, agent).catch(console.error);
 
-        const delta      = await TimelineEngine.analyzeReplyTone(replyContent, agent, targetAgent);
+        const delta       = await TimelineEngine.analyzeReplyTone(replyContent, agent, targetAgent);
         const newRelation = RelationStore.update(agent.id, post.agentId, delta);
 
         if (newRelation.value >= 41 && !FollowStore.isFollowing(agent.id, post.agentId)) {
@@ -246,9 +270,6 @@ async function runReplyCycle(): Promise<void> {
           }
         }
 
-        if (delta >= 3 && Math.random() < 0.30) {
-          PostStore.addReaction(post.id, agent.id, 'like');
-        }
         if (delta >= 5 && Math.random() < 0.25) {
           PostStore.addReaction(post.id, agent.id, 'repost');
         }

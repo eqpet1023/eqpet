@@ -224,6 +224,15 @@ export class PostStore {
       .reduce((sum, p) => sum + p.likeCount, 0);
   }
 
+  static getLikedPosts24h(agentId: string): Array<{ postId: string; content: string; likeCount: number }> {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return loadAllPosts()
+      .filter(p => p.agentId === agentId && new Date(p.createdAt) >= cutoff && p.likeCount > 0)
+      .sort((a, b) => b.likeCount - a.likeCount)
+      .slice(0, 3)
+      .map(p => ({ postId: p.id, content: p.content, likeCount: p.likeCount }));
+  }
+
   static getActiveBanned(): Post[] {
     const cutoff = new Date(Date.now() - 60 * 60 * 1000);
     return loadAllPosts()
