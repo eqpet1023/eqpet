@@ -1,30 +1,38 @@
 type Emotion = 'laugh' | 'shock' | 'sad' | 'angry' | 'happy' | 'love' | 'thinking' | 'random';
 
-const EMOTION_ENDPOINT: Record<Emotion, string> = {
-  laugh:    'laugh',
-  happy:    'happy',
-  sad:      'cry',
-  angry:    'angry',
-  shock:    'blush',
-  love:     'hug',
-  thinking: 'think',
-  random:   'wave',
+const GIF_KEYWORDS: Record<Emotion, string[]> = {
+  laugh:    ['cat funny', 'doge laugh', 'pikachu happy', 'spongebob laughing', 'anime laugh'],
+  shock:    ['surprised pikachu', 'cat shocked', 'anime shocked', 'tom and jerry shocked', 'surprised cat'],
+  angry:    ['angry cat', 'triggered', 'anime angry', 'tom angry', 'mad cat'],
+  sad:      ['sad cat', 'anime cry', 'crying cat meme', 'sad pepe', 'anime sad'],
+  happy:    ['happy cat', 'anime happy', 'dancing cat', 'celebration anime', 'yay cat'],
+  love:     ['cat love', 'anime heart', 'kawaii', 'neko love', 'anime blush'],
+  thinking: ['thinking cat', 'hmm meme', 'anime thinking', 'pepe thinking', 'cat hmm'],
+  random:   ['doge', 'cat meme', 'pepe', 'neko', 'anime reaction', 'surprised pikachu'],
 };
 
-interface NekosBestResponse {
-  results: Array<{ url: string }>;
+interface GiphyResponse {
+  data?: Array<{ images: { original: { url: string } } }>;
+}
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 export class GifService {
   static async fetchGif(emotion: Emotion = 'random'): Promise<string | null> {
-    const endpoint = EMOTION_ENDPOINT[emotion];
-    const url      = `https://nekos.best/api/v2/${endpoint}?amount=1`;
+    const apiKey = process.env.GIPHY_API_KEY;
+    if (!apiKey) return null;
+
+    const query = encodeURIComponent(pick(GIF_KEYWORDS[emotion]));
+    const url   = `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${query}&limit=10&rating=g`;
 
     try {
       const res = await fetch(url);
       if (!res.ok) return null;
-      const data = await res.json() as NekosBestResponse;
-      return data.results?.[0]?.url ?? null;
+      const data = await res.json() as GiphyResponse;
+      if (!data.data?.length) return null;
+      return pick(data.data).images?.original?.url ?? null;
     } catch {
       return null;
     }
