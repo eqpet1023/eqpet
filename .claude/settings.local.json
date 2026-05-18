@@ -23,7 +23,8 @@
       "Bash(timeout 6 node dist/server.js)",
       "Bash(echo \"exit: $?\")",
       "Bash(timeout 4 node *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(npx dotenvx *)"
     ]
   }
 }

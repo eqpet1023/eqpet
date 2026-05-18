@@ -1,12 +1,31 @@
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 import { NewsItem, Agent } from '../types';
 
-const client = new Anthropic({ apiKey: process.env.EQPET_API_KEY });
-
 const NEWS_DIR   = path.join(__dirname, '../../data/news');
 const TRENDS_DIR = path.join(__dirname, '../../data/trends');
+
+const NEWS_API_KEY = process.env.NEWS_API_KEY;
+const BASE_URL     = 'https://newsapi.org/v2/top-headlines';
+
+const CATEGORY_MAP: Record<string, string> = {
+  technology:    'テクノロジー',
+  sports:        'スポーツ',
+  entertainment: '芸能',
+  business:      '経済',
+};
+
+interface NewsApiArticle {
+  title:       string;
+  description: string | null;
+  url:         string;
+  publishedAt: string;
+}
+
+interface NewsApiResponse {
+  status:   string;
+  articles: NewsApiArticle[];
+}
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -24,6 +43,41 @@ function ensureTrendsDir(): void {
   if (!fs.existsSync(TRENDS_DIR)) fs.mkdirSync(TRENDS_DIR, { recursive: true });
 }
 
+function toNewsItem(article: NewsApiArticle, category: string): NewsItem {
+  return {
+    title:     article.title,
+    url:       article.url,
+    summary:   article.description ?? article.title,
+    category,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+async function fetchFromApi(params: Record<string, string>): Promise<NewsApiArticle[]> {
+  if (!NEWS_API_KEY) {
+    console.warn('[NewsService] NEWS_API_KEY is not set');
+    return [];
+  }
+
+  const qs  = new URLSearchParams({ ...params, apiKey: NEWS_API_KEY, pageSize: '10' });
+  const url = `${BASE_URL}?${qs.toString()}`;
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`[NewsService] API error ${res.status}:`, body);
+    return [];
+  }
+
+  const data = await res.json() as NewsApiResponse;
+  if (data.status !== 'ok') {
+    console.error('[NewsService] API returned status:', data.status);
+    return [];
+  }
+
+  return data.articles.filter(a => a.title && a.url);
+}
+
 export class NewsService {
   static async fetchAndCache(): Promise<NewsItem[]> {
     return NewsService.fetchLatestNews();
@@ -31,7 +85,7 @@ export class NewsService {
 
   static async fetchLatestNews(): Promise<NewsItem[]> {
     ensureNewsDir();
-    const dateKey  = todayKey();
+    const dateKey   = todayKey();
     const cachePath = newsFilePath(dateKey);
 
     if (fs.existsSync(cachePath)) {
@@ -40,116 +94,56 @@ export class NewsService {
     }
 
     try {
-      const response = await client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 1000,
-        messages: [
-          {
-            role:    'user',
-            content: '今日の日本の主要ニュースを3件、JSON配列形式で教えてください。各ニュースには title, url, summary, category フィールドを含めてください。JSONのみ返してください。',
-          },
-        ],
-      });
+      const allNews: NewsItem[] = [];
 
-      console.log('[NewsService] response stop_reason:', response.stop_reason, '/ content types:', response.content.map(b => b.type).join(','));
+      // トップヘッドライン（カテゴリなし）
+      const top = await fetchFromApi({ country: 'jp' });
+      allNews.push(...top.map(a => toNewsItem(a, '一般')));
 
-      for (const block of response.content) {
-        if (block.type === 'text') {
-          const match = block.text.match(/\[[\s\S]*\]/);
-          if (match) {
-            try {
-              const items = JSON.parse(match[0]) as Omit<NewsItem, 'fetchedAt'>[];
-              const news: NewsItem[] = items.map(item => ({
-                ...item,
-                fetchedAt: new Date().toISOString(),
-              }));
-              fs.writeFileSync(cachePath, JSON.stringify(news, null, 2));
-              return news;
-            } catch (parseErr) {
-              console.error('[NewsService] JSON parse error:', parseErr, '/ raw text:', block.text.slice(0, 200));
-            }
-          } else {
-            console.warn('[NewsService] no JSON array found in text block:', block.text.slice(0, 200));
-          }
-        }
+      // カテゴリ別
+      for (const [enCat, jaCat] of Object.entries(CATEGORY_MAP)) {
+        const articles = await fetchFromApi({ country: 'jp', category: enCat });
+        allNews.push(...articles.map(a => toNewsItem(a, jaCat)));
       }
 
-      const fallback: NewsItem[] = [
-        {
-          title:     '本日のニュース',
-          url:       'https://example.com',
-          summary:   'ニュースの取得に失敗しました。',
-          category:  '一般',
-          fetchedAt: new Date().toISOString(),
-        },
-      ];
-      fs.writeFileSync(cachePath, JSON.stringify(fallback, null, 2));
-      return fallback;
+      // 重複URL除去
+      const seen  = new Set<string>();
+      const dedup = allNews.filter(item => {
+        if (seen.has(item.url)) return false;
+        seen.add(item.url);
+        return true;
+      });
+
+      if (dedup.length > 0) {
+        fs.writeFileSync(cachePath, JSON.stringify(dedup, null, 2));
+        console.log(`[NewsService] cached ${dedup.length} articles`);
+        return dedup;
+      }
+
+      console.warn('[NewsService] no articles fetched, using empty cache');
+      fs.writeFileSync(cachePath, JSON.stringify([], null, 2));
+      return [];
 
     } catch (err: unknown) {
-      const e = err as { message?: string; status?: number; error?: unknown };
-      console.error('[NewsService] fetchLatestNews error — status:', e.status, '/ message:', e.message, '/ detail:', JSON.stringify(e.error ?? err));
+      const e = err as { message?: string; status?: number };
+      console.error('[NewsService] fetchLatestNews error — message:', e.message ?? err);
       return [];
     }
   }
 
   static async fetchTrendingMemes(): Promise<string[]> {
-    ensureTrendsDir();
-    const memesPath = path.join(TRENDS_DIR, 'memes.json');
-
-    if (fs.existsSync(memesPath)) {
-      const data = JSON.parse(fs.readFileSync(memesPath, 'utf-8')) as { memes: string[]; fetchedAt: string };
-      const ageMs = Date.now() - new Date(data.fetchedAt).getTime();
-      if (ageMs < 24 * 60 * 60 * 1000) return data.memes;
-    }
-
-    try {
-      const response = await client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 500,
-        messages: [
-          {
-            role:    'user',
-            content: `今週日本のTwitter・ネットで流行っているスラング・ミーム・流行語を10件、JSON配列（文字列のリスト）で返してください。JSONのみ返してください。例：["草","神回","それな","エモい","優勝"]`,
-          },
-        ],
-      });
-
-      for (const block of response.content) {
-        if (block.type === 'text') {
-          const match = block.text.match(/\[[\s\S]*?\]/);
-          if (match) {
-            try {
-              const memes = JSON.parse(match[0]) as string[];
-              fs.writeFileSync(memesPath, JSON.stringify({ memes, fetchedAt: new Date().toISOString() }, null, 2));
-              return memes;
-            } catch {
-              // fall through to fallback
-            }
-          }
-        }
-      }
-    } catch (err: unknown) {
-      const e = err as { message?: string; status?: number; error?: unknown };
-      console.error('[NewsService] fetchTrendingMemes error — status:', e.status, '/ message:', e.message, '/ detail:', JSON.stringify(e.error ?? err));
-    }
-
-    const fallback = ['草', '神回', 'それな', 'エモい', '優勝', '尊い', '闇が深い', 'わかりみ', 'ガチ', '888'];
-    if (!fs.existsSync(memesPath)) {
-      fs.writeFileSync(memesPath, JSON.stringify({ memes: fallback, fetchedAt: new Date().toISOString() }, null, 2));
-    }
-    return fallback;
+    return NewsService.getCachedMemes();
   }
 
   static getCachedMemes(): string[] {
     ensureTrendsDir();
     const memesPath = path.join(TRENDS_DIR, 'memes.json');
-    if (!fs.existsSync(memesPath)) return [];
+    if (!fs.existsSync(memesPath)) return FALLBACK_MEMES;
     try {
       const data = JSON.parse(fs.readFileSync(memesPath, 'utf-8')) as { memes: string[] };
       return data.memes;
     } catch {
-      return [];
+      return FALLBACK_MEMES;
     }
   }
 
@@ -169,9 +163,15 @@ export class NewsService {
 
   static getLatestCached(): NewsItem[] {
     ensureNewsDir();
-    const dateKey  = todayKey();
+    const dateKey   = todayKey();
     const cachePath = newsFilePath(dateKey);
     if (!fs.existsSync(cachePath)) return [];
-    return JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+    try {
+      return JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as NewsItem[];
+    } catch {
+      return [];
+    }
   }
 }
+
+const FALLBACK_MEMES = ['草', '神回', 'それな', 'エモい', '優勝', '尊い', '闇が深い', 'わかりみ', 'ガチ', '888'];
