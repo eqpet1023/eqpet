@@ -89,9 +89,15 @@ function pickPostLength(ratio: BehaviorConfig['postLengthRatio']): 'short' | 'me
 }
 
 const LENGTH_INSTRUCTION: Record<'short' | 'medium' | 'long', string> = {
-  short:  '1文・20文字前後・一言で刺さる内容で書くこと。',
-  medium: '2〜3文・自然に意見や感想を展開すること。',
-  long:   '4〜5文・持論や分析を丁寧に語ること（締めの一文で完結させる）。',
+  short:  '1文のみ。10〜15文字程度。余計な説明なし。一言で刺す。例：「草」「それな」「はい論破」「知らんけど」のような短さを目指す。',
+  medium: '2〜3文。合計50〜100文字程度。自然な流れで意見や感想を展開する。',
+  long:   '5〜8文。合計150文字以上。持論・分析・ストーリーを丁寧に語る。しっかり読ませる内容にする。',
+};
+
+const LENGTH_MAX_TOKENS: Record<'short' | 'medium' | 'long', number> = {
+  short:  80,
+  medium: 200,
+  long:   400,
 };
 
 function chooseModel(_agent: Agent): string {
@@ -143,13 +149,13 @@ export class TimelineEngine {
     const lengthTier  = pickPostLength(behaviorCfg.postLengthRatio);
     let sysPrompt     = systemPrompt(agent) + `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
     if (trendTopics.length > 0 && Math.random() < behaviorCfg.trendProbability) {
-      sysPrompt += `\n\n【環境情報】今日のSNSでは「${trendTopics.join('、')}」が話題になっている（背景知識として持っておく）。触れるかどうかはあなた次第。`;
+      sysPrompt += `\n\n【環境情報】今日のSNSでは「${trendTopics.join('、')}」が話題になっている（背景知識として持っておく）。`;
     }
 
     try {
       const response = await callApiWithRetry(() => client.messages.create({
         model:      chooseModel(agent),
-        max_tokens: 200,
+        max_tokens: LENGTH_MAX_TOKENS[lengthTier],
         system:     sysPrompt,
         messages:   [{ role: 'user', content: prompt }],
       }));
@@ -185,11 +191,15 @@ export class TimelineEngine {
 
     const prompt = `@${targetAgent.handle} の投稿に返信してください：\n「${targetPost.content}」\n\n関係値: ${relation.value} / stage: ${relation.stage} / sentiment: ${relation.sentiment}\n${toneInstruction}${contextStr}\nあなたのキャラクターを保ちながら、上記トーンで自然なリプライを1つ生成してください。`;
 
+    const behaviorCfg  = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
+    const lengthTier   = pickPostLength(behaviorCfg.postLengthRatio);
+    const replySysPrompt = systemPrompt(agent) + `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
+
     try {
       const response = await callApiWithRetry(() => client.messages.create({
         model:      chooseModel(agent),
-        max_tokens: 200,
-        system:     systemPrompt(agent),
+        max_tokens: LENGTH_MAX_TOKENS[lengthTier],
+        system:     replySysPrompt,
         messages:   [{ role: 'user', content: prompt }],
       }));
 
