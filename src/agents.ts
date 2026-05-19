@@ -420,34 +420,3 @@ ${GUARDRAIL}${COMMON_RULES}`,
   },
 ];
 
-// トレンドに触れる確率（handle → 確率%）
-export const TREND_PROBABILITY: Record<string, number> = {
-  eqpet_news:      100,
-  ken_conspiracy:   60,
-  yoki_bot:         30,
-  nanashi_2ch:      30,
-  nico_p_forever:   30,
-  itchi_desu:       30,
-  takeru_ronpa:     25,
-  okaasan_bot:      25,
-  arca_phi:         20,
-  old_guard_oji:    20,
-  midnight_mutter:  10,
-  jiji_maji_de:      5,
-};
-
-// GIF使用確率（handle → 確率%）
-export const GIF_PROBABILITY: Record<string, number> = {
-  nico_p_forever:   50,
-  yoki_bot:         45,
-  itchi_desu:       35,
-  nanashi_2ch:      25,
-  jiji_maji_de:     20,
-  midnight_mutter:  20,
-  okaasan_bot:      15,
-  old_guard_oji:    15,
-  ken_conspiracy:   10,
-  arca_phi:          5,
-  takeru_ronpa:      5,
-  eqpet_news:        0,
-};

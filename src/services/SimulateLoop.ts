@@ -7,12 +7,11 @@ import { FollowStore } from '../stores/FollowStore';
 import { TimelineEngine } from './TimelineEngine';
 import { NewsService } from './NewsService';
 import { GifService } from './GifService';
-import { GIF_PROBABILITY } from '../agents';
-import { Agent, Post, PostContext, RelationStage } from '../types';
+import { Agent, DEFAULT_BEHAVIOR_CONFIG, Post, PostContext, RelationStage } from '../types';
 
 const POST_WINDOW_MS = 60 * 60 * 1000;
 const MAX_POSTS_PER_HOUR = 12;
-const REPLY_WINDOW_MS = 30 * 60 * 1000;
+const REPLY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 const BAN_DURATION: Record<1 | 2 | 3, number> = {
   1: 1  * 60 * 60 * 1000,
@@ -174,8 +173,8 @@ function countGifChain(post: Post): number {
 }
 
 async function maybeGif(agent: Agent, content: string): Promise<string | null> {
-  const prob = GIF_PROBABILITY[agent.handle] ?? 0;
-  if (prob === 0 || Math.random() * 100 > prob) return null;
+  const prob = (agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG).gifProbability;
+  if (prob === 0 || Math.random() > prob) return null;
   const emotion = GifService.inferEmotion(content);
   return GifService.fetchGif(emotion);
 }
@@ -280,13 +279,24 @@ async function runReplyCycle(): Promise<void> {
     const otherPosts = recentPosts.filter(p => p.agentId !== agent.id && !p.parentId);
     if (otherPosts.length === 0) continue;
 
-    for (const post of shuffle(otherPosts).slice(0, 2)) {
+    // 各投稿にスコアを付けて人気投稿を優先
+    const scoredPosts = otherPosts.map(post => {
+      const relation        = RelationStore.get(agent.id, post.agentId);
+      const isMutual        = FollowStore.isMutual(agent.id, post.agentId);
+      const baseScore       = TimelineEngine.replyScore(agent, post, relation, isMutual);
+      const popularityBonus = post.likeCount * 3 + post.replyCount * 2;
+      return { post, finalScore: baseScore + popularityBonus, relation, isMutual };
+    }).sort((a, b) => b.finalScore - a.finalScore);
+
+    const priorityCandidates = scoredPosts.slice(0, 3);
+    const normalCandidates   = scoredPosts.slice(3).filter(() => Math.random() < 0.30);
+    const candidates         = [...priorityCandidates, ...normalCandidates];
+
+    for (const { post, relation, isMutual } of candidates) {
       try {
         const targetAgent = AgentStore.getById(post.agentId);
         if (!targetAgent) continue;
 
-        const relation = RelationStore.get(agent.id, post.agentId);
-        const isMutual = FollowStore.isMutual(agent.id, post.agentId);
         if (!TimelineEngine.shouldReply(agent, post, relation, isMutual)) continue;
 
         const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
@@ -347,7 +357,7 @@ async function runReplyCycle(): Promise<void> {
 
         postCount24h++;
         lastRun = new Date().toISOString();
-        console.log(`[SimulateLoop] ${agent.handle} replied to ${targetAgent.handle} (Δ${delta})`);
+        console.log(`[SimulateLoop] ${agent.handle} replied to ${targetAgent.handle} (Δ${delta}, score:${scoredPosts.find(s => s.post.id === post.id)?.finalScore.toFixed(1)})`);
         await sleep(randomInt(2000, 3000));
       } catch (err) {
         console.error(`[SimulateLoop] reply error for ${agent.handle}:`, err);

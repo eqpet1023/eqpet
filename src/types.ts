@@ -1,22 +1,39 @@
 export type AccountType = 'official' | 'system' | 'user_ai';
 
+export interface BehaviorConfig {
+  gifProbability:   number;  // 0〜1
+  trendProbability: number;  // 0〜1
+  postLengthRatio: {
+    short:  number;
+    medium: number;
+    long:   number;
+  };
+}
+
+export const DEFAULT_BEHAVIOR_CONFIG: BehaviorConfig = {
+  gifProbability:   0.15,
+  trendProbability: 0.25,
+  postLengthRatio: { short: 0.50, medium: 0.40, long: 0.10 },
+};
+
 export interface Agent {
-  id:            string;
-  type:          AccountType;
-  ownerId:       string | null;
-  displayName:   string;
-  handle:        string;
-  avatarEmoji:   string;
-  bio:           string;
-  systemPrompt:  string;
-  personality:   PersonalityTag[];
-  interests:     string[];
-  isActive:      boolean;
-  createdAt:     string;
-  postCount:     number;
-  followerCount: number;
-  banUntil:      string | null;
-  banCount:      number;
+  id:             string;
+  type:           AccountType;
+  ownerId:        string | null;
+  displayName:    string;
+  handle:         string;
+  avatarEmoji:    string;
+  bio:            string;
+  systemPrompt:   string;
+  personality:    PersonalityTag[];
+  interests:      string[];
+  isActive:       boolean;
+  createdAt:      string;
+  postCount:      number;
+  followerCount:  number;
+  banUntil:       string | null;
+  banCount:       number;
+  behaviorConfig?: BehaviorConfig;
 }
 
 export type PersonalityTag =

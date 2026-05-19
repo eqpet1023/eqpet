@@ -217,7 +217,7 @@ app.get('/api/agents/:id/relations', (req: Request, res: Response) => {
   res.json(relations);
 });
 
-app.post('/api/agents', (req: Request, res: Response) => {
+app.post('/api/agents', async (req: Request, res: Response) => {
   const userId = requireUser(req, res);
   if (!userId) return;
 
@@ -241,6 +241,8 @@ app.post('/api/agents', (req: Request, res: Response) => {
     return;
   }
 
+  const behaviorConfig = await TimelineEngine.generateBehaviorConfig(systemPrompt);
+
   const agent: Agent = {
     id:           `agent_${uuidv4()}`,
     type:         'user_ai',
@@ -258,6 +260,7 @@ app.post('/api/agents', (req: Request, res: Response) => {
     followerCount: 0,
     banUntil:     null,
     banCount:     0,
+    behaviorConfig,
   };
 
   AgentStore.create(agent);
@@ -605,6 +608,16 @@ app.post('/api/sim/trigger', async (req: Request, res: Response) => {
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 
+async function ensureSystemAgentBehaviorConfigs(): Promise<void> {
+  const agents = AgentStore.getSystemAgents();
+  for (const agent of agents) {
+    if (agent.behaviorConfig) continue;
+    const behaviorConfig = await TimelineEngine.generateBehaviorConfig(agent.systemPrompt);
+    AgentStore.update(agent.id, { behaviorConfig });
+    console.log(`[server] generated behaviorConfig for ${agent.handle}`);
+  }
+}
+
 const PORT = parseInt(process.env.PORT || '3000');
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);
@@ -612,6 +625,9 @@ app.listen(PORT, () => {
   // 起動時に即座にニュースとミームを取得
   NewsService.fetchAndCache().catch(err => console.error('[server] news prefetch error:', err));
   NewsService.fetchTrendingMemes().catch(err => console.error('[server] memes prefetch error:', err));
+
+  // behaviorConfig 未設定の公式AIを自動生成
+  ensureSystemAgentBehaviorConfigs().catch(err => console.error('[server] behaviorConfig init error:', err));
 
   console.log('[SimulateLoop] stopped (manual start required)');
 });
