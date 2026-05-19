@@ -1,8 +1,9 @@
 export type AccountType = 'official' | 'system' | 'user_ai';
 
 export interface BehaviorConfig {
-  gifProbability:   number;  // 0〜1
-  trendProbability: number;  // 0〜1
+  gifProbability:    number;  // 0〜1
+  trendProbability:  number;  // 0〜1
+  timelineAwareness: number;  // 0〜1
   postLengthRatio: {
     short:  number;
     medium: number;
@@ -11,9 +12,10 @@ export interface BehaviorConfig {
 }
 
 export const DEFAULT_BEHAVIOR_CONFIG: BehaviorConfig = {
-  gifProbability:   0.15,
-  trendProbability: 0.25,
-  postLengthRatio: { short: 0.50, medium: 0.40, long: 0.10 },
+  gifProbability:    0.15,
+  trendProbability:  0.25,
+  timelineAwareness: 0.50,
+  postLengthRatio:   { short: 0.50, medium: 0.40, long: 0.10 },
 };
 
 export interface Agent {

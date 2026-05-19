@@ -266,6 +266,7 @@ ${sysPrompt}
 {
   "gifProbability": 0〜1の数値（GIFを添付する確率）,
   "trendProbability": 0〜1の数値（SNSトレンドに言及する確率）,
+  "timelineAwareness": 0〜1の数値（タイムラインを参照する確率）,
   "postLengthRatio": {
     "short": 0〜1（1文の短い投稿の割合）,
     "medium": 0〜1（2〜3文の中程度の投稿の割合）,
@@ -279,12 +280,15 @@ short + medium + long の合計は必ず1になるようにすること。
 - 分析的・知的なキャラ → long高め・gif低め
 - 陽気・感情的なキャラ → gif高め・short〜medium
 - ニュース系 → medium〜long・gif=0
-- ボケキャラ・天然 → trendProbability低め`;
+- ボケキャラ・天然 → trendProbability低め
+- 孤独・詩的・内向きなキャラ → timelineAwareness=0.2前後
+- ニュース・論破・煽りキャラ → timelineAwareness=0.7〜0.9
+- 普通のキャラ → timelineAwareness=0.4〜0.6`;
 
     try {
       const response = await callApiWithRetry(() => client.messages.create({
         model:      'claude-haiku-4-5-20251001',
-        max_tokens: 200,
+        max_tokens: 250,
         messages:   [{ role: 'user', content: prompt }],
       }));
       const block = response.content[0];
@@ -293,8 +297,9 @@ short + medium + long の合計は必ず1になるようにすること。
       if (!match) return DEFAULT_BEHAVIOR_CONFIG;
       const parsed = JSON.parse(match[0]) as BehaviorConfig;
       if (
-        typeof parsed.gifProbability   !== 'number' ||
-        typeof parsed.trendProbability !== 'number' ||
+        typeof parsed.gifProbability    !== 'number' ||
+        typeof parsed.trendProbability  !== 'number' ||
+        typeof parsed.timelineAwareness !== 'number' ||
         typeof parsed.postLengthRatio?.short  !== 'number' ||
         typeof parsed.postLengthRatio?.medium !== 'number' ||
         typeof parsed.postLengthRatio?.long   !== 'number'

@@ -108,7 +108,9 @@ function buildPostContext(agent: Agent): PostContext {
     }
   }
 
-  const recentPosts = selected;
+  const behaviorCfg     = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
+  const isTimelineAware = Math.random() < (behaviorCfg.timelineAwareness ?? DEFAULT_BEHAVIOR_CONFIG.timelineAwareness);
+  const recentPosts     = isTimelineAware ? selected : [];
 
   const trending    = PostStore.getTrending(24, 1);
   const topPost     = trending[0] ?? null;
@@ -279,13 +281,15 @@ async function runReplyCycle(): Promise<void> {
     const otherPosts = recentPosts.filter(p => p.agentId !== agent.id && !p.parentId);
     if (otherPosts.length === 0) continue;
 
-    // 各投稿にスコアを付けて人気投稿を優先
+    // 各投稿にスコアを付けて人気・フォロワー数の高い投稿を優先
     const scoredPosts = otherPosts.map(post => {
       const relation        = RelationStore.get(agent.id, post.agentId);
       const isMutual        = FollowStore.isMutual(agent.id, post.agentId);
+      const postAgent       = AgentStore.getById(post.agentId);
       const baseScore       = TimelineEngine.replyScore(agent, post, relation, isMutual);
       const popularityBonus = post.likeCount * 3 + post.replyCount * 2;
-      return { post, finalScore: baseScore + popularityBonus, relation, isMutual };
+      const followerBonus   = Math.min((postAgent?.followerCount ?? 0) * 0.5, 20);
+      return { post, finalScore: baseScore + popularityBonus + followerBonus, relation, isMutual };
     }).sort((a, b) => b.finalScore - a.finalScore);
 
     const priorityCandidates = scoredPosts.slice(0, 3);

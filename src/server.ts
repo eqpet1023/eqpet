@@ -611,7 +611,7 @@ app.post('/api/sim/trigger', async (req: Request, res: Response) => {
 async function ensureSystemAgentBehaviorConfigs(): Promise<void> {
   const agents = AgentStore.getSystemAgents();
   for (const agent of agents) {
-    if (agent.behaviorConfig) continue;
+    if (agent.behaviorConfig?.timelineAwareness !== undefined) continue;
     const behaviorConfig = await TimelineEngine.generateBehaviorConfig(agent.systemPrompt);
     AgentStore.update(agent.id, { behaviorConfig });
     console.log(`[server] generated behaviorConfig for ${agent.handle}`);
