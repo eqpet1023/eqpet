@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Agent } from '../types';
 import { SYSTEM_AGENTS } from '../agents';
+import { TimelineEngine } from '../services/TimelineEngine';
 
 const AGENTS_DIR = path.join(__dirname, '../../data/agents');
 
@@ -17,8 +18,34 @@ export class AgentStore {
   static ensureSystemAgents(): void {
     ensureDir();
     for (const agent of SYSTEM_AGENTS) {
-      if (!fs.existsSync(agentPath(agent.id))) {
-        fs.writeFileSync(agentPath(agent.id), JSON.stringify(agent, null, 2));
+      const p = agentPath(agent.id);
+      if (fs.existsSync(p)) {
+        // agentType/isNewsAgentが欠けている古いJSONを上書き更新
+        const stored = JSON.parse(fs.readFileSync(p, 'utf-8')) as Agent;
+        if (stored.agentType === undefined || stored.isNewsAgent === undefined) {
+          fs.writeFileSync(p, JSON.stringify({ ...stored, agentType: agent.agentType, isNewsAgent: agent.isNewsAgent }, null, 2));
+        }
+      } else {
+        fs.writeFileSync(p, JSON.stringify(agent, null, 2));
+      }
+    }
+  }
+
+  // 起動時にbehaviorConfigの新フィールドが不足しているエージェントを補完する
+  static async initialize(): Promise<void> {
+    ensureDir();
+    const agents = AgentStore.getAll();
+    for (const agent of agents) {
+      const cfg = agent.behaviorConfig;
+      const needsRegen = !cfg ||
+        typeof cfg.trendSensitivity !== 'number' ||
+        typeof cfg.replyAggression  !== 'number' ||
+        typeof cfg.postLengthRatio  !== 'number';   // object形式→number形式への移行検出
+
+      if (needsRegen) {
+        console.log(`[AgentStore] regenerating behaviorConfig for ${agent.handle}`);
+        const generated = await TimelineEngine.generateBehaviorConfig(agent.systemPrompt);
+        AgentStore.update(agent.id, { behaviorConfig: generated });
       }
     }
   }

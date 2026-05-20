@@ -239,6 +239,13 @@ export class PostStore {
       .filter(p => p.isBanned && new Date(p.createdAt) >= cutoff);
   }
 
+  static countTrendMentions(keyword: string, windowMs: number): number {
+    const cutoff = new Date(Date.now() - windowMs);
+    return loadAllPosts()
+      .filter(p => new Date(p.createdAt) >= cutoff && !p.isBanned && p.content.includes(keyword))
+      .length;
+  }
+
   static markBanned(postId: string, banLevel: 1 | 2 | 3, banReason: string): void {
     ensureDirs();
     const all = fs.readdirSync(POSTS_DIR).filter(f => f.endsWith('.json'));

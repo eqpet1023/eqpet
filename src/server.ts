@@ -13,10 +13,13 @@ import { PostStore } from './stores/PostStore';
 import { RelationStore } from './stores/RelationStore';
 import { MemoryStore } from './stores/MemoryStore';
 import { FollowStore } from './stores/FollowStore';
+import { NotificationStore } from './stores/NotificationStore';
+import { SnapshotStore } from './stores/SnapshotStore';
+import { DiaryStore } from './stores/DiaryStore';
 import { NewsService } from './services/NewsService';
 import { SimulateLoop } from './services/SimulateLoop';
 import { TimelineEngine } from './services/TimelineEngine';
-import { Agent, FeedItem, PLAN_CONFIG } from './types';
+import { Agent, FeedItem, PLAN_CONFIG, Relation } from './types';
 
 // Initialize stores
 UserStore.ensureOfficial();
@@ -55,6 +58,14 @@ function requireOfficial(req: Request, res: Response): boolean {
 }
 
 const OFFICIAL_AGENT = { id: 'official', displayName: 'Eqpet公式', handle: 'official', avatarEmoji: '🏛️', type: 'system' as const };
+
+function getRelationLabel(r: Relation): string {
+  if (r.sentiment === 'positive' && (r.stage === 'bonded' || r.stage === 'iconic')) return '親密';
+  if (r.sentiment === 'positive') return '良好';
+  if (r.sentiment === 'negative' && (r.stage === 'bonded' || r.stage === 'iconic')) return '敵対';
+  if (r.sentiment === 'negative') return '緊張';
+  return '中立';
+}
 
 function buildFeedItem(post: ReturnType<typeof PostStore.getById>, reactorId?: string): FeedItem | null {
   if (!post) return null;
@@ -213,8 +224,18 @@ app.get('/api/agents/:id/posts', (req: Request, res: Response) => {
 });
 
 app.get('/api/agents/:id/relations', (req: Request, res: Response) => {
-  const relations = RelationStore.getTopRelations(param(req, 'id'));
-  res.json(relations);
+  const relations = RelationStore.getTopRelations(param(req, 'id'), 20);
+  const enriched  = relations.map(r => {
+    const a = AgentStore.getById(r.toAgentId);
+    return {
+      ...r,
+      label:            getRelationLabel(r),
+      agentDisplayName: a?.displayName ?? r.toAgentId,
+      agentHandle:      a?.handle      ?? r.toAgentId,
+      agentEmoji:       a?.avatarEmoji ?? '🤖',
+    };
+  });
+  res.json(enriched);
 });
 
 app.post('/api/agents', async (req: Request, res: Response) => {
@@ -246,6 +267,8 @@ app.post('/api/agents', async (req: Request, res: Response) => {
   const agent: Agent = {
     id:           `agent_${uuidv4()}`,
     type:         'user_ai',
+    agentType:    'user',
+    isNewsAgent:  false,
     ownerId:      userId,
     displayName:  displayName.slice(0, 20),
     handle,
@@ -265,6 +288,12 @@ app.post('/api/agents', async (req: Request, res: Response) => {
 
   AgentStore.create(agent);
   UserStore.update(userId, { agentIds: [...user.agentIds, agent.id] });
+
+  // A-1: 5分後にお母さんBotがウェルカムリプライを送る
+  SimulateLoop.forceWelcomeReply(agent).catch(err =>
+    console.error('[server] forceWelcomeReply error:', err),
+  );
+
   res.json(agent);
 });
 
@@ -606,17 +635,131 @@ app.post('/api/sim/trigger', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Start ───────────────────────────────────────────────────────────────────
+// ─── Growth (B-4) ────────────────────────────────────────────────────────────
 
-async function ensureSystemAgentBehaviorConfigs(): Promise<void> {
-  const agents = AgentStore.getSystemAgents();
-  for (const agent of agents) {
-    if (agent.behaviorConfig?.timelineAwareness !== undefined) continue;
-    const behaviorConfig = await TimelineEngine.generateBehaviorConfig(agent.systemPrompt);
-    AgentStore.update(agent.id, { behaviorConfig });
-    console.log(`[server] generated behaviorConfig for ${agent.handle}`);
+app.get('/api/agents/:id/growth', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+
+  const user = UserStore.getById(userId)!;
+  if (user.plan === 'free') {
+    res.status(403).json({ error: 'Basic plan or higher required' });
+    return;
   }
-}
+
+  const agentId = param(req, 'id');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
+
+  const snapshots = SnapshotStore.getByAgentId(agentId, 30);
+  res.json(snapshots);
+});
+
+// ─── Diary (B-1) ─────────────────────────────────────────────────────────────
+
+app.get('/api/agents/:id/diary', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+
+  const user = UserStore.getById(userId)!;
+  if (user.plan !== 'premium') {
+    res.status(403).json({ error: 'Premium plan required' });
+    return;
+  }
+
+  const agentId = param(req, 'id');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
+
+  res.json(DiaryStore.getByAgentId(agentId));
+});
+
+app.get('/api/agents/:id/diary/:date', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+
+  const user = UserStore.getById(userId)!;
+  if (user.plan !== 'premium') {
+    res.status(403).json({ error: 'Premium plan required' });
+    return;
+  }
+
+  const agentId = param(req, 'id');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
+
+  const entry = DiaryStore.getByDate(agentId, param(req, 'date'));
+  if (!entry) { res.status(404).json({ error: 'Diary entry not found' }); return; }
+  res.json(entry);
+});
+
+// ─── Mission (B-2) ───────────────────────────────────────────────────────────
+
+app.post('/api/agents/:id/mission', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+
+  const user = UserStore.getById(userId)!;
+  if (user.plan !== 'premium') {
+    res.status(403).json({ error: 'Premium plan required' });
+    return;
+  }
+
+  const agentId = param(req, 'id');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
+
+  const { mission } = req.body;
+  if (!mission?.trim()) { res.status(400).json({ error: 'mission required' }); return; }
+  if (mission.length > 100) { res.status(400).json({ error: 'mission too long (max 100 chars)' }); return; }
+
+  const updated = AgentStore.update(agentId, {
+    currentMission: mission.trim(),
+    missionSetAt:   new Date().toISOString(),
+  });
+  res.json(updated);
+});
+
+app.delete('/api/agents/:id/mission', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+
+  const agentId = param(req, 'id');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
+
+  const updated = AgentStore.update(agentId, { currentMission: undefined, missionSetAt: undefined });
+  res.json(updated);
+});
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+app.get('/api/notifications', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const user = UserStore.getById(userId);
+  if (!user || user.plan === 'free') {
+    res.json({ plan: 'free', notifications: [], unreadCount: 0 });
+    return;
+  }
+  const notifications = NotificationStore.getAll(userId);
+  const unreadCount   = notifications.filter(n => !n.read).length;
+  res.json({ plan: user.plan, notifications, unreadCount });
+});
+
+app.post('/api/notifications/read', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  NotificationStore.markAllRead(userId);
+  res.json({ ok: true });
+});
+
+// ─── Start ───────────────────────────────────────────────────────────────────
 
 const PORT = parseInt(process.env.PORT || '3000');
 app.listen(PORT, () => {
@@ -626,8 +769,8 @@ app.listen(PORT, () => {
   NewsService.fetchAndCache().catch(err => console.error('[server] news prefetch error:', err));
   NewsService.fetchTrendingMemes().catch(err => console.error('[server] memes prefetch error:', err));
 
-  // behaviorConfig 未設定の公式AIを自動生成
-  ensureSystemAgentBehaviorConfigs().catch(err => console.error('[server] behaviorConfig init error:', err));
+  // 全エージェントのbehaviorConfigを補完・移行（新フィールドが不足している場合にLLMで再生成）
+  AgentStore.initialize().catch(err => console.error('[server] AgentStore.initialize error:', err));
 
   console.log('[SimulateLoop] stopped (manual start required)');
 });

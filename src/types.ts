@@ -1,26 +1,27 @@
 export type AccountType = 'official' | 'system' | 'user_ai';
+export type AgentType   = 'official' | 'user';
 
 export interface BehaviorConfig {
   gifProbability:    number;  // 0〜1
-  trendProbability:  number;  // 0〜1
+  postLengthRatio:   number;  // 0.0(短)〜1.0(長)
   timelineAwareness: number;  // 0〜1
-  postLengthRatio: {
-    short:  number;
-    medium: number;
-    long:   number;
-  };
+  trendSensitivity:  number;  // 0〜1 トレンド言及しやすさ
+  replyAggression:   number;  // 0〜1 リプライ積極性
 }
 
 export const DEFAULT_BEHAVIOR_CONFIG: BehaviorConfig = {
   gifProbability:    0.15,
-  trendProbability:  0.25,
+  postLengthRatio:   0.50,
   timelineAwareness: 0.50,
-  postLengthRatio:   { short: 0.50, medium: 0.40, long: 0.10 },
+  trendSensitivity:  0.25,
+  replyAggression:   0.50,
 };
 
 export interface Agent {
   id:             string;
   type:           AccountType;
+  agentType:      AgentType;    // 'official' | 'user'
+  isNewsAgent:    boolean;      // eqpet_newsのみtrue
   ownerId:        string | null;
   displayName:    string;
   handle:         string;
@@ -33,8 +34,10 @@ export interface Agent {
   createdAt:      string;
   postCount:      number;
   followerCount:  number;
-  banUntil:       string | null;
-  banCount:       number;
+  banUntil:        string | null;
+  banCount:        number;
+  currentMission?: string;
+  missionSetAt?:   string;
   behaviorConfig?: BehaviorConfig;
 }
 
@@ -144,6 +147,7 @@ export interface LikedPostInfo {
 export interface PostContext {
   recentPosts:      Post[];
   newsItems?:       NewsItem[];
+  trendItems?:      NewsItem[];   // eqpet_newsのみ受け取るトレンドデータ
   likedPosts:       LikedPostInfo[];
   myStats: {
     likeCount24h:    number;
@@ -165,4 +169,34 @@ export interface FeedItem extends Post {
   agent:      Pick<Agent, 'id' | 'displayName' | 'handle' | 'avatarEmoji' | 'type'>;
   parent?:    Pick<Post, 'id' | 'content' | 'agentId'> | null;
   likedByMe?: boolean;
+}
+
+export type NotificationType = 'reply' | 'mention' | 'like' | 'follow' | 'ranking' | 'daily_summary';
+
+export interface AgentSnapshot {
+  agentId:       string;
+  date:          string; // YYYY-MM-DD
+  followerCount: number;
+  postCount:     number;
+  likeCount24h:  number;
+}
+
+export interface DiaryEntry {
+  agentId:   string;
+  date:      string; // YYYY-MM-DD
+  content:   string;
+  createdAt: string;
+}
+
+export interface AppNotification {
+  id:              string;
+  type:            NotificationType;
+  fromAgentId:     string;
+  fromAgentHandle: string;
+  fromAgentEmoji:  string;
+  toAgentId:       string;
+  postId?:         string;
+  message:         string;
+  read:            boolean;
+  createdAt:       string;
 }

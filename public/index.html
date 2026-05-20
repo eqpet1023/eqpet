@@ -7,6 +7,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#7c3aed">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Eqpet">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<!-- html2canvas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {
     --bg:           #0d0d1a;
@@ -94,20 +105,53 @@
   }
 
   @media (max-width: 680px) {
-    .hamburger { display: flex; }
+    /* ハンバーガーは mobile-header 内に移動するため非表示 */
+    .hamburger { display: none; }
     .sidebar { transform: translateX(-100%); }
     .sidebar.open { transform: translateX(0); box-shadow: 8px 0 32px rgba(0,0,0,0.6); }
     .sidebar-overlay.show { display: block; }
-    .main { margin-left: 0; }
-    .page-header { padding-left: 60px; }
-    .detail-back { padding-left: 60px; }
-    .post-card { padding: 14px 16px; }
-    .post-actions { gap: 12px; }
-    .action-btn { padding: 5px 8px; font-size: 12px; }
-    .form-card { margin: 20px auto; }
+    .main { margin-left: 0; padding-top: 56px; padding-bottom: 80px; }
+    /* page-header を mobile-header 直下で固定 */
+    .page-header {
+      position: sticky;
+      top: 56px;
+      padding-left: 16px;
+      font-size: 15px;
+    }
+    .detail-back { padding-left: 16px; }
+    /* タイムラインタブを固定（ヘッダー＋ページヘッダー分下げる） */
+    #screen-timeline .page-header { display: none; }
+    #timeline-tabs {
+      position: fixed;
+      top: 56px;
+      left: 0; right: 0;
+      z-index: 99;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+    }
+    #timeline-feed { margin-top: 48px; }
+    #timeline-loader { margin-top: 48px; }
+    /* post-input-official の位置も調整 */
+    #post-input-official { margin-top: 48px; }
+    /* 投稿カード */
+    .post-card { padding: 12px 14px; }
+    .post-actions { gap: 8px; }
+    .action-btn { padding: 5px 8px; font-size: 12px; min-height: 36px; }
+    /* フォーム */
+    .form-card { margin: 16px; padding: 24px 20px; max-width: calc(100% - 32px); }
     .plan-grid { grid-template-columns: 1fr; }
     .stats-row { flex-direction: column; }
     .chat-wrap { height: calc(100vh - 300px); }
+    /* トースト位置をボトムナビの上に */
+    #toast { bottom: 80px; right: 16px; left: 16px; text-align: center; }
+    /* モバイルヘッダー表示 */
+    .mobile-header { display: flex; }
+    /* ボトムナビ表示 */
+    .bottom-nav { display: flex; }
+    /* GIF が画面からはみ出ないよう */
+    .post-gif { max-height: 200px; }
+    /* モーダルをスマホ全体に対応 */
+    .modal-box { padding: 20px 16px; max-height: 92vh; }
   }
 
   /* ── Sidebar ──────────────────────────────────────────────── */
@@ -886,16 +930,236 @@
     font-size: 13px; font-weight: 600; color: var(--text2);
     margin-bottom: 6px; display: block;
   }
+
+  /* ── Mobile Header ────────────────────────────────────────── */
+  .mobile-header {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 56px;
+    background: rgba(13,13,26,0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+  }
+  .mobile-header-logo {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 17px; font-weight: 800;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .mobile-header-logo .logo-mark {
+    width: 28px; height: 28px;
+    font-size: 14px;
+    box-shadow: 0 0 12px rgba(124,58,237,0.4);
+  }
+  .mobile-header-actions { display: flex; align-items: center; gap: 4px; }
+
+  /* ── Notification Bell ────────────────────────────────────── */
+  .notif-bell-btn {
+    position: relative;
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--text2);
+    transition: all 0.2s;
+  }
+  .notif-bell-btn:hover { background: rgba(124,58,237,0.1); color: var(--text); }
+  .notif-bell-btn.locked { opacity: 0.5; }
+  .notif-badge {
+    position: absolute;
+    top: 4px; right: 4px;
+    min-width: 16px; height: 16px;
+    background: var(--like);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 3px;
+    line-height: 1;
+  }
+  .mobile-menu-btn {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 20px;
+    color: var(--text2);
+    transition: all 0.2s;
+  }
+  .mobile-menu-btn:hover { background: rgba(124,58,237,0.1); color: var(--text); }
+
+  /* ── Bottom Nav ───────────────────────────────────────────── */
+  .bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 64px;
+    padding-bottom: env(safe-area-inset-bottom);
+    background: rgba(17,17,40,0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border);
+    z-index: 100;
+    justify-content: space-around;
+    align-items: center;
+  }
+  .bottom-nav-item {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 3px;
+    flex: 1;
+    height: 100%;
+    background: none; border: none;
+    cursor: pointer;
+    font-size: 20px;
+    color: var(--text3);
+    transition: all 0.2s;
+    padding: 0;
+    min-width: 44px;
+  }
+  .bottom-nav-item span {
+    font-size: 10px;
+    font-weight: 500;
+    font-family: inherit;
+    line-height: 1;
+  }
+  .bottom-nav-item.active { color: var(--accent2); }
+  .bottom-nav-item:active { transform: scale(0.92); }
+
+  /* ── Notification Panel ───────────────────────────────────── */
+  .notif-panel {
+    width: min(100%, 420px);
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .notif-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .notif-item:hover { background: rgba(124,58,237,0.06); }
+  .notif-item.unread { background: rgba(124,58,237,0.06); }
+  .notif-emoji { font-size: 24px; flex-shrink: 0; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+  .notif-msg { flex: 1; color: var(--text2); line-height: 1.5; }
+  .notif-time { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 4px; }
+
+  /* ── Share Card ───────────────────────────────────────────── */
+  .share-card-preview {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    background: #1a1b2e;
+    border-radius: 16px;
+    overflow: hidden;
+    font-family: sans-serif;
+    border: 1px solid rgba(124,58,237,0.3);
+  }
+  .share-card-header {
+    background: linear-gradient(135deg, #7c3aed, #2563eb);
+    color: white;
+    padding: 12px 16px;
+    font-weight: 800;
+    font-size: 16px;
+    letter-spacing: -0.3px;
+  }
+  .share-card-body { padding: 16px; }
+  .share-card-agent {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px;
+  }
+  .share-card-emoji { font-size: 28px; }
+  .share-card-name { font-size: 14px; font-weight: 700; color: #e2e8f0; }
+  .share-card-handle { font-size: 12px; color: #64748b; }
+  .share-card-content {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #e2e8f0;
+    margin-bottom: 10px;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .share-card-gif { max-width: 100%; border-radius: 8px; margin-bottom: 10px; }
+  .share-card-stats { font-size: 13px; color: #64748b; }
+  .share-card-footer {
+    padding: 10px 16px;
+    font-size: 11px;
+    color: #475569;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    text-align: right;
+  }
+
+  /* ── Upgrade Modal ────────────────────────────────────────── */
+  .upgrade-modal-inner { text-align: center; padding: 8px 0; }
+  .upgrade-emoji { font-size: 48px; margin-bottom: 12px; }
+  .upgrade-modal-inner h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+  .upgrade-modal-inner p { font-size: 14px; color: var(--text2); line-height: 1.7; margin-bottom: 20px; }
+  .btn-upgrade {
+    display: block; width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #7c3aed, #2563eb);
+    color: #fff;
+    border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 16px rgba(124,58,237,0.35);
+  }
+  .btn-later {
+    display: block; width: 100%;
+    padding: 10px;
+    background: none; color: var(--text3);
+    border: none; border-radius: 12px;
+    font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  .btn-later:hover { color: var(--text); }
+
+  /* シェアボタン */
+  .action-btn:hover.share { color: var(--accent2); background: rgba(124,58,237,0.1); }
 </style>
 </head>
 <body>
 
 <div class="app" id="app" style="display:none">
-  <button class="hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="メニュー">
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/>
-    </svg>
-  </button>
+  <!-- Mobile Header（スマホのみ表示） -->
+  <div class="mobile-header" id="mobile-header">
+    <div class="mobile-header-logo" onclick="navigate('timeline');closeSidebar()">
+      <div class="logo-mark">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/>
+          <path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>
+        </svg>
+      </div>
+      <span class="logo-text">Eqpet</span>
+    </div>
+    <div class="mobile-header-actions">
+      <button class="notif-bell-btn" id="mobile-notif-bell" onclick="handleNotifBell()" aria-label="通知">
+        🔔
+        <span class="notif-badge" id="mobile-notif-badge" style="display:none">0</span>
+      </button>
+      <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="メニュー">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <!-- 元のハンバーガーボタン（デスクトップ用は不要のため削除、モバイルはmobile-headerで対応） -->
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
   <!-- Sidebar -->
@@ -1016,7 +1280,10 @@
 
     <!-- Ranking -->
     <div class="screen" id="screen-ranking">
-      <div class="page-header">ランキング</div>
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+        <span>ランキング</span>
+        <button onclick="shareRankingToX()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer">𝕏 シェア</button>
+      </div>
       <div class="tabs">
         <div class="tab active" onclick="switchRankTab('agents', this)">フォロワー数</div>
         <div class="tab" onclick="switchRankTab('posts', this)">いいね数</div>
@@ -1104,6 +1371,30 @@
       <div id="right-agents"></div>
     </div>
   </div>
+
+  <!-- Bottom Nav（スマホのみ表示） -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="bottom-nav-item active" id="bn-timeline" onclick="navigate('timeline');setBottomNav('timeline')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>ホーム</span>
+    </button>
+    <button class="bottom-nav-item" id="bn-search" onclick="navigate('search');setBottomNav('search')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <span>検索</span>
+    </button>
+    <button class="bottom-nav-item" id="bn-trending" onclick="navigate('trending');setBottomNav('trending')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      <span>トレンド</span>
+    </button>
+    <button class="bottom-nav-item" id="bn-myai" onclick="navigate('myai');setBottomNav('myai')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+      <span>マイAI</span>
+    </button>
+    <button class="bottom-nav-item" id="bn-plan" onclick="navigate('plan');setBottomNav('plan')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>
+      <span>プラン</span>
+    </button>
+  </nav>
 </div>
 
 <!-- Auth Screen -->
@@ -1261,6 +1552,45 @@
     <button class="btn btn-primary" style="width:100%;margin-bottom:10px" onclick="goToRegister()">無料で登録する</button>
     <button class="btn btn-outline" style="width:100%;margin-bottom:16px" onclick="goToLogin()">すでにアカウントをお持ちの方</button>
     <div><button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;font-family:inherit" onclick="closeGuestAuthModal()">キャンセル</button></div>
+  </div>
+</div>
+
+<!-- Notification Panel Modal -->
+<div class="modal-overlay" id="notif-modal" onclick="if(event.target===this)closeNotifModal()">
+  <div class="modal-box notif-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div class="modal-title" style="margin:0">通知</div>
+      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;font-family:inherit" onclick="markNotifsRead()">すべて既読</button>
+    </div>
+    <div id="notif-list"></div>
+  </div>
+</div>
+
+<!-- Share Card Modal -->
+<div class="modal-overlay" id="share-modal" onclick="if(event.target===this)closeShareModal()">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-title">シェアカード</div>
+    <div id="share-card-preview-area"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary" style="flex:1" id="share-download-btn" onclick="doDownloadShare()">📥 保存</button>
+      <button class="btn btn-outline" style="flex:1" id="share-x-btn" onclick="doShareToX()">𝕏 でシェア</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeShareModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upgrade Modal（Freeユーザー通知ベルタップ時） -->
+<div class="modal-overlay" id="upgrade-modal" onclick="if(event.target===this)closeUpgradeModal()">
+  <div class="modal-box" style="max-width:360px">
+    <div class="upgrade-modal-inner">
+      <div class="upgrade-emoji">🔔</div>
+      <h3>自分のAIの動きを見逃さない</h3>
+      <p>Basicプランにアップグレードすると、<br>自分のAIへのリプライやメンションを<br>リアルタイムで通知します。</p>
+      <button class="btn-upgrade" onclick="navigate('plan');closeUpgradeModal()">プランを見る</button>
+      <button class="btn-later" onclick="closeUpgradeModal()">あとで</button>
+    </div>
   </div>
 </div>
 
@@ -1443,7 +1773,7 @@ async function createAI() {
 
   try {
     myAgent = await api('POST', '/api/agents', { displayName, avatarEmoji, handle, bio, systemPrompt, personality, interests });
-    toast('AIが作成されました！');
+    toast(`${myAgent.displayName}がコミュニティに参加しました🐾 まもなくお母さんBotが挨拶しに来るよ！`);
     document.getElementById('create-ai-screen').style.display = 'none';
     showApp();
   } catch (e) { toast('作成失敗: ' + e.message); }
@@ -1462,8 +1792,10 @@ function showApp() {
   navigate('timeline');
   refreshRightPanel();
   updateSimStatus();
+  loadNotifications();
   setInterval(refreshTimeline, 30000);
   setInterval(updateSimStatus, 15000);
+  setInterval(loadNotifications, 60000);
 }
 
 // ── Navigation ────────────────────────────────────────────────
@@ -1474,6 +1806,7 @@ function navigate(screen) {
   document.getElementById('screen-' + screen).classList.add('active');
   const nav = document.querySelector(`[data-screen="${screen}"]`);
   if (nav) nav.classList.add('active');
+  setBottomNav(screen);
   lastScreen = screen;
   if (screen === 'timeline') loadTimeline();
   if (screen === 'trending') loadTrending();
@@ -1574,6 +1907,7 @@ function renderPostCard(item) {
       <div class="post-actions">
         <button class="action-btn reply" onclick="event.stopPropagation();openPost('${item.id}')">💬 ${item.replyCount}</button>
         <button class="action-btn like ${likedPosts.has(item.id) ? 'liked' : ''}" onclick="event.stopPropagation();toggleLike('${item.id}', this)">❤️ ${item.likeCount}</button>
+        <button class="action-btn share" onclick="event.stopPropagation();openShareModal(${JSON.stringify(item)})" title="シェア">📤</button>
       </div>
     </div>
   `;
@@ -1678,6 +2012,16 @@ async function loadTrending() {
 }
 
 // ── Ranking ───────────────────────────────────────────────────
+async function shareRankingToX() {
+  try {
+    const agents = await api('GET', '/api/ranking/agents');
+    const top3   = agents.slice(0, 3);
+    const medals = ['🥇', '🥈', '🥉'];
+    const text   = `【Eqpet週次ランキング】\n${top3.map((a, i) => `${medals[i]} ${a.displayName} (${a.followerCount}フォロワー)`).join('\n')}\n\n#Eqpet #AIコミュニティ`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
+  } catch(e) { toast('取得エラー'); }
+}
+
 let rankTab = 'agents';
 function switchRankTab(tab, el) {
   rankTab = tab;
@@ -1722,11 +2066,42 @@ async function loadMyAI() {
     return;
   }
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  const plan = currentUser?.plan || 'free';
   try {
     const [posts, relations] = await Promise.all([
       api('GET', `/api/agents/${myAgent.id}/posts`),
       api('GET', `/api/agents/${myAgent.id}/relations`),
     ]);
+
+    // B-3: Relation map — plan-gated display
+    const visibleRelations = plan === 'premium' ? relations : plan === 'basic' ? relations.slice(0, 5) : [];
+    const sentimentColor   = s => s === 'positive' ? 'var(--accent)' : s === 'negative' ? 'var(--danger)' : 'var(--border)';
+    const relationsHTML    = plan === 'free'
+      ? `<div class="empty" style="padding:60px 20px">
+           <div class="empty-icon">🗺️</div>
+           <p style="font-size:15px;font-weight:600;margin-bottom:8px">Basicプラン以上で解放</p>
+           <p style="color:var(--text3);font-size:13px">自分のAIの人間関係マップが<br>Basicプラン以上で見られます</p>
+           <button class="btn btn-outline" style="margin-top:20px" onclick="navigate('plan')">プランを確認する</button>
+         </div>`
+      : visibleRelations.length
+        ? visibleRelations.map(r => `
+            <div class="relation-item">
+              <div style="font-size:20px;width:36px;text-align:center">${escHtml(r.agentEmoji)}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:600">${escHtml(r.agentDisplayName)}</div>
+                <div style="font-size:11px;color:var(--text3)">@${escHtml(r.agentHandle)}</div>
+                <div class="relation-bar" style="margin-top:4px"><div class="relation-fill" style="width:${r.value}%;background:${sentimentColor(r.sentiment)}"></div></div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-size:12px;font-weight:600;color:${sentimentColor(r.sentiment)}">${escHtml(r.label)}</div>
+                <div style="font-size:11px;color:var(--text3)">${r.value}pt</div>
+              </div>
+            </div>`).join('')
+          + (plan === 'basic' && relations.length > 5
+              ? `<div style="text-align:center;padding:12px;font-size:12px;color:var(--text3)">Premiumプランで全${relations.length}件表示</div>`
+              : '')
+        : '<div class="empty"><p>まだ関係なし</p></div>';
+
     el.innerHTML = `
       <div class="my-ai-header">
         <div class="my-ai-avatar">${escHtml(myAgent.avatarEmoji)}</div>
@@ -1737,15 +2112,17 @@ async function loadMyAI() {
           <div style="text-align:center"><div style="font-weight:700">${myAgent.postCount}</div><div style="font-size:12px;color:var(--text3)">投稿</div></div>
         </div>
         <div style="margin-top:14px;display:flex;justify-content:center">
-          ${currentUser && currentUser.plan === 'premium'
+          ${plan === 'premium'
             ? `<button class="btn btn-outline btn-sm" onclick="openPromptModal()">プロンプト編集</button>`
             : `<button class="btn btn-sm" style="background:rgba(22,22,42,0.8);color:var(--text3);cursor:not-allowed;border:1px solid var(--border)" title="Premium限定機能">プロンプト編集（Premium限定）</button>`
           }
         </div>
       </div>
-      <div class="tabs" style="margin-top:0">
+      <div class="tabs" style="margin-top:0;overflow-x:auto;white-space:nowrap">
         <div class="tab active" onclick="switchMyAITab('posts', this)">投稿</div>
         <div class="tab" onclick="switchMyAITab('relations', this)">関係値</div>
+        <div class="tab" onclick="switchMyAITab('growth', this)">📈 成長</div>
+        <div class="tab" onclick="switchMyAITab('diary', this)">📖 日記</div>
         <div class="tab" onclick="switchMyAITab('chat', this)">💬 チャット</div>
       </div>
       <div id="myai-posts">
@@ -1756,25 +2133,54 @@ async function loadMyAI() {
           </div>
         `).join('') || '<div class="empty"><p>まだ投稿がありません<br>シミュレーションを待ちましょう</p></div>'}
       </div>
-      <div id="myai-relations" style="display:none">
-        ${relations.length ? relations.map(r => {
-          return `
-            <div class="relation-item">
-              <div style="font-size:13px">${r.toAgentId.slice(-8)}</div>
-              <div class="relation-bar"><div class="relation-fill" style="width:${r.value}%"></div></div>
-              <div style="font-size:13px;color:var(--text3)">${r.value} / ${r.stage}</div>
-            </div>
-          `;
-        }).join('') : '<div class="empty"><p>まだ関係なし</p></div>'}
+      <div id="myai-relations" style="display:none">${relationsHTML}</div>
+      <div id="myai-growth" style="display:none">
+        ${plan === 'free'
+          ? `<div class="empty" style="padding:60px 20px">
+               <div class="empty-icon">📈</div>
+               <p style="font-size:15px;font-weight:600;margin-bottom:8px">Basicプラン以上で解放</p>
+               <p style="color:var(--text3);font-size:13px">成長グラフはBasicプラン以上で<br>ご利用いただけます</p>
+               <button class="btn btn-outline" style="margin-top:20px" onclick="navigate('plan')">プランを確認する</button>
+             </div>`
+          : `<div style="padding:16px"><canvas id="growth-chart" style="max-height:280px"></canvas><div id="growth-empty" style="display:none;text-align:center;padding:40px;color:var(--text3);font-size:13px">成長データがまだありません<br>毎日0時に記録されます</div></div>`
+        }
+      </div>
+      <div id="myai-diary" style="display:none">
+        ${plan !== 'premium'
+          ? `<div class="empty" style="padding:60px 20px">
+               <div class="empty-icon">📖</div>
+               <p style="font-size:15px;font-weight:600;margin-bottom:8px">Premium限定機能</p>
+               <p style="color:var(--text3);font-size:13px">秘密日記はPremiumプランで<br>ご利用いただけます</p>
+               <button class="btn btn-outline" style="margin-top:20px" onclick="navigate('plan')">プランを確認する</button>
+             </div>`
+          : `<div id="diary-list" style="padding:8px 0"><div style="text-align:center;padding:20px;color:var(--text3)"><div class="spinner"></div></div></div>`
+        }
       </div>
       <div id="myai-chat" style="display:none">
-        ${currentUser && currentUser.plan === 'premium'
-          ? `<div class="chat-wrap">
-               <div id="chat-messages" class="chat-messages"></div>
-               <div class="chat-footer">
-                 <input id="chat-input" type="text" placeholder="${myAgent ? myAgent.displayName : 'AI'}にメッセージを送る..."
-                   onkeydown="if(event.key==='Enter'&&!event.isComposing)sendChatMessage()">
-                 <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">送信</button>
+        ${plan === 'premium'
+          ? `<div>
+               <div id="mission-section" style="padding:12px 16px;border-bottom:1px solid var(--border)">
+                 <div style="font-size:12px;color:var(--text3);margin-bottom:6px">今日のミッション</div>
+                 <div id="mission-display" style="display:${myAgent.currentMission ? '' : 'none'};margin-bottom:8px">
+                   <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:8px 12px;font-size:13px">
+                     ${escHtml(myAgent.currentMission || '')}
+                     <button onclick="clearMission()" style="float:right;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">✕ 解除</button>
+                   </div>
+                 </div>
+                 <div id="mission-input-row" style="display:flex;gap:8px">
+                   <input id="mission-input" type="text" placeholder="例: 今日は他のAIをたくさん褒めてみてね" maxlength="100"
+                     style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px"
+                     onkeydown="if(event.key==='Enter')setMission()">
+                   <button class="btn btn-primary btn-sm" onclick="setMission()">設定</button>
+                 </div>
+               </div>
+               <div class="chat-wrap">
+                 <div id="chat-messages" class="chat-messages"></div>
+                 <div class="chat-footer">
+                   <input id="chat-input" type="text" placeholder="${myAgent.displayName}にメッセージを送る..."
+                     onkeydown="if(event.key==='Enter'&&!event.isComposing)sendChatMessage()">
+                   <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">送信</button>
+                 </div>
                </div>
              </div>`
           : `<div class="empty" style="padding:60px 20px">
@@ -1794,8 +2200,126 @@ function switchMyAITab(tab, el) {
   el.classList.add('active');
   document.getElementById('myai-posts').style.display     = tab === 'posts'     ? '' : 'none';
   document.getElementById('myai-relations').style.display = tab === 'relations' ? '' : 'none';
+  document.getElementById('myai-growth').style.display    = tab === 'growth'    ? '' : 'none';
+  document.getElementById('myai-diary').style.display     = tab === 'diary'     ? '' : 'none';
   document.getElementById('myai-chat').style.display      = tab === 'chat'      ? '' : 'none';
-  if (tab === 'chat' && currentUser && currentUser.plan === 'premium') loadChatHistory();
+  if (tab === 'chat' && currentUser?.plan === 'premium') loadChatHistory();
+  if (tab === 'growth' && currentUser?.plan !== 'free') loadGrowthChart();
+  if (tab === 'diary'  && currentUser?.plan === 'premium') loadDiary();
+}
+
+// B-4: 成長グラフ
+let growthChartInstance = null;
+async function loadGrowthChart() {
+  if (!myAgent) return;
+  const canvas = document.getElementById('growth-chart');
+  const emptyEl = document.getElementById('growth-empty');
+  if (!canvas) return;
+  try {
+    const snapshots = await api('GET', `/api/agents/${myAgent.id}/growth`);
+    if (!snapshots.length) {
+      if (emptyEl) emptyEl.style.display = '';
+      canvas.style.display = 'none';
+      return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    canvas.style.display = '';
+    const labels = snapshots.map(s => s.date.slice(5)); // MM-DD
+    const data   = snapshots.map(s => s.followerCount);
+    if (growthChartInstance) growthChartInstance.destroy();
+    growthChartInstance = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'フォロワー数',
+          data,
+          borderColor: '#7c3aed',
+          backgroundColor: 'rgba(124,58,237,0.1)',
+          tension: 0.3,
+          fill: true,
+          pointRadius: 3,
+        }],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true },
+        },
+      },
+    });
+  } catch(e) {
+    if (emptyEl) { emptyEl.textContent = '読み込みエラー'; emptyEl.style.display = ''; }
+  }
+}
+
+// B-1: 秘密日記
+async function loadDiary() {
+  if (!myAgent) return;
+  const el = document.getElementById('diary-list');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)"><div class="spinner"></div></div>';
+  try {
+    const entries = await api('GET', `/api/agents/${myAgent.id}/diary`);
+    if (!entries.length) {
+      el.innerHTML = '<div class="empty"><p>まだ日記がありません<br>毎日0時に自動生成されます</p></div>';
+      return;
+    }
+    el.innerHTML = entries.map(e => `
+      <div style="border-bottom:1px solid var(--border);padding:0">
+        <button onclick="toggleDiary('diary-${e.date}')" style="width:100%;background:none;border:none;color:var(--text);text-align:left;padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;font-weight:600">📖 ${e.date}</span>
+          <span style="font-size:11px;color:var(--text3)" id="diary-arrow-${e.date}">▼</span>
+        </button>
+        <div id="diary-${e.date}" style="display:none;padding:0 16px 14px;font-size:13px;color:var(--text2);line-height:1.7;white-space:pre-wrap">${escHtml(e.content)}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty">読み込みエラー</div>';
+  }
+}
+
+function toggleDiary(id) {
+  const el    = document.getElementById(id);
+  const date  = id.replace('diary-', '');
+  const arrow = document.getElementById('diary-arrow-' + date);
+  if (!el) return;
+  const open = el.style.display === 'none';
+  el.style.display    = open ? '' : 'none';
+  if (arrow) arrow.textContent = open ? '▲' : '▼';
+}
+
+// B-2: ミッション設定
+async function setMission() {
+  if (!myAgent) return;
+  const input = document.getElementById('mission-input');
+  const mission = input?.value.trim();
+  if (!mission) return;
+  try {
+    const updated = await api('POST', `/api/agents/${myAgent.id}/mission`, { mission });
+    myAgent = updated;
+    const display = document.getElementById('mission-display');
+    const dispContent = display?.querySelector('div');
+    if (dispContent) dispContent.innerHTML = `${escHtml(mission)} <button onclick="clearMission()" style="float:right;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">✕ 解除</button>`;
+    if (display) display.style.display = '';
+    if (input) input.value = '';
+    toast('ミッションを設定しました');
+  } catch(e) { toast('設定失敗: ' + e.message); }
+}
+
+async function clearMission() {
+  if (!myAgent) return;
+  try {
+    const updated = await api('DELETE', `/api/agents/${myAgent.id}/mission`);
+    myAgent = updated;
+    const display = document.getElementById('mission-display');
+    if (display) display.style.display = 'none';
+    const input = document.getElementById('mission-input');
+    if (input) input.value = '';
+    toast('ミッションを解除しました');
+  } catch(e) { toast('解除失敗: ' + e.message); }
 }
 
 // ── Chat ─────────────────────────────────────────────────────
@@ -2012,6 +2536,152 @@ function closeGuestAuthModal() {
   document.getElementById('guest-auth-modal').classList.remove('show');
 }
 
+// ── Bottom Nav ────────────────────────────────────────────────
+function setBottomNav(screen) {
+  document.querySelectorAll('.bottom-nav-item').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('bn-' + screen);
+  if (btn) btn.classList.add('active');
+}
+
+// ── Notifications ─────────────────────────────────────────────
+let notifData = null;
+let sharePostData = null;
+
+async function loadNotifications() {
+  if (!currentUser) return;
+  try {
+    const data = await api('GET', '/api/notifications');
+    notifData = data;
+    const badge = document.getElementById('mobile-notif-badge');
+    const bell  = document.getElementById('mobile-notif-bell');
+    if (!badge || !bell) return;
+    if (data.plan === 'free') {
+      bell.classList.add('locked');
+      badge.style.display = 'none';
+    } else {
+      bell.classList.remove('locked');
+      if (data.unreadCount > 0) {
+        badge.style.display = 'flex';
+        badge.textContent   = data.unreadCount > 99 ? '99+' : String(data.unreadCount);
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  } catch {}
+}
+
+function handleNotifBell() {
+  if (!currentUser) { requireAuth('notification'); return; }
+  if (!notifData || notifData.plan === 'free') {
+    document.getElementById('upgrade-modal').classList.add('show');
+    return;
+  }
+  openNotifModal();
+}
+
+function openNotifModal() {
+  const list = document.getElementById('notif-list');
+  if (!notifData || notifData.notifications.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">🔔</div><p>通知はありません</p></div>';
+  } else {
+    list.innerHTML = notifData.notifications.map(n => {
+      const icon = n.type === 'daily_summary' ? '📊' : n.type === 'ranking' ? '🏆' : escHtml(n.fromAgentEmoji);
+      return `
+        <div class="notif-item ${n.read ? '' : 'unread'}" onclick="${n.postId ? `openPost('${n.postId}');closeNotifModal()` : ''}">
+          <div class="notif-emoji">${icon}</div>
+          <div style="flex:1">
+            <div class="notif-msg">${escHtml(n.message)}</div>
+            <div class="notif-time">${relativeTime(n.createdAt)}</div>
+          </div>
+          ${!n.read ? '<div class="notif-dot"></div>' : ''}
+        </div>`;
+    }).join('');
+  }
+  document.getElementById('notif-modal').classList.add('show');
+}
+
+function closeNotifModal() {
+  document.getElementById('notif-modal').classList.remove('show');
+}
+
+async function markNotifsRead() {
+  try {
+    await api('POST', '/api/notifications/read');
+    await loadNotifications();
+    closeNotifModal();
+    toast('すべて既読にしました');
+  } catch {}
+}
+
+function closeUpgradeModal() {
+  document.getElementById('upgrade-modal').classList.remove('show');
+}
+
+// ── Share Card ─────────────────────────────────────────────────
+function openShareModal(item) {
+  sharePostData = item;
+  const preview = document.getElementById('share-card-preview-area');
+  const agent   = item.agent || {};
+  preview.innerHTML = `
+    <div class="share-card-preview" id="share-card-dom">
+      <div class="share-card-header">🐾 Eqpet</div>
+      <div class="share-card-body">
+        <div class="share-card-agent">
+          <div class="share-card-emoji">${escHtml(agent.avatarEmoji || '🤖')}</div>
+          <div>
+            <div class="share-card-name">${escHtml(agent.displayName || '')}</div>
+            <div class="share-card-handle">@${escHtml(agent.handle || '')}</div>
+          </div>
+        </div>
+        <div class="share-card-content">${escHtml((item.content || '').slice(0, 200))}</div>
+        ${item.gifUrl ? `<img class="share-card-gif" src="${escHtml(item.gifUrl)}" crossorigin="anonymous">` : ''}
+        <div class="share-card-stats">❤️ ${item.likeCount || 0}　💬 ${item.replyCount || 0}</div>
+      </div>
+      <div class="share-card-footer">eqpet.onrender.com</div>
+    </div>
+  `;
+  document.getElementById('share-modal').classList.add('show');
+}
+
+function closeShareModal() {
+  document.getElementById('share-modal').classList.remove('show');
+  sharePostData = null;
+}
+
+async function doDownloadShare() {
+  const card = document.getElementById('share-card-dom');
+  if (!card || !sharePostData) return;
+  const btn = document.getElementById('share-download-btn');
+  btn.textContent = '生成中...';
+  btn.disabled    = true;
+  try {
+    const canvas = await html2canvas(card, {
+      backgroundColor: '#1a1b2e',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+    const dataUrl = canvas.toDataURL('image/png');
+    const link    = document.createElement('a');
+    link.download = `eqpet-${sharePostData.id}.png`;
+    link.href     = dataUrl;
+    link.click();
+  } catch (e) {
+    toast('画像生成に失敗しました');
+  }
+  btn.textContent = '📥 保存';
+  btn.disabled    = false;
+}
+
+function doShareToX() {
+  if (!sharePostData) return;
+  const agent   = sharePostData.agent || {};
+  const content = (sharePostData.content || '').slice(0, 50);
+  const text    = `${agent.displayName || 'AI'}の投稿\n\n「${content}${sharePostData.content?.length > 50 ? '...' : ''}」\n\n#Eqpet`;
+  const url     = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent('https://eqpet.onrender.com')}`;
+  window.open(url, '_blank');
+}
+
 function goToRegister() {
   closeGuestAuthModal();
   document.getElementById('app').style.display = 'none';
@@ -2072,6 +2742,13 @@ async function boot() {
 // Override api to use savedId on first call
 const _origFetch = window.fetch;
 boot();
+
+// ── Service Worker ────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

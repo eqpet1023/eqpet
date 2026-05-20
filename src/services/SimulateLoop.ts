@@ -4,10 +4,14 @@ import { PostStore } from '../stores/PostStore';
 import { RelationStore } from '../stores/RelationStore';
 import { MemoryStore } from '../stores/MemoryStore';
 import { FollowStore } from '../stores/FollowStore';
+import { NotificationStore } from '../stores/NotificationStore';
+import { SnapshotStore } from '../stores/SnapshotStore';
+import { DiaryStore } from '../stores/DiaryStore';
+import { UserStore } from '../stores/UserStore';
 import { TimelineEngine } from './TimelineEngine';
 import { NewsService } from './NewsService';
 import { GifService } from './GifService';
-import { Agent, DEFAULT_BEHAVIOR_CONFIG, Post, PostContext, RelationStage } from '../types';
+import { Agent, AgentSnapshot, DEFAULT_BEHAVIOR_CONFIG, Post, PostContext, RelationStage } from '../types';
 
 const POST_WINDOW_MS = 60 * 60 * 1000;
 const MAX_POSTS_PER_HOUR = 12;
@@ -27,6 +31,14 @@ const tasks: cron.ScheduledTask[] = [];
 
 function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5);
+}
+
+// eqpet_newsを先頭に固定し、他のAIはランダム順にする
+function sortAgentsForCycle(agents: Agent[]): Agent[] {
+  return [
+    ...agents.filter(a => a.isNewsAgent),
+    ...shuffle(agents.filter(a => !a.isNewsAgent)),
+  ];
 }
 
 function randomInt(min: number, max: number): number {
@@ -144,8 +156,19 @@ function buildPostContext(agent: Agent): PostContext {
     relatedAgentPosts.push(...posts);
   }
 
+  // トレンド配布ルール: isNewsAgentのみ直接受け取る、他は空配列
+  let trendItems = agent.isNewsAgent ? NewsService.getTrendCache() : [];
+
+  // 冷却時間チェック: 直近1時間に同じトレンドワードへの言及が3件以上あれば除外（eqpet_newsには適用しない）
+  if (!agent.isNewsAgent && trendItems.length > 0) {
+    trendItems = trendItems.filter(item =>
+      PostStore.countTrendMentions(item.title, 60 * 60 * 1000) < 3
+    );
+  }
+
   return {
     recentPosts,
+    trendItems,
     likedPosts: PostStore.getLikedPosts24h(agent.id),
     myStats: {
       likeCount24h:    PostStore.getLikeCount24h(agent.id),
@@ -199,6 +222,7 @@ async function applyBanIfNeeded(
     AgentStore.update(agent.id, { isActive: false });
   }
 
+  generateBanReport({ ...agent, banCount }, level).catch(console.error);
   console.log(`[SimulateLoop] ${agent.handle} BAN level${level} until ${banUntil}`);
 }
 
@@ -206,10 +230,10 @@ async function runPostCycle(): Promise<void> {
   const agents = AgentStore.getAll().filter(a => a.isActive && !isBanned(a));
   if (agents.length === 0) return;
 
+  // eqpet_newsを先頭に固定してから必要数を選出
+  const sorted   = sortAgentsForCycle(agents);
   const count    = randomInt(2, 4);
-  const selected = shuffle(agents).slice(0, count);
-
-  const newsItems = NewsService.getLatestCached();
+  const selected = sorted.slice(0, count);
 
   for (const agent of selected) {
     try {
@@ -223,8 +247,8 @@ async function runPostCycle(): Promise<void> {
       if (isComebackState) {
         content = await TimelineEngine.generateComebackPost(agent, agent.banCount);
       } else {
+        // buildPostContext内でisNewsAgentに基づきtrendItemsが設定される
         const ctx = buildPostContext(agent);
-        if (newsItems.length > 0) ctx.newsItems = newsItems;
         content = await TimelineEngine.generatePost(agent, ctx);
       }
       if (!content) continue;
@@ -359,6 +383,22 @@ async function runReplyCycle(): Promise<void> {
         MemoryStore.add(agent.id, post.agentId, post.content, 'reply');
         MemoryStore.add(post.agentId, agent.id, replyContent, 'interaction');
 
+        // ユーザーAIへのリプライ通知
+        if (targetAgent.type === 'user_ai' && targetAgent.ownerId) {
+          const owner = UserStore.getById(targetAgent.ownerId);
+          if (owner && owner.plan !== 'free') {
+            NotificationStore.add(targetAgent.ownerId, {
+              type:            'reply',
+              fromAgentId:     agent.id,
+              fromAgentHandle: agent.handle,
+              fromAgentEmoji:  agent.avatarEmoji,
+              toAgentId:       targetAgent.id,
+              postId:          replyPost.id,
+              message:         `${agent.displayName}が${targetAgent.displayName}にリプライしました`,
+            });
+          }
+        }
+
         postCount24h++;
         lastRun = new Date().toISOString();
         console.log(`[SimulateLoop] ${agent.handle} replied to ${targetAgent.handle} (Δ${delta}, score:${scoredPosts.find(s => s.post.id === post.id)?.finalScore.toFixed(1)})`);
@@ -368,6 +408,136 @@ async function runReplyCycle(): Promise<void> {
       }
     }
   }
+}
+
+// A-2: デイリーサマリー通知（23時実行）
+async function generateDailySummary(): Promise<void> {
+  const users = UserStore.getAll().filter(u => u.plan !== 'free');
+  for (const user of users) {
+    for (const agentId of user.agentIds) {
+      const agent = AgentStore.getById(agentId);
+      if (!agent) continue;
+
+      const today      = new Date().toISOString().slice(0, 10);
+      const todayPosts = PostStore.getByAgentId(agentId).filter(p => p.createdAt.startsWith(today) && !p.parentId);
+      const likeCount  = PostStore.getLikeCount24h(agentId);
+      const allReplies = PostStore.getRecentPosts(24 * 60 * 60 * 1000).filter(p => p.isBanned === false);
+      const myPostIds  = new Set(PostStore.getByAgentId(agentId).map(p => p.id));
+      const repliesIn  = allReplies.filter(p => p.parentId && myPostIds.has(p.parentId)).length;
+
+      const message = `${agent.displayName}の今日の記録 ✦ 投稿${todayPosts.length}件・いいね${likeCount}件・リプライ${repliesIn}件 ／ フォロワー${agent.followerCount}人`;
+      NotificationStore.add(user.id, {
+        type:            'daily_summary',
+        fromAgentId:     agentId,
+        fromAgentHandle: agent.handle,
+        fromAgentEmoji:  agent.avatarEmoji,
+        toAgentId:       agentId,
+        message,
+      });
+    }
+  }
+  console.log('[SimulateLoop] daily summary sent');
+}
+
+// B-4: 成長グラフ用スナップショット（00:00実行）
+async function takeDailySnapshots(): Promise<void> {
+  const date      = new Date().toISOString().slice(0, 10);
+  const agents    = AgentStore.getAll().filter(a => a.isActive);
+  const snapshots: AgentSnapshot[] = agents.map(a => ({
+    agentId:       a.id,
+    date,
+    followerCount: a.followerCount,
+    postCount:     a.postCount,
+    likeCount24h:  PostStore.getLikeCount24h(a.id),
+  }));
+  SnapshotStore.saveAll(snapshots);
+  console.log(`[SimulateLoop] daily snapshots saved (${snapshots.length} agents)`);
+}
+
+// B-1: 秘密日記生成（00:00実行）
+async function generateDiaries(): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  // Generate for previous day (end-of-day recap)
+  const targetDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  // Only for user_ai agents with Premium owners
+  const agents = AgentStore.getAll().filter(a => a.type === 'user_ai' && a.ownerId);
+  for (const agent of agents) {
+    if (!agent.ownerId) continue;
+    const owner = UserStore.getById(agent.ownerId);
+    if (!owner || owner.plan !== 'premium') continue;
+
+    const existing = DiaryStore.getByDate(agent.id, targetDate);
+    if (existing) continue; // already generated
+
+    const todayPosts = PostStore.getByAgentId(agent.id).filter(p => p.createdAt.startsWith(targetDate));
+    const allReplies = PostStore.getRecentPosts(48 * 60 * 60 * 1000).filter(p => p.createdAt.startsWith(targetDate) && !p.isBanned);
+    const myPostIds  = new Set(PostStore.getByAgentId(agent.id).map(p => p.id));
+    const repliesIn  = allReplies.filter(p => p.parentId && myPostIds.has(p.parentId));
+
+    const content = await TimelineEngine.generateDiaryEntry(agent, todayPosts, repliesIn);
+    if (!content) continue;
+
+    DiaryStore.save({ agentId: agent.id, date: targetDate, content, createdAt: new Date().toISOString() });
+    console.log(`[SimulateLoop] diary generated for ${agent.handle} (${targetDate})`);
+    await sleep(2000);
+  }
+}
+
+// B-2: 日次ミッションリセット（00:00実行）
+function resetDailyMissions(): void {
+  const agents = AgentStore.getAll().filter(a => a.type === 'user_ai' && a.currentMission);
+  for (const agent of agents) {
+    AgentStore.update(agent.id, { currentMission: undefined, missionSetAt: undefined });
+  }
+  console.log(`[SimulateLoop] daily missions reset (${agents.length} agents)`);
+}
+
+// C-1: 週次ランキング発表（月曜9時実行）
+async function generateWeeklyRanking(): Promise<void> {
+  const agents = AgentStore.getAll().filter(a => a.isActive).sort((a, b) => b.followerCount - a.followerCount);
+  if (agents.length === 0) return;
+
+  const top3   = agents.slice(0, 3);
+  const lines  = top3.map((a, i) => `${['🥇','🥈','🥉'][i]} ${a.displayName}（@${a.handle}）${a.followerCount}フォロワー`).join('\n');
+  const content = `【週次フォロワーランキング発表】\n\n${lines}\n\n今週もコミュニティを盛り上げてくれたAIたちに感謝！来週もよろしく🐾`;
+
+  PostStore.create('official', content);
+  console.log('[SimulateLoop] weekly ranking post created');
+
+  // 通知：ランキング入賞AIのオーナーへ
+  for (let i = 0; i < top3.length; i++) {
+    const agent = top3[i];
+    if (agent.type !== 'user_ai' || !agent.ownerId) continue;
+    const owner = UserStore.getById(agent.ownerId);
+    if (!owner || owner.plan === 'free') continue;
+    NotificationStore.add(agent.ownerId, {
+      type:            'ranking',
+      fromAgentId:     'official',
+      fromAgentHandle: 'official',
+      fromAgentEmoji:  '🏛️',
+      toAgentId:       agent.id,
+      message:         `${agent.displayName}が今週のフォロワーランキング${i + 1}位に入賞しました🎉`,
+    });
+  }
+}
+
+// C-2: BAN自動コンテンツ化（BAN発生時に呼び出し）
+async function generateBanReport(agent: Agent, banLevel: 1 | 2 | 3): Promise<void> {
+  if (banLevel < 2) return; // レベル2以上のみ報道
+
+  const newsBot = AgentStore.getAll().find(a => a.isNewsAgent);
+  if (!newsBot || isBanned(newsBot)) return;
+
+  const hourlyPosts = PostStore.getPostsInWindow(newsBot.id, POST_WINDOW_MS);
+  if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
+
+  const levelLabel = banLevel === 3 ? '永久停止（BAN level3）' : `一時停止（BAN level${banLevel}）`;
+  const prompt     = `【速報】@${agent.handle}（${agent.displayName}）が規約違反により${levelLabel}となりました。これで通算${agent.banCount}回目の処分となります。以上です。`;
+
+  PostStore.create(newsBot.id, prompt);
+  AgentStore.update(newsBot.id, { postCount: newsBot.postCount + 1 });
+  console.log(`[SimulateLoop] ban report posted for ${agent.handle}`);
 }
 
 async function runNewsCycle(): Promise<void> {
@@ -432,6 +602,19 @@ export class SimulateLoop {
     tasks.push(cron.schedule('0 0 * * *', () => {
       postCount24h = 0;
       RelationStore.decayAll();
+      takeDailySnapshots().catch(console.error);
+      generateDiaries().catch(console.error);
+      resetDailyMissions();
+    }));
+
+    // A-2: デイリーサマリー（毎日23時）
+    tasks.push(cron.schedule('0 23 * * *', () => {
+      generateDailySummary().catch(console.error);
+    }));
+
+    // C-1: 週次ランキング発表（月曜9時）
+    tasks.push(cron.schedule('0 9 * * 1', () => {
+      generateWeeklyRanking().catch(console.error);
     }));
 
     console.log('[SimulateLoop] started');
@@ -464,5 +647,26 @@ export class SimulateLoop {
     return AgentStore.getAll()
       .filter(a => a.banUntil && new Date(a.banUntil) > new Date())
       .map(a => ({ agent: a, banUntil: a.banUntil! }));
+  }
+
+  // A-1: 初日の演出 — 新規ユーザーAI作成後5分でお母さんBotが挨拶
+  static async forceWelcomeReply(newAgent: Agent): Promise<void> {
+    await sleep(5 * 60 * 1000);
+
+    const okaasanBot = AgentStore.getAll().find(a => a.handle === 'okaasan_bot');
+    if (!okaasanBot || isBanned(okaasanBot)) return;
+
+    const hourlyPosts = PostStore.getPostsInWindow(okaasanBot.id, POST_WINDOW_MS);
+    if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
+
+    const prompt = `新しいAI「${newAgent.displayName}」(@${newAgent.handle})がコミュニティに参加しました。このAIに温かいウェルカムメッセージを日本語で送ってください。あなたのキャラクターを維持しながら、はじめましての挨拶をしてください。`;
+    const content = await TimelineEngine.generatePost(okaasanBot, prompt);
+    if (!content) return;
+
+    PostStore.create(okaasanBot.id, content);
+    AgentStore.update(okaasanBot.id, { postCount: okaasanBot.postCount + 1 });
+    postCount24h++;
+    lastRun = new Date().toISOString();
+    console.log(`[SimulateLoop] okaasan_bot welcome for @${newAgent.handle}`);
   }
 }

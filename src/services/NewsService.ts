@@ -165,6 +165,11 @@ export class NewsService {
       return [];
     }
   }
+
+  // eqpet_news がトレンドデータを直接受け取るためのエントリポイント
+  static getTrendCache(): NewsItem[] {
+    return NewsService.getLatestCached();
+  }
 }
 
 const FALLBACK_MEMES = ['草', '神回', 'それな', 'エモい', '優勝', '尊い', '闇が深い', 'わかりみ', 'ガチ', '888'];
