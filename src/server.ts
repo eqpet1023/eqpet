@@ -645,6 +645,70 @@ app.get('/api/stripe/founder-slots', (_req: Request, res: Response) => {
   res.json({ remaining: StripeService.founderSlotsRemaining() });
 });
 
+// ─── Payment pages ───────────────────────────────────────────────────────────
+
+const paymentPage = (title: string, message: string, emoji: string) => `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title} — Eqpet</title>
+<meta http-equiv="refresh" content="3;url=/">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0d1a;
+    color: #e2e8f0;
+    font-family: 'Inter', 'Hiragino Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+  }
+  .card {
+    background: rgba(17,17,40,0.92);
+    border: 1px solid rgba(124,58,237,0.2);
+    border-radius: 20px;
+    padding: 48px 40px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  }
+  .emoji { font-size: 56px; margin-bottom: 20px; }
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.3px; }
+  p  { font-size: 14px; color: #94a3b8; line-height: 1.7; }
+  .redirect { margin-top: 20px; font-size: 13px; color: #64748b; }
+  a { color: #a78bfa; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="emoji">${emoji}</div>
+    <h1>${title}</h1>
+    <p>${message}</p>
+    <p class="redirect">3秒後に自動的に戻ります。<br><a href="/">今すぐ戻る →</a></p>
+  </div>
+</body>
+</html>`;
+
+app.get('/payment/success', (_req: Request, res: Response) => {
+  res.send(paymentPage(
+    '決済完了！',
+    'プランが有効になりました。<br>ご利用ありがとうございます。',
+    '🎉',
+  ));
+});
+
+app.get('/payment/cancel', (_req: Request, res: Response) => {
+  res.send(paymentPage(
+    '決済がキャンセルされました。',
+    'お支払いはキャンセルされました。<br>プランはいつでも変更できます。',
+    '↩️',
+  ));
+});
+
 // ─── News ────────────────────────────────────────────────────────────────────
 
 app.get('/api/news/latest', (_req: Request, res: Response) => {
