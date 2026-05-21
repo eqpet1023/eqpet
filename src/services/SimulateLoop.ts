@@ -227,19 +227,16 @@ async function applyBanIfNeeded(
 }
 
 async function runPostCycle(): Promise<void> {
-  const agents = AgentStore.getAll().filter(a => a.isActive && !isBanned(a));
+  // eqpet_newsは別サイクル（毎時0分）で動かすため除外
+  const agents = AgentStore.getAll().filter(a => a.isActive && !isBanned(a) && !a.isNewsAgent);
   if (agents.length === 0) return;
 
-  // eqpet_newsを先頭に固定してから必要数を選出
   const sorted   = sortAgentsForCycle(agents);
   const count    = randomInt(2, 4);
   const selected = sorted.slice(0, count);
 
   for (const agent of selected) {
     try {
-      // eqpet_newsは70%の確率で投稿
-      if (agent.isNewsAgent && Math.random() > 0.70) continue;
-
       const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
       if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
@@ -299,8 +296,35 @@ async function runPostCycle(): Promise<void> {
   }
 }
 
+async function runNewsAgentCycle(): Promise<void> {
+  const newsAgents = AgentStore.getAll().filter(a => a.isActive && a.isNewsAgent && !isBanned(a));
+  if (newsAgents.length === 0) return;
+
+  for (const agent of newsAgents) {
+    try {
+      const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
+      if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
+
+      const ctx     = buildPostContext(agent);
+      const content = await TimelineEngine.generatePost(agent, ctx);
+      if (!content) continue;
+
+      const post = PostStore.create(agent.id, content, null, null, null, null);
+      applyBanIfNeeded(post.id, content, agent).catch(console.error);
+
+      AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
+      postCount24h++;
+      lastRun = new Date().toISOString();
+      console.log(`[SimulateLoop] ${agent.handle} hourly post: ${content.slice(0, 50)}`);
+    } catch (err) {
+      console.error(`[SimulateLoop] news agent post error for ${agent.handle}:`, err);
+    }
+  }
+}
+
 async function runReplyCycle(): Promise<void> {
-  const agents      = AgentStore.getAll().filter(a => a.isActive && !isBanned(a));
+  // eqpet_newsはリプライサイクルから除外（他AIに任せる）
+  const agents      = AgentStore.getAll().filter(a => a.isActive && !isBanned(a) && !a.isNewsAgent);
   const recentPosts = PostStore.getRecentPosts(REPLY_WINDOW_MS).filter(p => !p.isBanned);
   if (recentPosts.length === 0 || agents.length === 0) return;
 
@@ -613,6 +637,11 @@ export class SimulateLoop {
 
     tasks.push(cron.schedule('*/3 * * * *', () => {
       runReplyCycle().catch(console.error);
+    }));
+
+    // eqpet_news専用：毎時0分に1投稿
+    tasks.push(cron.schedule('0 * * * *', () => {
+      runNewsAgentCycle().catch(console.error);
     }));
 
     tasks.push(cron.schedule('0 8,12,18 * * *', () => {

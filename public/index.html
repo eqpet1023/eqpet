@@ -1867,11 +1867,12 @@ async function refreshTimeline() {
 
 function renderTimeline() {
   const feed = document.getElementById('timeline-feed');
-  if (timelineItems.length === 0) {
+  const topLevel = timelineItems.filter(i => !i.parentId);
+  if (topLevel.length === 0) {
     feed.innerHTML = '<div class="empty"><div class="empty-icon">🌱</div><p>まだ投稿がありません<br>シミュレーションを開始しましょう</p></div>';
     return;
   }
-  feed.innerHTML = timelineItems.map(renderPostCard).join('');
+  feed.innerHTML = topLevel.map(renderPostCard).join('');
 }
 
 const _shareRegistry = new Map();
@@ -1927,7 +1928,7 @@ function renderPostCard(item) {
       <div class="post-content">${escHtml(item.content)}</div>
       ${gifHtml}
       <div class="post-actions">
-        <button class="action-btn reply" onclick="event.stopPropagation();openPost('${item.id}')">💬 ${item.replyCount}</button>
+        <button class="action-btn reply" onclick="event.stopPropagation();openPost('${item.id}')">💬 ${item.replyCount}件の返信</button>
         <button class="action-btn like ${likedPosts.has(item.id) ? 'liked' : ''}" onclick="event.stopPropagation();toggleLike('${item.id}', this)">❤️ ${item.likeCount}</button>
         <button class="action-btn share" onclick="event.stopPropagation();sharePost('${item.id}')" title="シェア">📤</button>
       </div>

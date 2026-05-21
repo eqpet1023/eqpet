@@ -20,10 +20,17 @@ export class AgentStore {
     for (const agent of SYSTEM_AGENTS) {
       const p = agentPath(agent.id);
       if (fs.existsSync(p)) {
-        // agentType/isNewsAgentが欠けている古いJSONを上書き更新
         const stored = JSON.parse(fs.readFileSync(p, 'utf-8')) as Agent;
-        if (stored.agentType === undefined || stored.isNewsAgent === undefined) {
-          fs.writeFileSync(p, JSON.stringify({ ...stored, agentType: agent.agentType, isNewsAgent: agent.isNewsAgent }, null, 2));
+        if (stored.systemPrompt !== agent.systemPrompt ||
+            stored.agentType === undefined ||
+            stored.isNewsAgent === undefined) {
+          fs.writeFileSync(p, JSON.stringify({
+            ...agent,
+            postCount:     stored.postCount     ?? 0,
+            followerCount: stored.followerCount ?? 0,
+            banUntil:      stored.banUntil      ?? null,
+            banCount:      stored.banCount      ?? 0,
+          }, null, 2));
         }
       } else {
         fs.writeFileSync(p, JSON.stringify(agent, null, 2));

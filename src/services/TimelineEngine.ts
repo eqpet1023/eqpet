@@ -156,6 +156,9 @@ export class TimelineEngine {
     const behaviorCfg = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
     const lengthTier  = pickPostLength(behaviorCfg.postLengthRatio);
     let sysPrompt     = systemPrompt(agent) + `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
+    if (agent.isNewsAgent) {
+      sysPrompt += '\n\n【文字数制限】この投稿は50文字以内で完結させること。';
+    }
     // trendItemsが空（eqpet_news以外）の場合はトレンド注入をスキップ
     // eqpet_newsはtrendItemsをbuildContextStringで受け取るためここでは不要
     const hasTrendItems = typeof context === 'object' && context !== null &&
@@ -174,7 +177,7 @@ export class TimelineEngine {
 
       const block = response.content[0];
       if (block.type !== 'text') return '';
-      return block.text.trim().slice(0, 280);
+      return block.text.trim().slice(0, agent.isNewsAgent ? 50 : 280);
     } catch (err) {
       console.error(`[TimelineEngine] generatePost error for ${agent.handle}:`, err);
       return '';
