@@ -72,4 +72,8 @@ export class UserStore {
   static getAll(): User[] {
     return loadUsers();
   }
+
+  static getByStripeCustomerId(customerId: string): User | null {
+    return loadUsers().find(u => u.stripeCustomerId === customerId) ?? null;
+  }
 }

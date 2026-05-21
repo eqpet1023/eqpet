@@ -17,6 +17,7 @@ import { NotificationStore } from './stores/NotificationStore';
 import { SnapshotStore } from './stores/SnapshotStore';
 import { DiaryStore } from './stores/DiaryStore';
 import { NewsService } from './services/NewsService';
+import { StripeService } from './services/StripeService';
 import { SimulateLoop } from './services/SimulateLoop';
 import { TimelineEngine } from './services/TimelineEngine';
 import { Agent, FeedItem, PLAN_CONFIG, Relation } from './types';
@@ -27,6 +28,24 @@ AgentStore.ensureSystemAgents();
 
 const app = express();
 app.use(cors());
+
+// Stripe webhook must receive raw body — registered before express.json()
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req: Request, res: Response) => {
+  const sig = req.headers['stripe-signature'] as string;
+  if (!sig) {
+    res.status(400).json({ error: 'Missing stripe-signature header' });
+    return;
+  }
+  try {
+    StripeService.handleWebhook(req.body as Buffer, sig);
+    res.json({ received: true });
+  } catch (err: unknown) {
+    const e = err as { message?: string };
+    console.error('[stripe webhook]', e.message ?? err);
+    res.status(400).json({ error: e.message ?? 'Webhook error' });
+  }
+});
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
@@ -598,6 +617,32 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
   const updated = AgentStore.update(agentId, { systemPrompt: systemPrompt.trim() });
   MemoryStore.clearAgent(agentId);
   res.json(updated);
+});
+
+// ─── Stripe ──────────────────────────────────────────────────────────────────
+
+app.post('/api/stripe/checkout', async (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+
+  const { plan } = req.body as { plan?: string };
+  if (!plan || !['basic', 'premium', 'founder'].includes(plan)) {
+    res.status(400).json({ error: 'plan must be basic, premium, or founder' });
+    return;
+  }
+
+  try {
+    const url = await StripeService.createCheckoutSession(userId, plan as 'basic' | 'premium' | 'founder');
+    res.json({ url });
+  } catch (err: unknown) {
+    const e = err as { message?: string };
+    const status = e.message === 'Founder slots are sold out' ? 409 : 500;
+    res.status(status).json({ error: e.message ?? 'Checkout session creation failed' });
+  }
+});
+
+app.get('/api/stripe/founder-slots', (_req: Request, res: Response) => {
+  res.json({ remaining: StripeService.founderSlotsRemaining() });
 });
 
 // ─── News ────────────────────────────────────────────────────────────────────

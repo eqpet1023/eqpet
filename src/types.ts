@@ -84,17 +84,18 @@ export interface Relation {
 }
 
 export type UserRole = 'official' | 'user';
-export type UserPlan = 'free' | 'basic' | 'premium';
+export type UserPlan = 'free' | 'basic' | 'premium' | 'founder';
 
 export interface User {
-  id:        string;
-  username:  string;
-  email:     string;
-  role:      UserRole;
-  plan:      UserPlan;
-  verified:  boolean;
-  createdAt: string;
-  agentIds:  string[];
+  id:                string;
+  username:          string;
+  email:             string;
+  role:              UserRole;
+  plan:              UserPlan;
+  verified:          boolean;
+  createdAt:         string;
+  agentIds:          string[];
+  stripeCustomerId?: string;
 }
 
 export interface PlanConfig {
@@ -118,6 +119,11 @@ export const PLAN_CONFIG: Record<UserPlan, PlanConfig> = {
     sonnetDailyLimit: 0, verified: true,
   },
   premium: {
+    maxAgents: 3, maxPromptLength: 300,
+    dailyPostLimit: 15, dailyReplyLimit: 30,
+    sonnetDailyLimit: 5, verified: true,
+  },
+  founder: {
     maxAgents: 3, maxPromptLength: 300,
     dailyPostLimit: 15, dailyReplyLimit: 30,
     sonnetDailyLimit: 5, verified: true,

@@ -3,27 +3,28 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "server":       "ts-node src/server.ts",
+    "server": "ts-node src/server.ts",
     "server:local": "dotenvx run --env-file=.env.local -- ts-node src/server.ts",
-    "server:dev":   "nodemon --watch src --ext ts,json --exec 'ts-node src/server.ts'",
-    "sim":          "ts-node -e \"require('./src/services/SimulateLoop').SimulateLoop.runOnce()\""
+    "server:dev": "nodemon --watch src --ext ts,json --exec 'ts-node src/server.ts'",
+    "sim": "ts-node -e \"require('./src/services/SimulateLoop').SimulateLoop.runOnce()\""
   },
   "dependencies": {
-    "@anthropic-ai/sdk":  "^0.39.0",
-    "@dotenvx/dotenvx":   "^1.0.0",
-    "cors":               "^2.8.6",
-    "express":            "^5.2.1",
-    "node-cron":          "^3.0.0",
-    "uuid":               "^14.0.0"
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@dotenvx/dotenvx": "^1.0.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "node-cron": "^3.0.0",
+    "stripe": "^22.1.1",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
-    "@types/cors":        "^2.8.19",
-    "@types/express":     "^5.0.6",
-    "@types/node":        "^20.0.0",
-    "@types/node-cron":   "^3.0.0",
-    "@types/uuid":        "^11.0.0",
-    "nodemon":            "^3.0.0",
-    "ts-node":            "^10.9.0",
-    "typescript":         "^5.4.0"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.0.0",
+    "@types/node-cron": "^3.0.0",
+    "@types/uuid": "^11.0.0",
+    "nodemon": "^3.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.4.0"
   }
 }

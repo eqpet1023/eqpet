@@ -8,15 +8,12 @@ const client = new Anthropic({ apiKey: process.env.EQPET_API_KEY });
 const NEWS_DIR   = path.join(__dirname, '../../data/news');
 const TRENDS_DIR = path.join(__dirname, '../../data/trends');
 
-const SEARCH_QUERIES = [
-  'Twitter トレンド 日本 今日 2026',
-  'SNS 話題 日本 今日 2026',
+// 現実世界のニュース・時事ネタを取得するクエリ
+// ハウツー・まとめ・SEO記事を拾わないよう「ニュース」「速報」「出来事」に特化
+const NEWS_QUERIES = [
+  '日本 最新ニュース 今日 速報',
+  '日本 今日 話題 出来事 ニュース',
 ];
-
-interface NewsApiResponse {
-  status:   string;
-  articles: Array<{ title: string; description: string | null; url: string }>;
-}
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -34,36 +31,59 @@ function ensureTrendsDir(): void {
   if (!fs.existsSync(TRENDS_DIR)) fs.mkdirSync(TRENDS_DIR, { recursive: true });
 }
 
-function parseWords(text: string): string[] {
-  return text
-    .split(/[\n,、・\d+\.\s]+/)
-    .map(w => w.replace(/^[#「」『』【】\s]+|[#「」』】\s]+$/g, '').trim())
-    .filter(w => w.length >= 2 && w.length <= 30);
-}
-
-async function fetchTrendWords(query: string): Promise<string[]> {
+// web_search でニュースを取得し、構造化された NewsItem[] を返す
+async function fetchNewsItems(query: string): Promise<NewsItem[]> {
   try {
     const response = await client.messages.create({
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 500,
+      max_tokens: 1200,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }] as Parameters<typeof client.messages.create>[0]['tools'],
       messages: [{
         role:    'user',
-        content: `「${query}」を検索して、今日の日本のSNSトレンドワードを最大10個、改行区切りで列挙してください。ワードのみ返してください。`,
+        content: `「${query}」を検索して、今日の日本の時事ニュース・実際に起きた出来事を最大8件取得してください。
+
+条件（厳守）:
+- 実際のニュース・出来事のみ（ハウツー記事・まとめサイト・SEO記事・ランキング記事は除外）
+- 政治・経済・社会・スポーツ・テクノロジー・芸能・国際など報道価値のある出来事
+- タイトルは「〇〇が△△を発表」「〇〇で△△が起きる」のような見出し形式（40文字以内）
+- summaryは事実のみ1〜2文
+
+JSON形式のみで返してください（説明文・前置き不要）：
+[
+  {"title": "見出し形式のタイトル", "summary": "事実の概要1〜2文", "category": "政治|経済|社会|テクノロジー|スポーツ|芸能|国際|その他"},
+  ...
+]`,
       }],
     });
 
-    const words: string[] = [];
-    for (const block of response.content) {
-      if (block.type === 'text') {
-        words.push(...parseWords(block.text));
-      }
+    const text = response.content
+      .filter(b => b.type === 'text')
+      .map(b => (b as { text: string }).text)
+      .join('');
+
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) {
+      console.warn(`[NewsService] fetchNewsItems: no JSON found for "${query}"`);
+      return [];
     }
-    console.log(`[NewsService] "${query}" → ${words.length} words`);
-    return words;
+
+    const items = JSON.parse(match[0]) as Array<{ title?: string; summary?: string; category?: string }>;
+    const fetchedAt = new Date().toISOString();
+    const result = items
+      .filter(i => i.title && i.summary)
+      .map(i => ({
+        title:     (i.title    ?? '').slice(0, 60).trim(),
+        url:       '',
+        summary:   (i.summary  ?? '').slice(0, 150).trim(),
+        category:  (i.category ?? 'その他').trim(),
+        fetchedAt,
+      }));
+
+    console.log(`[NewsService] "${query}" → ${result.length} news items`);
+    return result;
   } catch (err: unknown) {
     const e = err as { message?: string; status?: number };
-    console.error(`[NewsService] fetchTrendWords error — status: ${e.status}, message: ${e.message}`);
+    console.error(`[NewsService] fetchNewsItems error — status: ${e.status}, message: ${e.message}`);
     return [];
   }
 }
@@ -84,36 +104,27 @@ export class NewsService {
     }
 
     try {
-      const allWords: string[] = [];
-      for (const query of SEARCH_QUERIES) {
-        const words = await fetchTrendWords(query);
-        allWords.push(...words);
+      const allItems: NewsItem[] = [];
+      for (const query of NEWS_QUERIES) {
+        const items = await fetchNewsItems(query);
+        allItems.push(...items);
       }
 
-      // 重複除去
+      // 重複除去（タイトルで判定）
       const seen   = new Set<string>();
-      const unique = allWords.filter(w => {
-        if (seen.has(w)) return false;
-        seen.add(w);
+      const unique = allItems.filter(item => {
+        if (seen.has(item.title)) return false;
+        seen.add(item.title);
         return true;
       });
 
-      const fetchedAt = new Date().toISOString();
-      const news: NewsItem[] = unique.map(word => ({
-        title:     word,
-        url:       '',
-        summary:   `SNSで話題：${word}`,
-        category:  'trend',
-        fetchedAt,
-      }));
-
-      if (news.length > 0) {
-        fs.writeFileSync(cachePath, JSON.stringify(news, null, 2));
-        console.log(`[NewsService] cached ${news.length} trend items`);
-        return news;
+      if (unique.length > 0) {
+        fs.writeFileSync(cachePath, JSON.stringify(unique, null, 2));
+        console.log(`[NewsService] cached ${unique.length} news items`);
+        return unique;
       }
 
-      console.warn('[NewsService] no trend words found');
+      console.warn('[NewsService] no news items found');
       fs.writeFileSync(cachePath, JSON.stringify([], null, 2));
       return [];
 
