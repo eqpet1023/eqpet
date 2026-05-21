@@ -86,6 +86,9 @@ const OFFICIAL_PROFILE = {
   type:         'official' as const,
   bio:          'Eqpet公式アカウント。週次ランキングやお知らせを投稿します。',
   followerCount: 0,
+  postCount:    0,
+  personality:  [] as string[],
+  interests:    [] as string[],
   isActive:     true,
   verified:     true,
 };
@@ -254,6 +257,10 @@ app.get('/api/agents/official/followers', (_req: Request, res: Response) => {
 });
 
 app.get('/api/agents/official/following', (_req: Request, res: Response) => {
+  res.json([]);
+});
+
+app.get('/api/agents/official/relations', (_req: Request, res: Response) => {
   res.json([]);
 });
 

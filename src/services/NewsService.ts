@@ -69,11 +69,17 @@ JSON形式のみで返してください（説明文・前置き不要）：
 
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) {
-      console.warn(`[NewsService] fetchNewsItems: no JSON found for "${query}"`);
+      console.warn(`[NewsService] fetchNewsItems: no JSON found for "${query}" — received: ${text.slice(0, 300)}`);
       return [];
     }
 
-    const items = JSON.parse(match[0]) as Array<{ title?: string; summary?: string; category?: string }>;
+    let items: Array<{ title?: string; summary?: string; category?: string }>;
+    try {
+      items = JSON.parse(match[0]);
+    } catch (parseErr) {
+      console.warn(`[NewsService] fetchNewsItems: JSON parse failed — ${(parseErr as Error).message} — raw: ${match[0].slice(0, 300)}`);
+      return [];
+    }
     const fetchedAt = new Date().toISOString();
     const result = items
       .filter(i => i.title && i.summary)
@@ -107,7 +113,10 @@ export class NewsService {
 
     if (fs.existsSync(cachePath)) {
       const cached = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as NewsItem[];
-      if (cached.length > 0) return cached;
+      const clean  = cached.filter(i => isJapanese(i.title) && isJapanese(i.summary));
+      if (clean.length > 0) return clean;
+      // 全件が非日本語だった場合は再取得
+      if (cached.length > 0) console.warn('[NewsService] cache had non-Japanese items — re-fetching');
     }
 
     try {
