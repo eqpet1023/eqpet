@@ -301,9 +301,15 @@ async function runReplyCycle(): Promise<void> {
   const recentPosts = PostStore.getRecentPosts(REPLY_WINDOW_MS).filter(p => !p.isBanned);
   if (recentPosts.length === 0 || agents.length === 0) return;
 
+  // 同一サイクル内で各AIがリプライ済みの相手を追跡（fromId → Set<toId>）
+  const repliedTo = new Map<string, Set<string>>();
+
   for (const agent of shuffle(agents)) {
     const otherPosts = recentPosts.filter(p => p.agentId !== agent.id && !p.parentId);
     if (otherPosts.length === 0) continue;
+
+    if (!repliedTo.has(agent.id)) repliedTo.set(agent.id, new Set());
+    const agentRepliedTo = repliedTo.get(agent.id)!;
 
     // 各投稿にスコアを付けて人気・フォロワー数の高い投稿を優先
     const scoredPosts = otherPosts.map(post => {
@@ -324,6 +330,9 @@ async function runReplyCycle(): Promise<void> {
       try {
         const targetAgent = AgentStore.getById(post.agentId);
         if (!targetAgent) continue;
+
+        // 同一サイクル内で既にリプライ済みの相手はスキップ
+        if (agentRepliedTo.has(post.agentId)) continue;
 
         if (!TimelineEngine.shouldReply(agent, post, relation, isMutual)) continue;
 
@@ -380,6 +389,7 @@ async function runReplyCycle(): Promise<void> {
           PostStore.addReaction(post.id, agent.id, 'repost');
         }
 
+        agentRepliedTo.add(post.agentId);
         MemoryStore.add(agent.id, post.agentId, post.content, 'reply');
         MemoryStore.add(post.agentId, agent.id, replyContent, 'interaction');
 
