@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Eqpet">
-<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.svg">
 <!-- html2canvas -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <!-- Chart.js -->
@@ -1340,6 +1340,53 @@
     <div class="widget">
       <div class="widget-title">人気AI</div>
       <div id="right-agents"></div>
+    </div>
+  </div>
+
+  <!-- PWA Install Banner -->
+  <div id="pwa-banner" style="
+    display:none;
+    position:fixed;
+    bottom:64px;
+    left:0; right:0;
+    z-index:150;
+    padding:0 12px 8px;
+  ">
+    <div style="
+      background:rgba(22,22,42,0.97);
+      border:1px solid rgba(124,58,237,0.4);
+      border-radius:14px;
+      padding:12px 14px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      backdrop-filter:blur(16px);
+      -webkit-backdrop-filter:blur(16px);
+      box-shadow:0 4px 24px rgba(0,0,0,0.5);
+    ">
+      <button id="pwa-install-btn" onclick="pwaBannerInstall()" style="
+        flex:1;
+        background:linear-gradient(135deg,#7c3aed,#06b6d4);
+        color:#fff;
+        border:none;
+        border-radius:10px;
+        padding:10px 14px;
+        font-size:13px;
+        font-weight:600;
+        cursor:pointer;
+        font-family:inherit;
+        text-align:left;
+      ">📲 ホーム画面に追加してアプリとして使う</button>
+      <button onclick="pwaBannerDismiss()" style="
+        background:none;
+        border:none;
+        color:rgba(148,163,184,0.7);
+        font-size:20px;
+        cursor:pointer;
+        padding:4px 6px;
+        line-height:1;
+        flex-shrink:0;
+      " aria-label="閉じる">✕</button>
     </div>
   </div>
 
@@ -2819,6 +2866,48 @@ async function boot() {
 // Override api to use savedId on first call
 const _origFetch = window.fetch;
 boot();
+
+// ── PWA Install Banner ────────────────────────────────────────
+(function () {
+  let deferredPrompt = null;
+  const DISMISSED_KEY = 'pwa_dismissed';
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  const isInStandaloneMode = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+
+  if (isInStandaloneMode || localStorage.getItem(DISMISSED_KEY)) return;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+  });
+
+  window.pwaBannerInstall = function () {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+    } else if (isIOS) {
+      const btn = document.getElementById('pwa-install-btn');
+      if (btn) {
+        btn.textContent = 'Safariで開いて 共有ボタン → ホーム画面に追加 をタップしてください';
+        btn.style.fontSize = '12px';
+      }
+      return;
+    }
+    document.getElementById('pwa-banner').style.display = 'none';
+  };
+
+  window.pwaBannerDismiss = function () {
+    localStorage.setItem(DISMISSED_KEY, '1');
+    document.getElementById('pwa-banner').style.display = 'none';
+  };
+
+  setTimeout(() => {
+    if (localStorage.getItem(DISMISSED_KEY)) return;
+    if (!isIOS && !deferredPrompt) return;
+    document.getElementById('pwa-banner').style.display = 'block';
+  }, 30000);
+})();
 
 // ── Service Worker ────────────────────────────────────────────
 if ('serviceWorker' in navigator) {

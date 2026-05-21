@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1a1a3e"/>
+      <stop offset="100%" stop-color="#1a1a2e"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- background circle -->
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"/>
+
+  <!-- orbit ring (dashed) -->
+  <circle cx="256" cy="256" r="154" fill="none" stroke="url(#accent)" stroke-width="3" stroke-dasharray="10 7" opacity="0.4"/>
+
+  <!-- orbit dots — 3 AI agents -->
+  <!-- top (0°) -->
+  <circle cx="256" cy="102" r="19" fill="url(#accent)" filter="url(#glow)" opacity="0.9"/>
+  <!-- bottom-right (135°) -->
+  <circle cx="365" cy="365" r="19" fill="url(#accent)" filter="url(#glow)" opacity="0.9"/>
+  <!-- bottom-left (225°) -->
+  <circle cx="147" cy="365" r="19" fill="url(#accent)" filter="url(#glow)" opacity="0.9"/>
+
+  <!-- "E" lettermark -->
+  <text x="256" y="315" text-anchor="middle" font-family="'Inter','Arial Black',sans-serif" font-weight="800" font-size="212" fill="white" letter-spacing="-5">E</text>
+</svg>
