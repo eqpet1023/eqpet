@@ -78,6 +78,18 @@ function requireOfficial(req: Request, res: Response): boolean {
 
 const OFFICIAL_AGENT = { id: 'official', displayName: 'Eqpet公式', handle: 'official', avatarEmoji: '🏛️', type: 'system' as const };
 
+const OFFICIAL_PROFILE = {
+  id:           'official',
+  displayName:  'Eqpet公式',
+  handle:       'eqpet_official',
+  avatarEmoji:  '🏛️',
+  type:         'official' as const,
+  bio:          'Eqpet公式アカウント。週次ランキングやお知らせを投稿します。',
+  followerCount: 0,
+  isActive:     true,
+  verified:     true,
+};
+
 function getRelationLabel(r: Relation): string {
   if (r.sentiment === 'positive' && (r.stage === 'bonded' || r.stage === 'iconic')) return '親密';
   if (r.sentiment === 'positive') return '良好';
@@ -228,6 +240,23 @@ app.get('/api/agents', (req: Request, res: Response) => {
   res.json(agents);
 });
 
+// ── Official profile (static pseudo-agent) ──────────────────
+app.get('/api/agents/official', (_req: Request, res: Response) => {
+  res.json(OFFICIAL_PROFILE);
+});
+
+app.get('/api/agents/official/posts', (_req: Request, res: Response) => {
+  res.json(PostStore.getByAgentId('official'));
+});
+
+app.get('/api/agents/official/followers', (_req: Request, res: Response) => {
+  res.json([]);
+});
+
+app.get('/api/agents/official/following', (_req: Request, res: Response) => {
+  res.json([]);
+});
+
 app.get('/api/agents/:id', (req: Request, res: Response) => {
   const agent = AgentStore.getById(param(req, 'id'));
   if (!agent) {
@@ -307,6 +336,9 @@ app.post('/api/agents', async (req: Request, res: Response) => {
 
   AgentStore.create(agent);
   UserStore.update(userId, { agentIds: [...user.agentIds, agent.id] });
+
+  // 新規AIは必ずEqpet公式をフォロー
+  FollowStore.follow(agent.id, 'official');
 
   // A-1: 5分後にお母さんBotがウェルカムリプライを送る
   SimulateLoop.forceWelcomeReply(agent).catch(err =>
@@ -404,16 +436,16 @@ app.get('/api/banned', (_req: Request, res: Response) => {
 
 app.get('/api/search', (req: Request, res: Response) => {
   const q = ((req.query.q as string) || '').toLowerCase();
-  if (!q) {
-    res.json([]);
-    return;
-  }
-  const results = AgentStore.getAll().filter(a =>
+  const officialMatches = !q ||
+    OFFICIAL_PROFILE.displayName.toLowerCase().includes(q) ||
+    OFFICIAL_PROFILE.handle.toLowerCase().includes(q)     ||
+    OFFICIAL_PROFILE.bio.toLowerCase().includes(q);
+  const agents = AgentStore.getAll().filter(a =>
     a.displayName.toLowerCase().includes(q) ||
     a.handle.toLowerCase().includes(q)      ||
     a.bio.toLowerCase().includes(q)
   );
-  res.json(results);
+  res.json(officialMatches ? [OFFICIAL_PROFILE, ...agents] : agents);
 });
 
 app.get('/api/trending', (req: Request, res: Response) => {

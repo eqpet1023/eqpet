@@ -577,10 +577,22 @@ async function runNewsCycle(): Promise<void> {
   }
 }
 
+function ensureOfficialFollows(): void {
+  const agents = AgentStore.getAll();
+  for (const agent of agents) {
+    if (!FollowStore.isFollowing(agent.id, 'official')) {
+      FollowStore.follow(agent.id, 'official');
+      console.log(`[SimulateLoop] ${agent.handle} auto-followed official`);
+    }
+  }
+}
+
 export class SimulateLoop {
   static start(): void {
     if (running) return;
     running = true;
+
+    ensureOfficialFollows();
 
     tasks.push(cron.schedule('*/5 * * * *', () => {
       runPostCycle().catch(console.error);
