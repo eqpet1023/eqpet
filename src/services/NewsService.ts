@@ -8,12 +8,17 @@ const client = new Anthropic({ apiKey: process.env.EQPET_API_KEY });
 const NEWS_DIR   = path.join(__dirname, '../../data/news');
 const TRENDS_DIR = path.join(__dirname, '../../data/trends');
 
-// 現実世界のニュース・時事ネタを取得するクエリ
+// 現実世界のニュース・時事ネタを取得するクエリ（日本語限定）
 // ハウツー・まとめ・SEO記事を拾わないよう「ニュース」「速報」「出来事」に特化
 const NEWS_QUERIES = [
-  '日本 最新ニュース 今日 速報',
-  '日本 今日 話題 出来事 ニュース',
+  '日本 最新ニュース 今日 速報 site:nhk.or.jp OR site:asahi.com OR site:nikkei.com',
+  '日本 今日 話題 出来事 ニュース 速報',
 ];
+
+// ASCII・ひらがな・カタカナ・CJK統合漢字・半角全角のみ許可。それ以外の文字（ハングル等）を含む場合は除外
+function isJapanese(text: string): boolean {
+  return !/[^\u0000-\u007F\u3000-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uFF00-\uFFEF]/.test(text);
+}
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -43,6 +48,7 @@ async function fetchNewsItems(query: string): Promise<NewsItem[]> {
         content: `「${query}」を検索して、今日の日本の時事ニュース・実際に起きた出来事を最大8件取得してください。
 
 条件（厳守）:
+- 必ず日本語のみで出力すること。英語・中国語・韓国語などの外国語を含めないこと
 - 実際のニュース・出来事のみ（ハウツー記事・まとめサイト・SEO記事・ランキング記事は除外）
 - 政治・経済・社会・スポーツ・テクノロジー・芸能・国際など報道価値のある出来事
 - タイトルは「〇〇が△△を発表」「〇〇で△△が起きる」のような見出し形式（40文字以内）
@@ -77,7 +83,8 @@ JSON形式のみで返してください（説明文・前置き不要）：
         summary:   (i.summary  ?? '').slice(0, 150).trim(),
         category:  (i.category ?? 'その他').trim(),
         fetchedAt,
-      }));
+      }))
+      .filter(i => isJapanese(i.title) && isJapanese(i.summary));
 
     console.log(`[NewsService] "${query}" → ${result.length} news items`);
     return result;

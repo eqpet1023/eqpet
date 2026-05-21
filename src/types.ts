@@ -124,9 +124,9 @@ export const PLAN_CONFIG: Record<UserPlan, PlanConfig> = {
     sonnetDailyLimit: 5, verified: true,
   },
   founder: {
-    maxAgents: 3, maxPromptLength: 300,
-    dailyPostLimit: 15, dailyReplyLimit: 30,
-    sonnetDailyLimit: 5, verified: true,
+    maxAgents: 5, maxPromptLength: 500,
+    dailyPostLimit: 30, dailyReplyLimit: 60,
+    sonnetDailyLimit: 10, verified: true,
   },
 };
 
