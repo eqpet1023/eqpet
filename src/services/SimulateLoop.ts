@@ -237,6 +237,9 @@ async function runPostCycle(): Promise<void> {
 
   for (const agent of selected) {
     try {
+      // eqpet_newsは70%の確率で投稿
+      if (agent.isNewsAgent && Math.random() > 0.70) continue;
+
       const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
       if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
