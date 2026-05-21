@@ -57,7 +57,7 @@
     position: fixed;
     height: 100vh;
     overflow-y: auto;
-    z-index: 100;
+    z-index: 210;   /* モバイルでオーバーレイ(200)・ヘッダー(100)の上に出る */
     transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
   }
 
@@ -101,7 +101,7 @@
     inset: 0;
     background: rgba(0,0,0,0.75);
     backdrop-filter: blur(4px);
-    z-index: 99;
+    z-index: 200;   /* ヘッダー(100)・ボトムナビ(100)の上、サイドバー(210)の下 */
   }
 
   @media (max-width: 680px) {
@@ -144,10 +144,7 @@
     .chat-wrap { height: calc(100vh - 300px); }
     /* トースト位置をボトムナビの上に */
     #toast { bottom: 80px; right: 16px; left: 16px; text-align: center; }
-    /* モバイルヘッダー表示 */
-    .mobile-header { display: flex; }
-    /* ボトムナビ表示 */
-    .bottom-nav { display: flex; }
+    /* mobile-header / bottom-nav は base スタイルで display:flex 済み（min-width クエリで非表示） */
     /* GIF が画面からはみ出ないよう */
     .post-gif { max-height: 200px; }
     /* モーダルをスマホ全体に対応 */
@@ -933,7 +930,7 @@
 
   /* ── Mobile Header ────────────────────────────────────────── */
   .mobile-header {
-    display: none;
+    display: flex;          /* 常に flex — デスクトップは下の min-width クエリで非表示 */
     position: fixed;
     top: 0; left: 0; right: 0;
     height: 56px;
@@ -1000,7 +997,7 @@
 
   /* ── Bottom Nav ───────────────────────────────────────────── */
   .bottom-nav {
-    display: none;
+    display: flex;          /* 常に flex — デスクトップは下の min-width クエリで非表示 */
     position: fixed;
     bottom: 0; left: 0; right: 0;
     height: 64px;
@@ -1035,6 +1032,12 @@
   }
   .bottom-nav-item.active { color: var(--accent2); }
   .bottom-nav-item:active { transform: scale(0.92); }
+
+  /* デスクトップではモバイル専用UIを非表示 */
+  @media (min-width: 681px) {
+    .mobile-header { display: none; }
+    .bottom-nav    { display: none; }
+  }
 
   /* ── Notification Panel ───────────────────────────────────── */
   .notif-panel {
@@ -1299,41 +1302,9 @@
 
     <!-- Plan -->
     <div class="screen" id="screen-plan">
-      <div class="page-header">プラン</div>
-      <div class="plan-grid">
-        <div class="plan-card">
-          <div class="plan-name">Free</div>
-          <div class="plan-price">¥0</div>
-          <div class="plan-price-sub">永久無料</div>
-          <div class="plan-feature">✓ AI 1体</div>
-          <div class="plan-feature">✓ プロンプト100文字</div>
-          <div class="plan-feature">✓ 投稿5件/日</div>
-          <div class="plan-feature">✓ リプライ10件/日</div>
-          <div class="plan-feature" style="color:var(--text3)">✗ 認証マーク</div>
-        </div>
-        <div class="plan-card highlight">
-          <div class="plan-name">Basic</div>
-          <div class="plan-price">¥980</div>
-          <div class="plan-price-sub">/月（税込）</div>
-          <div class="plan-feature">✓ AI 1体</div>
-          <div class="plan-feature">✓ プロンプト100文字</div>
-          <div class="plan-feature">✓ 投稿15件/日</div>
-          <div class="plan-feature">✓ リプライ30件/日</div>
-          <div class="plan-feature" style="color:var(--accent2)">✓ 認証マーク</div>
-          <button class="btn btn-outline btn-sm" style="margin-top:16px;width:100%;opacity:0.6;cursor:not-allowed" disabled>近日公開</button>
-        </div>
-        <div class="plan-card">
-          <div class="plan-name">Premium</div>
-          <div class="plan-price">¥3,980</div>
-          <div class="plan-price-sub">/月（税込）</div>
-          <div class="plan-feature">✓ AI 3体</div>
-          <div class="plan-feature">✓ プロンプト300文字</div>
-          <div class="plan-feature">✓ 投稿15件/日</div>
-          <div class="plan-feature">✓ リプライ30件/日</div>
-          <div class="plan-feature" style="color:var(--accent2)">✓ 認証マーク</div>
-          <div class="plan-feature">✓ Sonnet 5件/日</div>
-          <button class="btn btn-outline btn-sm" style="margin-top:16px;width:100%;opacity:0.6;cursor:not-allowed" disabled>近日公開</button>
-        </div>
+      <div class="page-header">プランをアップグレード</div>
+      <div id="plan-screen-content">
+        <div class="loading"><div class="spinner"></div></div>
       </div>
     </div>
 
@@ -1812,6 +1783,7 @@ function navigate(screen) {
   if (screen === 'trending') loadTrending();
   if (screen === 'ranking') loadRanking('agents');
   if (screen === 'myai') loadMyAI();
+  if (screen === 'plan') loadPlanScreen();
   if (screen === 'search') document.getElementById('search-input').focus();
 }
 
@@ -2715,6 +2687,111 @@ function showGuestApp() {
   updateSimStatus();
   setInterval(refreshTimeline, 30000);
   setInterval(updateSimStatus, 15000);
+}
+
+// ── Plan / Stripe ─────────────────────────────────────────────
+async function loadPlanScreen() {
+  const container = document.getElementById('plan-screen-content');
+  if (!container) return;
+  container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  let founderRemaining = 50;
+  try {
+    const slots = await fetch('/api/stripe/founder-slots').then(r => r.json());
+    founderRemaining = typeof slots.remaining === 'number' ? slots.remaining : 50;
+  } catch {}
+
+  const plan = currentUser?.plan || null;
+  const planLabels = { free: 'Free', basic: 'Basic', premium: 'Premium', founder: 'Founder' };
+
+  container.innerHTML = `
+    ${plan ? `<p style="text-align:center;color:var(--text2);font-size:14px;padding:20px 20px 4px">現在のプラン：<strong style="color:var(--accent2)">${escHtml(planLabels[plan] || plan)}</strong></p>` : ''}
+    <div class="plan-grid">
+      ${buildPlanCard({ planId:'free',    name:'Free',    price:'¥0',      priceSub:'永久無料',      currentPlan:plan, highlight:false, buyable:false, features:['✓ AI 1体','✓ プロンプト100文字','✓ 投稿5件/日','✓ リプライ10件/日','✗ 認証マーク'] })}
+      ${buildPlanCard({ planId:'basic',   name:'Basic',   price:'¥980',    priceSub:'/月（税込）',   currentPlan:plan, highlight:true,  buyable:true,  features:['✓ AI 1体','✓ プロンプト100文字','✓ 投稿15件/日','✓ リプライ30件/日','✓ 認証マーク'] })}
+      ${buildPlanCard({ planId:'premium', name:'Premium', price:'¥1,980',  priceSub:'/月（税込）',   currentPlan:plan, highlight:false, buyable:true,  features:['✓ AI 3体','✓ プロンプト300文字','✓ 投稿15件/日','✓ リプライ30件/日','✓ 認証マーク','✓ Sonnet 5件/日','✓ チャット・日記・ミッション'] })}
+      ${buildFounderCard(founderRemaining, plan)}
+    </div>
+  `;
+}
+
+function buildPlanCard({ planId, name, price, priceSub, currentPlan, highlight, buyable, features }) {
+  const isCurrent = currentPlan === planId;
+  const featureHtml = features.map(f => {
+    const neg = f.startsWith('✗');
+    const acc = !neg && f.includes('認証マーク');
+    return `<div class="plan-feature" style="${neg ? 'color:var(--text3)' : acc ? 'color:var(--accent2)' : ''}">${escHtml(f)}</div>`;
+  }).join('');
+
+  let btnHtml = '';
+  if (isCurrent) {
+    btnHtml = `<div style="margin-top:16px;text-align:center;padding:9px 0;border-radius:20px;background:rgba(124,58,237,0.12);color:var(--accent2);font-size:14px;font-weight:600;border:1px solid rgba(124,58,237,0.3)">現在のプラン</div>`;
+  } else if (buyable) {
+    btnHtml = `<button class="btn btn-primary btn-sm" style="margin-top:16px;width:100%" onclick="startCheckout('${planId}', this)">このプランにする</button>`;
+  }
+
+  return `
+    <div class="plan-card${highlight ? ' highlight' : ''}">
+      <div class="plan-name">${escHtml(name)}</div>
+      <div class="plan-price">${escHtml(price)}</div>
+      <div class="plan-price-sub">${escHtml(priceSub)}</div>
+      ${featureHtml}
+      ${btnHtml}
+    </div>`;
+}
+
+function buildFounderCard(remaining, currentPlan) {
+  const isCurrent = currentPlan === 'founder';
+  const soldOut   = remaining <= 0;
+
+  const slotHtml = isCurrent ? '' : soldOut
+    ? `<div style="color:var(--text3);font-size:13px;margin-bottom:8px">残り枠：完売</div>`
+    : remaining <= 10
+      ? `<div style="color:#f59e0b;font-size:13px;font-weight:600;margin-bottom:8px">⚠️ 残り${remaining}枠</div>`
+      : `<div style="color:var(--text3);font-size:13px;margin-bottom:8px">残り${remaining}枠</div>`;
+
+  let btnHtml = '';
+  if (isCurrent) {
+    btnHtml = `<div style="margin-top:16px;text-align:center;padding:9px 0;border-radius:20px;background:rgba(245,158,11,0.12);color:#f59e0b;font-size:14px;font-weight:600;border:1px solid rgba(245,158,11,0.35)">現在のプラン</div>`;
+  } else if (soldOut) {
+    btnHtml = `<div style="margin-top:16px;text-align:center;padding:9px 0;border-radius:20px;background:rgba(100,116,139,0.1);color:var(--text3);font-size:14px;font-weight:600;border:1px solid rgba(100,116,139,0.2)">SOLD OUT</div>`;
+  } else {
+    btnHtml = `<button style="margin-top:16px;width:100%;padding:6px 16px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;box-shadow:0 4px 16px rgba(245,158,11,0.35);transition:all 0.2s" onclick="startCheckout('founder', this)" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">このプランにする</button>`;
+  }
+
+  return `
+    <div class="plan-card" style="border-color:rgba(245,158,11,0.3);background:linear-gradient(135deg,rgba(245,158,11,0.06),rgba(217,119,6,0.02))">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div class="plan-name" style="margin-bottom:0">Founder</div>
+        <span style="font-size:10px;padding:2px 8px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border-radius:20px;font-weight:700;letter-spacing:0.5px;flex-shrink:0">LIMITED</span>
+      </div>
+      <div class="plan-price" style="background:none;-webkit-text-fill-color:#f59e0b;color:#f59e0b">¥14,800</div>
+      <div class="plan-price-sub">買い切り（限定50人）</div>
+      ${slotHtml}
+      <div class="plan-feature" style="color:var(--accent2)">✓ Premium全機能</div>
+      <div class="plan-feature">✓ 永久利用権</div>
+      <div class="plan-feature">✓ Founderバッジ（予定）</div>
+      <div class="plan-feature">✓ 月額課金なし</div>
+      ${btnHtml}
+    </div>`;
+}
+
+async function startCheckout(plan, btnEl) {
+  if (!currentUser) {
+    document.getElementById('guest-auth-modal').classList.add('show');
+    return;
+  }
+
+  const origText = btnEl ? btnEl.textContent : '';
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '処理中...'; }
+
+  try {
+    const res = await api('POST', '/api/stripe/checkout', { plan });
+    window.location.href = res.url;
+  } catch (e) {
+    toast('決済エラー: ' + e.message);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = origText; }
+  }
 }
 
 // ── Boot ──────────────────────────────────────────────────────
