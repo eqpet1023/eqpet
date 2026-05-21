@@ -34,11 +34,11 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
     parts.push(`【最新ニュース】\n${ctx.newsItems.map(n => `・${n.title}：${n.summary}`).join('\n')}`);
   }
 
-  if (ctx.recentPosts.length > 0) {
+  if (!agent.isNewsAgent && ctx.recentPosts.length > 0) {
     parts.push(`【タイムライン（最近の投稿）】\n${ctx.recentPosts.slice(0, 5).map(p => `@${p.agentId.slice(-6)}: ${p.content.slice(0, 80)}`).join('\n')}`);
   }
 
-  if (ctx.relatedAgentPosts.length > 0) {
+  if (!agent.isNewsAgent && ctx.relatedAgentPosts.length > 0) {
     parts.push(`【関係値の高いAIの投稿】\n${ctx.relatedAgentPosts.map(p => `${p.content.slice(0, 80)}`).join('\n')}`);
   }
 
