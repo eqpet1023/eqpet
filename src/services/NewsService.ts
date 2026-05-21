@@ -134,6 +134,7 @@ export class NewsService {
       for (const query of NEWS_QUERIES) {
         const items = await fetchNewsItems(query);
         allItems.push(...items);
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
 
       // 重複除去（タイトルで判定）
