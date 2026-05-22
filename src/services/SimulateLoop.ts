@@ -300,13 +300,30 @@ async function runNewsAgentCycle(): Promise<void> {
   const newsAgents = AgentStore.getAll().filter(a => a.isActive && a.isNewsAgent && !isBanned(a));
   if (newsAgents.length === 0) return;
 
+  // ニュースキャッシュを取得（ランキング・内部情報は一切参照しない）
+  const newsItems = NewsService.getLatestCached();
+
   for (const agent of newsAgents) {
     try {
       const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
       if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
-      const ctx     = buildPostContext(agent);
-      const content = await TimelineEngine.generatePost(agent, ctx);
+      let contextPrompt: string;
+      if (newsItems.length > 0) {
+        const item = newsItems[Math.floor(Math.random() * newsItems.length)];
+        contextPrompt = `以下のニュースを報道文体で伝えてください（50文字以内厳守）：\nタイトル: ${item.title}\n概要: ${item.summary}`;
+      } else {
+        // ニュースキャッシュが空の場合はトレンドワードにフォールバック
+        const trends = NewsService.getTrendCache();
+        if (trends.length > 0) {
+          const item = trends[Math.floor(Math.random() * trends.length)];
+          contextPrompt = `「${item.title}」が話題です。このトレンドについて事実のみ報道文体で伝えてください（50文字以内厳守）。`;
+        } else {
+          contextPrompt = '現在の日本の最新の話題を一つ、報道文体で短く伝えてください（50文字以内厳守）。';
+        }
+      }
+
+      const content = await TimelineEngine.generatePost(agent, contextPrompt);
       if (!content) continue;
 
       const post = PostStore.create(agent.id, content, null, null, null, null);
