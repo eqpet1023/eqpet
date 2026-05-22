@@ -52,6 +52,7 @@ export class StripeService {
       metadata:   { userId, plan },
       success_url: `${appUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url:  `${appUrl}/payment/cancel`,
+      allow_promotion_codes: true,
     });
 
     if (!session.url) throw new Error('Failed to create checkout session URL');

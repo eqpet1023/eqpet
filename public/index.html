@@ -61,7 +61,7 @@
     transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
   }
 
-  .main { margin-left: 220px; flex: 1; max-width: 680px; }
+  .main { margin-left: 220px; flex: 1; }
 
   .right-panel {
     width: 300px;
@@ -74,6 +74,8 @@
     overflow-y: auto;
   }
   @media (max-width: 900px) { .right-panel { display: none; } }
+  /* 右パネル表示時は .main に右マージンを加えてパネルの下に潜らないようにする */
+  @media (min-width: 901px) { .main { margin-right: 300px; } }
 
   /* ── Hamburger ────────────────────────────────────────────── */
   .hamburger {
@@ -229,7 +231,7 @@
 
   /* ── Screens ──────────────────────────────────────────────── */
   .screen { display: none; }
-  .screen.active { display: block; }
+  .screen.active { display: block; max-width: 680px; margin: 0 auto; }
 
   /* ── Header ───────────────────────────────────────────────── */
   .page-header {
