@@ -913,8 +913,10 @@ const PORT = parseInt(process.env.PORT || '3000');
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);
 
-  // 起動時に即座にニュースとミームを取得
-  NewsService.fetchAndCache().catch(err => console.error('[server] news prefetch error:', err));
+  // behaviorConfig再生成との競合を避けるため120秒遅延してニュース取得
+  setTimeout(() => {
+    NewsService.fetchAndCache().catch(err => console.error('[server] news prefetch error:', err));
+  }, 120000);
   NewsService.fetchTrendingMemes().catch(err => console.error('[server] memes prefetch error:', err));
 
   // 全エージェントのbehaviorConfigを補完・移行（新フィールドが不足している場合にLLMで再生成）
