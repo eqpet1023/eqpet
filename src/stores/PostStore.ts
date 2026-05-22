@@ -196,12 +196,29 @@ export class PostStore {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
-  static getTrending(hours = 24, limit = 20): Post[] {
-    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
-    return loadAllPosts()
-      .filter(p => new Date(p.createdAt) >= cutoff && !p.isBanned)
-      .sort((a, b) => b.likeCount - a.likeCount)
-      .slice(0, limit);
+  static getTrending(hours = 24, limit = 10): Post[] {
+    const cutoff   = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const allPosts = loadAllPosts();
+    const recent   = allPosts.filter(p => new Date(p.createdAt) >= cutoff && !p.isBanned);
+
+    // リプライしているユニークなagentIdのマップを構築
+    const replyAgents = new Map<string, Set<string>>();
+    for (const post of allPosts) {
+      if (post.parentId) {
+        if (!replyAgents.has(post.parentId)) replyAgents.set(post.parentId, new Set());
+        replyAgents.get(post.parentId)!.add(post.agentId);
+      }
+    }
+
+    return recent
+      .map(p => {
+        const mentionBonus = (replyAgents.get(p.id)?.size ?? 0) * 5;
+        const score        = p.likeCount * 3 + p.replyCount * 2 + p.repostCount + mentionBonus;
+        return { post: p, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(x => x.post);
   }
 
   static getPostsInWindow(agentId: string, windowMs: number): Post[] {

@@ -49,6 +49,25 @@ function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }
 
+function weightedSample<T>(items: T[], weights: number[], n: number): T[] {
+  const selected: T[] = [];
+  const remaining     = [...items];
+  const remWeights    = [...weights];
+  for (let i = 0; i < n && remaining.length > 0; i++) {
+    const total = remWeights.reduce((s, w) => s + w, 0);
+    let r = Math.random() * total;
+    let idx = 0;
+    for (; idx < remWeights.length - 1; idx++) {
+      r -= remWeights[idx];
+      if (r <= 0) break;
+    }
+    selected.push(remaining[idx]);
+    remaining.splice(idx, 1);
+    remWeights.splice(idx, 1);
+  }
+  return selected;
+}
+
 function isBanned(agent: Agent): boolean {
   return !!(agent.banUntil && new Date(agent.banUntil) > new Date());
 }
@@ -166,6 +185,15 @@ function buildPostContext(agent: Agent): PostContext {
     );
   }
 
+  // agentId → "@handle（displayName）" のラベルマップを構築
+  const agentLabels: Record<string, string> = {};
+  for (const post of [...selected, ...relatedAgentPosts]) {
+    if (!agentLabels[post.agentId]) {
+      const a = AgentStore.getById(post.agentId);
+      if (a) agentLabels[post.agentId] = `@${a.handle}（${a.displayName}）`;
+    }
+  }
+
   return {
     recentPosts,
     trendItems,
@@ -184,6 +212,7 @@ function buildPostContext(agent: Agent): PostContext {
     ownerLastMessage,
     bannedAgents,
     relatedAgentPosts,
+    agentLabels,
   };
 }
 
@@ -226,14 +255,24 @@ async function applyBanIfNeeded(
   console.log(`[SimulateLoop] ${agent.handle} BAN level${level} until ${banUntil}`);
 }
 
+const MAX_HOURLY_PER_AGENT = 3;
+
 async function runPostCycle(): Promise<void> {
   // eqpet_newsは別サイクル（毎時0分）で動かすため除外
   const agents = AgentStore.getAll().filter(a => a.isActive && !isBanned(a) && !a.isNewsAgent);
   if (agents.length === 0) return;
 
-  const sorted   = sortAgentsForCycle(agents);
-  const count    = randomInt(2, 4);
-  const selected = sorted.slice(0, count);
+  // 直近1時間の投稿数を取得し、上限に達したAIを除外
+  const hourlyCountMap = new Map<string, number>(
+    agents.map(a => [a.id, PostStore.getPostsInWindow(a.id, POST_WINDOW_MS).length])
+  );
+  const eligible = agents.filter(a => (hourlyCountMap.get(a.id) ?? 0) < MAX_HOURLY_PER_AGENT);
+  if (eligible.length === 0) return;
+
+  // 投稿数が少ないAIほど選ばれやすくなる重み付けでweighted random選出
+  const weights  = eligible.map(a => 1 / ((hourlyCountMap.get(a.id) ?? 0) + 1));
+  const count    = Math.min(randomInt(2, 4), eligible.length);
+  const selected = weightedSample(eligible, weights, count);
 
   for (const agent of selected) {
     try {

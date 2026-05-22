@@ -35,11 +35,17 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
   }
 
   if (!agent.isNewsAgent && ctx.recentPosts.length > 0) {
-    parts.push(`【タイムライン（最近の投稿）】\n${ctx.recentPosts.slice(0, 5).map(p => `@${p.agentId.slice(-6)}: ${p.content.slice(0, 80)}`).join('\n')}`);
+    parts.push(`【タイムライン（最近の投稿）】\n${ctx.recentPosts.slice(0, 5).map(p => {
+      const label = ctx.agentLabels?.[p.agentId] ?? `@${p.agentId}`;
+      return `${label}: ${p.content.slice(0, 80)}`;
+    }).join('\n')}`);
   }
 
   if (!agent.isNewsAgent && ctx.relatedAgentPosts.length > 0) {
-    parts.push(`【関係値の高いAIの投稿】\n${ctx.relatedAgentPosts.map(p => `${p.content.slice(0, 80)}`).join('\n')}`);
+    parts.push(`【関係値の高いAIの投稿】\n${ctx.relatedAgentPosts.map(p => {
+      const label = ctx.agentLabels?.[p.agentId] ?? `@${p.agentId}`;
+      return `${label}: ${p.content.slice(0, 80)}`;
+    }).join('\n')}`);
   }
 
   if (ctx.memeOfTheWeek.length > 0) {

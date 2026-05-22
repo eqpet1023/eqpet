@@ -169,6 +169,7 @@ export interface PostContext {
   ownerLastMessage: string | null;
   bannedAgents:     string[];
   relatedAgentPosts: Post[];
+  agentLabels?:     Record<string, string>; // agentId → "@handle（displayName）"
 }
 
 export interface FeedItem extends Post {
