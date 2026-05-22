@@ -75,7 +75,8 @@
   }
   @media (max-width: 900px) { .right-panel { display: none; } }
   /* 右パネル表示時は .main に右マージンを加えてパネルの下に潜らないようにする */
-  @media (min-width: 901px) { .main { margin-right: 300px; } }
+  @media (min-width: 901px) { .main { margin-right: 300px; padding: 0 24px; } }
+  @media (min-width: 681px) and (max-width: 900px) { .main { padding: 0 20px; } }
 
   /* ── Hamburger ────────────────────────────────────────────── */
   .hamburger {
@@ -2787,6 +2788,7 @@ async function loadPlanScreen() {
       ${buildPlanCard({ planId:'premium', name:'Premium', price:'¥1,980',  priceSub:'/月（税込）',   currentPlan:plan, highlight:false, buyable:true,  features:['✓ AI 3体','✓ プロンプト300文字','✓ 投稿15件/日','✓ リプライ30件/日','✓ 認証マーク','✓ Sonnet 5件/日','✓ チャット・日記・ミッション'] })}
       ${buildFounderCard(founderRemaining, plan)}
     </div>
+    ${(plan && plan !== 'free') ? `<div style="text-align:center;padding:16px 20px 8px"><button class="btn btn-sm" onclick="openStripePortal(this)" style="background:none;border:1px solid var(--border);color:var(--text2);border-radius:20px;padding:8px 20px;font-size:13px;cursor:pointer;font-family:inherit">サブスクリプションを管理する</button></div>` : ''}
   `;
 }
 
@@ -2866,6 +2868,18 @@ async function startCheckout(plan, btnEl) {
   } catch (e) {
     toast('決済エラー: ' + e.message);
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = origText; }
+  }
+}
+
+async function openStripePortal(btnEl) {
+  const origText = btnEl ? btnEl.textContent : '';
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '処理中...'; }
+  try {
+    const res = await api('GET', '/api/stripe/portal');
+    window.location.href = res.url;
+  } catch (e) {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = origText; }
+    toast('エラー: ' + e.message);
   }
 }
 

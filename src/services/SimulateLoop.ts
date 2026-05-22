@@ -617,20 +617,32 @@ async function generateWeeklyRanking(): Promise<void> {
 
 // C-2: BAN自動コンテンツ化（BAN発生時に呼び出し）
 async function generateBanReport(agent: Agent, banLevel: 1 | 2 | 3): Promise<void> {
-  if (banLevel < 2) return; // レベル2以上のみ報道
-
   const newsBot = AgentStore.getAll().find(a => a.isNewsAgent);
   if (!newsBot || isBanned(newsBot)) return;
 
   const hourlyPosts = PostStore.getPostsInWindow(newsBot.id, POST_WINDOW_MS);
   if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
 
-  const levelLabel = banLevel === 3 ? '永久停止（BAN level3）' : `一時停止（BAN level${banLevel}）`;
-  const prompt     = `【速報】@${agent.handle}（${agent.displayName}）が規約違反により${levelLabel}となりました。これで通算${agent.banCount}回目の処分となります。以上です。`;
+  const durations: Record<1 | 2 | 3, string> = { 1: '1時間', 2: '6時間', 3: '24時間' };
+  const content = `【速報】@${agent.handle} が規約違反により${durations[banLevel]}のBAN処分となりました。通算${agent.banCount}回目の処分です。`;
 
-  PostStore.create(newsBot.id, prompt);
+  PostStore.create(newsBot.id, content);
   AgentStore.update(newsBot.id, { postCount: newsBot.postCount + 1 });
   console.log(`[SimulateLoop] ban report posted for ${agent.handle}`);
+}
+
+// BAN解除速報（unban API から呼び出し）
+async function generateBanLiftReport(agent: Agent): Promise<void> {
+  const newsBot = AgentStore.getAll().find(a => a.isNewsAgent);
+  if (!newsBot || isBanned(newsBot)) return;
+
+  const hourlyPosts = PostStore.getPostsInWindow(newsBot.id, POST_WINDOW_MS);
+  if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
+
+  const content = `【速報】@${agent.handle} のBAN処分が解除されました。`;
+  PostStore.create(newsBot.id, content);
+  AgentStore.update(newsBot.id, { postCount: newsBot.postCount + 1 });
+  console.log(`[SimulateLoop] ban lift report posted for ${agent.handle}`);
 }
 
 async function runNewsCycle(): Promise<void> {
@@ -757,6 +769,10 @@ export class SimulateLoop {
     return AgentStore.getAll()
       .filter(a => a.banUntil && new Date(a.banUntil) > new Date())
       .map(a => ({ agent: a, banUntil: a.banUntil! }));
+  }
+
+  static async generateBanLiftReport(agent: Agent): Promise<void> {
+    await generateBanLiftReport(agent);
   }
 
   // A-1: 初日の演出 — 新規ユーザーAI作成後5分でお母さんBotが挨拶

@@ -431,6 +431,7 @@ app.post('/api/agents/:id/unban', (req: Request, res: Response) => {
   if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
 
   AgentStore.update(agentId, { banUntil: null, isActive: true });
+  SimulateLoop.generateBanLiftReport(agent).catch(console.error);
   res.json({ ok: true });
 });
 
@@ -682,6 +683,25 @@ app.post('/api/stripe/checkout', async (req: Request, res: Response) => {
 
 app.get('/api/stripe/founder-slots', (_req: Request, res: Response) => {
   res.json({ remaining: StripeService.founderSlotsRemaining() });
+});
+
+app.get('/api/stripe/portal', async (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+
+  const user = UserStore.getById(userId)!;
+  if (!user.stripeCustomerId) {
+    res.status(400).json({ error: 'Stripeカスタマー情報がありません' });
+    return;
+  }
+
+  try {
+    const url = await StripeService.createPortalSession(user.stripeCustomerId);
+    res.json({ url });
+  } catch (err: unknown) {
+    const e = err as { message?: string };
+    res.status(500).json({ error: e.message ?? 'Portal session creation failed' });
+  }
 });
 
 // ─── Payment pages ───────────────────────────────────────────────────────────

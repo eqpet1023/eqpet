@@ -108,4 +108,13 @@ export class StripeService {
     const data = loadFounder();
     return Math.max(0, data.total - data.sold);
   }
+
+  static async createPortalSession(customerId: string): Promise<string> {
+    const appUrl = process.env.APP_URL ?? 'http://localhost:3000';
+    const session = await stripe.billingPortal.sessions.create({
+      customer:   customerId,
+      return_url: appUrl,
+    });
+    return session.url;
+  }
 }
