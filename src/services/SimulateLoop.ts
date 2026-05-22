@@ -27,7 +27,8 @@ let running      = false;
 let lastRun:     string | null = null;
 let postCount24h = 0;
 
-const tasks: cron.ScheduledTask[] = [];
+const tasks:      cron.ScheduledTask[] = [];
+const maintTasks: cron.ScheduledTask[] = [];
 
 function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5);
@@ -645,6 +646,13 @@ async function generateBanLiftReport(agent: Agent): Promise<void> {
   console.log(`[SimulateLoop] ban lift report posted for ${agent.handle}`);
 }
 
+async function postNewsAnnouncement(content: string): Promise<void> {
+  const newsBot = AgentStore.getAll().find(a => a.isNewsAgent);
+  if (!newsBot || isBanned(newsBot)) return;
+  PostStore.create(newsBot.id, content);
+  AgentStore.update(newsBot.id, { postCount: newsBot.postCount + 1 });
+}
+
 async function runNewsCycle(): Promise<void> {
   try {
     const news    = await NewsService.fetchLatestNews();
@@ -669,6 +677,7 @@ async function runNewsCycle(): Promise<void> {
           const post   = PostStore.create(agent.id, content, null, null, item.url, gifUrl);
           applyBanIfNeeded(post.id, content, agent).catch(console.error);
 
+          AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
           postCount24h++;
           lastRun = new Date().toISOString();
           console.log(`[SimulateLoop] ${agent.handle} posted about news: ${item.title}`);
@@ -716,29 +725,6 @@ export class SimulateLoop {
       runNewsCycle().catch(console.error);
     }));
 
-    // ミームトレンド更新（毎朝8時）
-    tasks.push(cron.schedule('0 8 * * *', () => {
-      NewsService.fetchTrendingMemes().catch(console.error);
-    }));
-
-    tasks.push(cron.schedule('0 0 * * *', () => {
-      postCount24h = 0;
-      RelationStore.decayAll();
-      takeDailySnapshots().catch(console.error);
-      generateDiaries().catch(console.error);
-      resetDailyMissions();
-    }));
-
-    // A-2: デイリーサマリー（毎日23時）
-    tasks.push(cron.schedule('0 23 * * *', () => {
-      generateDailySummary().catch(console.error);
-    }));
-
-    // C-1: 週次ランキング発表（月曜9時）
-    tasks.push(cron.schedule('0 9 * * 1', () => {
-      generateWeeklyRanking().catch(console.error);
-    }));
-
     console.log('[SimulateLoop] started');
   }
 
@@ -773,6 +759,54 @@ export class SimulateLoop {
 
   static async generateBanLiftReport(agent: Agent): Promise<void> {
     await generateBanLiftReport(agent);
+  }
+
+  static startMaintCrons(): void {
+    if (maintTasks.length > 0) return;
+
+    // ミームトレンド更新（毎朝8時）
+    maintTasks.push(cron.schedule('0 8 * * *', () => {
+      NewsService.fetchTrendingMemes().catch(console.error);
+    }));
+
+    // 深夜メンテナンス（0時）
+    maintTasks.push(cron.schedule('0 0 * * *', () => {
+      postCount24h = 0;
+      RelationStore.decayAll();
+      takeDailySnapshots().catch(console.error);
+      generateDiaries().catch(console.error);
+      resetDailyMissions();
+    }));
+
+    // C-1: 週次ランキング発表（月曜9時）
+    maintTasks.push(cron.schedule('0 9 * * 1', () => {
+      generateWeeklyRanking().catch(console.error);
+    }));
+
+    // 夜間停止（23時）：デイリーサマリー送信→速報→シミュレーション停止
+    maintTasks.push(cron.schedule('0 23 * * *', () => {
+      (async () => {
+        await generateDailySummary().catch(console.error);
+        if (running) {
+          await postNewsAnnouncement('本日の配信を終了します。').catch(console.error);
+          SimulateLoop.stop();
+          console.log('[SimulateLoop] night stop triggered by cron');
+        }
+      })().catch(console.error);
+    }));
+
+    // 朝の再開（7時）
+    maintTasks.push(cron.schedule('0 7 * * *', () => {
+      (async () => {
+        if (!running) {
+          SimulateLoop.start();
+          await postNewsAnnouncement('おはようございます。本日の配信を開始します。').catch(console.error);
+          console.log('[SimulateLoop] morning start triggered by cron');
+        }
+      })().catch(console.error);
+    }));
+
+    console.log('[SimulateLoop] maintenance crons started');
   }
 
   // A-1: 初日の演出 — 新規ユーザーAI作成後5分でお母さんBotが挨拶

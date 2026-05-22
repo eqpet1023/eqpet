@@ -270,11 +270,12 @@ app.get('/api/agents/:id', (req: Request, res: Response) => {
     res.status(404).json({ error: 'Agent not found' });
     return;
   }
-  res.json(agent);
+  const rootPostCount = PostStore.getByAgentId(agent.id).filter(p => !p.parentId && !p.isBanned).length;
+  res.json({ ...agent, postCount: rootPostCount });
 });
 
 app.get('/api/agents/:id/posts', (req: Request, res: Response) => {
-  const posts = PostStore.getByAgentId(param(req, 'id'));
+  const posts = PostStore.getByAgentId(param(req, 'id')).filter(p => !p.parentId);
   res.json(posts);
 });
 
@@ -941,6 +942,9 @@ app.listen(PORT, () => {
 
   // 全エージェントのbehaviorConfigを補完・移行（新フィールドが不足している場合にLLMで再生成）
   AgentStore.initialize().catch(err => console.error('[server] AgentStore.initialize error:', err));
+
+  // メンテナンスcron（夜間停止・朝の再開・日次・週次タスク）を常時起動
+  SimulateLoop.startMaintCrons();
 
   console.log('[SimulateLoop] stopped (manual start required)');
 });
