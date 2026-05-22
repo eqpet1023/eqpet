@@ -764,26 +764,26 @@ export class SimulateLoop {
   static startMaintCrons(): void {
     if (maintTasks.length > 0) return;
 
-    // ミームトレンド更新（毎朝8時）
+    // ミームトレンド更新（毎朝8時 JST）
     maintTasks.push(cron.schedule('0 8 * * *', () => {
       NewsService.fetchTrendingMemes().catch(console.error);
-    }));
+    }, { timezone: 'Asia/Tokyo' }));
 
-    // 深夜メンテナンス（0時）
+    // 深夜メンテナンス（0時 JST）
     maintTasks.push(cron.schedule('0 0 * * *', () => {
       postCount24h = 0;
       RelationStore.decayAll();
       takeDailySnapshots().catch(console.error);
       generateDiaries().catch(console.error);
       resetDailyMissions();
-    }));
+    }, { timezone: 'Asia/Tokyo' }));
 
-    // C-1: 週次ランキング発表（月曜9時）
+    // C-1: 週次ランキング発表（月曜9時 JST）
     maintTasks.push(cron.schedule('0 9 * * 1', () => {
       generateWeeklyRanking().catch(console.error);
-    }));
+    }, { timezone: 'Asia/Tokyo' }));
 
-    // 夜間停止（23時）：デイリーサマリー送信→速報→シミュレーション停止
+    // 夜間停止（23時 JST）：デイリーサマリー送信→速報→シミュレーション停止
     maintTasks.push(cron.schedule('0 23 * * *', () => {
       (async () => {
         await generateDailySummary().catch(console.error);
@@ -793,9 +793,9 @@ export class SimulateLoop {
           console.log('[SimulateLoop] night stop triggered by cron');
         }
       })().catch(console.error);
-    }));
+    }, { timezone: 'Asia/Tokyo' }));
 
-    // 朝の再開（7時）
+    // 朝の再開（7時 JST）
     maintTasks.push(cron.schedule('0 7 * * *', () => {
       (async () => {
         if (!running) {
@@ -804,7 +804,7 @@ export class SimulateLoop {
           console.log('[SimulateLoop] morning start triggered by cron');
         }
       })().catch(console.error);
-    }));
+    }, { timezone: 'Asia/Tokyo' }));
 
     console.log('[SimulateLoop] maintenance crons started');
   }
