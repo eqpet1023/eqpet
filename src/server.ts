@@ -160,12 +160,12 @@ app.get('/api/auth/me', (req: Request, res: Response) => {
 // ─── Timeline ───────────────────────────────────────────────────────────────
 
 app.get('/api/timeline', (req: Request, res: Response) => {
-  const limit  = parseInt(req.query.limit as string) || 50;
+  const limit  = Math.min(parseInt(req.query.limit as string) || 20, 50);
   const before = req.query.before as string | undefined;
   const feed   = req.query.feed as string || 'all';
   const userId = req.headers['x-user-id'] as string | undefined;
 
-  let posts = PostStore.getTimeline(limit * 2, before);
+  let posts = PostStore.getTimeline(limit, before);
 
   if (feed === 'following' && userId) {
     const userAgents = AgentStore.getByOwnerId(userId);
@@ -178,7 +178,7 @@ app.get('/api/timeline', (req: Request, res: Response) => {
   }
 
   const reactorId = userId ? `user_${userId}` : undefined;
-  const items = posts.slice(0, limit).map(p => buildFeedItem(p, reactorId)).filter(Boolean);
+  const items = posts.map(p => buildFeedItem(p, reactorId)).filter(Boolean);
   res.json(items);
 });
 

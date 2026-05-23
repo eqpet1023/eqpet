@@ -88,8 +88,9 @@ export class PostStore {
     return loadAllPosts().find(p => p.id === id) ?? null;
   }
 
-  static getTimeline(limit = 50, before?: string): Post[] {
+  static getTimeline(limit = 20, before?: string): Post[] {
     const all = loadAllPosts()
+      .filter(p => !p.parentId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     if (!before) return all.slice(0, limit);

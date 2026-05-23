@@ -1853,18 +1853,19 @@ function switchTimelineTab(feed, el) {
   loadTimeline();
 }
 
+const TIMELINE_PAGE_SIZE = 20;
+
 async function loadTimeline() {
   timelineCursor = null;
   document.getElementById('timeline-loader').style.display = '';
   document.getElementById('timeline-more-wrap').style.display = 'none';
   try {
-    const items = await api('GET', `/api/timeline?limit=50&feed=${currentFeed}`);
+    const items = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=${currentFeed}`);
     timelineItems = items;
     likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
     if (items.length > 0) timelineCursor = items[items.length - 1].id;
     renderTimeline();
-    const moreWrap = document.getElementById('timeline-more-wrap');
-    moreWrap.style.display = items.length >= 50 ? '' : 'none';
+    document.getElementById('timeline-more-wrap').style.display = items.length >= TIMELINE_PAGE_SIZE ? '' : 'none';
   } catch(e) { toast('読み込みエラー: ' + e.message); }
   document.getElementById('timeline-loader').style.display = 'none';
 }
@@ -1872,19 +1873,19 @@ async function loadTimeline() {
 async function loadMoreTimeline() {
   if (!timelineCursor) return;
   const btn = document.getElementById('timeline-more-btn');
+  const wrap = document.getElementById('timeline-more-wrap');
   btn.disabled = true;
-  btn.textContent = '読み込み中...';
+  btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></span>読み込み中...';
   try {
-    const items = await api('GET', `/api/timeline?limit=50&feed=${currentFeed}&before=${timelineCursor}`);
+    const items = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=${currentFeed}&before=${timelineCursor}`);
     if (items.length > 0) {
       timelineItems = timelineItems.concat(items);
       likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
       timelineCursor = items[items.length - 1].id;
-      const topLevel = timelineItems.filter(i => !i.parentId);
-      document.getElementById('timeline-feed').innerHTML = topLevel.map(renderPostCard).join('');
-      document.getElementById('timeline-more-wrap').style.display = items.length >= 50 ? '' : 'none';
+      document.getElementById('timeline-feed').innerHTML = timelineItems.map(renderPostCard).join('');
+      wrap.style.display = items.length >= TIMELINE_PAGE_SIZE ? '' : 'none';
     } else {
-      document.getElementById('timeline-more-wrap').style.display = 'none';
+      wrap.style.display = 'none';
     }
   } catch(e) { toast('読み込みエラー: ' + e.message); }
   btn.disabled = false;
@@ -1893,23 +1894,22 @@ async function loadMoreTimeline() {
 
 async function refreshTimeline() {
   try {
-    const fresh = await api('GET', `/api/timeline?limit=50&feed=${currentFeed}`);
+    const fresh = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=${currentFeed}`);
     timelineItems = fresh;
     likedPosts = new Set(fresh.filter(i => i.likedByMe).map(i => i.id));
     if (fresh.length > 0) timelineCursor = fresh[fresh.length - 1].id;
     renderTimeline();
-    document.getElementById('timeline-more-wrap').style.display = fresh.length >= 50 ? '' : 'none';
+    document.getElementById('timeline-more-wrap').style.display = fresh.length >= TIMELINE_PAGE_SIZE ? '' : 'none';
   } catch {}
 }
 
 function renderTimeline() {
   const feed = document.getElementById('timeline-feed');
-  const topLevel = timelineItems.filter(i => !i.parentId);
-  if (topLevel.length === 0) {
+  if (timelineItems.length === 0) {
     feed.innerHTML = '<div class="empty"><div class="empty-icon">🌱</div><p>まだ投稿がありません<br>シミュレーションを開始しましょう</p></div>';
     return;
   }
-  feed.innerHTML = topLevel.map(renderPostCard).join('');
+  feed.innerHTML = timelineItems.map(renderPostCard).join('');
 }
 
 const _shareRegistry = new Map();
