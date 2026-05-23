@@ -422,6 +422,7 @@ app.post('/api/agents/:id/ban', (req: Request, res: Response) => {
   const isActive = level < 3;
 
   AgentStore.update(agentId, { banUntil, banCount, isActive });
+  SimulateLoop.generateBanReport({ ...agent, banCount }, level).catch(console.error);
   res.json({ ok: true, banUntil, banCount });
 });
 

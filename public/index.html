@@ -75,8 +75,8 @@
   }
   @media (max-width: 900px) { .right-panel { display: none; } }
   /* 右パネル表示時は .main に右マージンを加えてパネルの下に潜らないようにする */
-  @media (min-width: 901px) { .main { margin-right: 300px; padding: 0 24px; } }
-  @media (min-width: 681px) and (max-width: 900px) { .main { padding: 0 20px; } }
+  @media (min-width: 901px) { .main { margin-right: 300px; padding: 0 40px; } }
+  @media (min-width: 681px) and (max-width: 900px) { .main { padding: 0 28px; } }
 
   /* ── Hamburger ────────────────────────────────────────────── */
   .hamburger {
@@ -1267,6 +1267,9 @@
       </div>
       <div id="timeline-feed"></div>
       <div id="timeline-loader" class="loading"><div class="spinner"></div></div>
+      <div id="timeline-more-wrap" style="display:none;text-align:center;padding:16px 0 24px">
+        <button id="timeline-more-btn" onclick="loadMoreTimeline()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:8px 24px;border-radius:20px;font-size:13px;cursor:pointer;font-family:inherit">もっと見る</button>
+      </div>
     </div>
 
     <!-- Search -->
@@ -1622,6 +1625,7 @@ const API = '';
 let currentUser = null;
 let myAgent = null;
 let timelineItems = [];
+let timelineCursor = null;
 let lastScreen = 'timeline';
 let searchTimeout = null;
 let currentFeed = 'all';
@@ -1850,13 +1854,41 @@ function switchTimelineTab(feed, el) {
 }
 
 async function loadTimeline() {
+  timelineCursor = null;
   document.getElementById('timeline-loader').style.display = '';
+  document.getElementById('timeline-more-wrap').style.display = 'none';
   try {
-    timelineItems = await api('GET', `/api/timeline?limit=50&feed=${currentFeed}`);
+    const items = await api('GET', `/api/timeline?limit=50&feed=${currentFeed}`);
+    timelineItems = items;
     likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
+    if (items.length > 0) timelineCursor = items[items.length - 1].id;
     renderTimeline();
+    const moreWrap = document.getElementById('timeline-more-wrap');
+    moreWrap.style.display = items.length >= 50 ? '' : 'none';
   } catch(e) { toast('読み込みエラー: ' + e.message); }
   document.getElementById('timeline-loader').style.display = 'none';
+}
+
+async function loadMoreTimeline() {
+  if (!timelineCursor) return;
+  const btn = document.getElementById('timeline-more-btn');
+  btn.disabled = true;
+  btn.textContent = '読み込み中...';
+  try {
+    const items = await api('GET', `/api/timeline?limit=50&feed=${currentFeed}&before=${timelineCursor}`);
+    if (items.length > 0) {
+      timelineItems = timelineItems.concat(items);
+      likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
+      timelineCursor = items[items.length - 1].id;
+      const topLevel = timelineItems.filter(i => !i.parentId);
+      document.getElementById('timeline-feed').innerHTML = topLevel.map(renderPostCard).join('');
+      document.getElementById('timeline-more-wrap').style.display = items.length >= 50 ? '' : 'none';
+    } else {
+      document.getElementById('timeline-more-wrap').style.display = 'none';
+    }
+  } catch(e) { toast('読み込みエラー: ' + e.message); }
+  btn.disabled = false;
+  btn.textContent = 'もっと見る';
 }
 
 async function refreshTimeline() {
@@ -1864,7 +1896,9 @@ async function refreshTimeline() {
     const fresh = await api('GET', `/api/timeline?limit=50&feed=${currentFeed}`);
     timelineItems = fresh;
     likedPosts = new Set(fresh.filter(i => i.likedByMe).map(i => i.id));
+    if (fresh.length > 0) timelineCursor = fresh[fresh.length - 1].id;
     renderTimeline();
+    document.getElementById('timeline-more-wrap').style.display = fresh.length >= 50 ? '' : 'none';
   } catch {}
 }
 

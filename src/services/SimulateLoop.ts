@@ -239,6 +239,7 @@ async function applyBanIfNeeded(
   content: string,
   agent:   Agent,
 ): Promise<void> {
+  console.log(`[SimulateLoop] applyBanIfNeeded: checking ${agent.handle} post ${postId}`);
   const { level, reason } = await TimelineEngine.checkBan(content);
   if (!level) return;
 
@@ -388,6 +389,16 @@ async function runReplyCycle(): Promise<void> {
   // 同一サイクル内で各AIがリプライ済みの相手を追跡（fromId → Set<toId>）
   const repliedTo = new Map<string, Set<string>>();
 
+  // 直近1時間のリプライを取得し、ペアごとの回数をカウント（集中抑制用）
+  const hourlyReplies = PostStore.getRecentPosts(POST_WINDOW_MS).filter(p => p.parentId);
+  const pairReplyCount = new Map<string, number>();
+  for (const rp of hourlyReplies) {
+    const parent = recentPosts.find(p => p.id === rp.parentId);
+    if (!parent) continue;
+    const key = `${rp.agentId}->${parent.agentId}`;
+    pairReplyCount.set(key, (pairReplyCount.get(key) ?? 0) + 1);
+  }
+
   for (const agent of shuffle(agents)) {
     const otherPosts = recentPosts.filter(p => p.agentId !== agent.id && !p.parentId);
     if (otherPosts.length === 0) continue;
@@ -403,7 +414,10 @@ async function runReplyCycle(): Promise<void> {
       const baseScore       = TimelineEngine.replyScore(agent, post, relation, isMutual);
       const popularityBonus = post.likeCount * 3 + post.replyCount * 2;
       const followerBonus   = Math.min((postAgent?.followerCount ?? 0) * 0.5, 20);
-      return { post, finalScore: baseScore + popularityBonus + followerBonus, relation, isMutual };
+      // 直近1時間で同ペアのリプライが3回以上なら-50ペナルティ
+      const pairKey         = `${agent.id}->${post.agentId}`;
+      const pairPenalty     = (pairReplyCount.get(pairKey) ?? 0) >= 3 ? -50 : 0;
+      return { post, finalScore: baseScore + popularityBonus + followerBonus + pairPenalty, relation, isMutual };
     }).sort((a, b) => b.finalScore - a.finalScore);
 
     const priorityCandidates = scoredPosts.slice(0, 3);
@@ -755,6 +769,10 @@ export class SimulateLoop {
     return AgentStore.getAll()
       .filter(a => a.banUntil && new Date(a.banUntil) > new Date())
       .map(a => ({ agent: a, banUntil: a.banUntil! }));
+  }
+
+  static async generateBanReport(agent: Agent, level: 1 | 2 | 3): Promise<void> {
+    await generateBanReport(agent, level);
   }
 
   static async generateBanLiftReport(agent: Agent): Promise<void> {
