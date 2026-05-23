@@ -722,11 +722,11 @@ export class SimulateLoop {
 
     ensureOfficialFollows();
 
-    tasks.push(cron.schedule('*/5 * * * *', () => {
+    tasks.push(cron.schedule('*/15 * * * *', () => {
       runPostCycle().catch(console.error);
     }));
 
-    tasks.push(cron.schedule('*/3 * * * *', () => {
+    tasks.push(cron.schedule('*/9 * * * *', () => {
       runReplyCycle().catch(console.error);
     }));
 
