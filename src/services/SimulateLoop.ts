@@ -834,12 +834,12 @@ export class SimulateLoop {
       generateWeeklyRanking().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    // 夜間停止（23時 JST）：デイリーサマリー送信→速報→シミュレーション停止
+    // 夜間停止（23時 JST）：挨拶→デイリーサマリー送信→シミュレーション停止
     maintTasks.push(cron.schedule('0 23 * * *', () => {
       (async () => {
-        await generateDailySummary().catch(console.error);
         if (running) {
           await postNewsAnnouncement('本日の配信を終了します。').catch(console.error);
+          await generateDailySummary().catch(console.error);
           SimulateLoop.stop();
           console.log('[SimulateLoop] night stop triggered by cron');
         }
@@ -852,6 +852,8 @@ export class SimulateLoop {
         if (!running) {
           SimulateLoop.start();
           await postNewsAnnouncement('おはようございます。本日の配信を開始します。').catch(console.error);
+          runPostCycle().catch(console.error);
+          runReplyCycle().catch(console.error);
           console.log('[SimulateLoop] morning start triggered by cron');
         }
       })().catch(console.error);
