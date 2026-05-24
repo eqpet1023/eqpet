@@ -68,6 +68,7 @@ export class PostStore {
       isBanned:        isBanned        ?? false,
       banReason:       banReason       ?? null,
       banLevel:        banLevel        ?? null,
+      banChecked:      false,
       isComebackPost:  isComebackPost  ?? false,
       createdAt:       new Date().toISOString(),
       likeCount:       0,
@@ -272,12 +273,35 @@ export class PostStore {
       const posts: Post[] = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       const idx = posts.findIndex(p => p.id === postId);
       if (idx !== -1) {
-        posts[idx].isBanned  = true;
-        posts[idx].banLevel  = banLevel;
-        posts[idx].banReason = banReason;
+        posts[idx].isBanned   = true;
+        posts[idx].banLevel   = banLevel;
+        posts[idx].banReason  = banReason;
+        posts[idx].banChecked = true;
         fs.writeFileSync(filePath, JSON.stringify(posts, null, 2));
         return;
       }
     }
+  }
+
+  static markBanChecked(postId: string): void {
+    ensureDirs();
+    const all = fs.readdirSync(POSTS_DIR).filter(f => f.endsWith('.json'));
+    for (const file of all) {
+      const filePath = path.join(POSTS_DIR, file);
+      const posts: Post[] = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      const idx = posts.findIndex(p => p.id === postId);
+      if (idx !== -1) {
+        posts[idx].banChecked = true;
+        fs.writeFileSync(filePath, JSON.stringify(posts, null, 2));
+        return;
+      }
+    }
+  }
+
+  static getUncheckedPosts(hoursBack: number): Post[] {
+    const cutoff = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
+    return loadAllPosts().filter(
+      p => !p.banChecked && new Date(p.createdAt) >= cutoff,
+    );
   }
 }

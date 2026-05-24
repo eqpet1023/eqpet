@@ -257,6 +257,29 @@ async function applyBanIfNeeded(
   console.log(`[SimulateLoop] ${agent.handle} BAN level${level} until ${banUntil}`);
 }
 
+async function runBanCycle(): Promise<void> {
+  const posts = PostStore.getUncheckedPosts(8);
+  if (posts.length === 0) return;
+  console.log(`[SimulateLoop] runBanCycle: checking ${posts.length} posts`);
+  for (const post of posts) {
+    const agent = AgentStore.getById(post.agentId);
+    if (!agent) {
+      PostStore.markBanChecked(post.id);
+      continue;
+    }
+    try {
+      await applyBanIfNeeded(post.id, post.content, agent);
+      // applyBanIfNeeded marks banChecked via markBanned if banned;
+      // mark checked here for non-banned posts
+      if (!post.isBanned) PostStore.markBanChecked(post.id);
+    } catch (err) {
+      console.error(`[SimulateLoop] ban check error for post ${post.id}:`, err);
+      PostStore.markBanChecked(post.id);
+    }
+  }
+  console.log(`[SimulateLoop] runBanCycle: done`);
+}
+
 const MAX_HOURLY_PER_AGENT = 3;
 
 async function runPostCycle(): Promise<void> {
@@ -313,9 +336,6 @@ async function runPostCycle(): Promise<void> {
       console.log(`[SimulateLoop] ${agent.handle} posted: ${content.slice(0, 50)}...`);
       await sleep(randomInt(2000, 3000));
 
-      // BAN check (async, don't await for performance)
-      applyBanIfNeeded(post.id, content, agent).catch(console.error);
-
       // Instant follow by interest match
       for (const other of shuffle(agents)) {
         if (other.id === agent.id) continue;
@@ -368,7 +388,6 @@ async function runNewsAgentCycle(): Promise<void> {
       if (!content) continue;
 
       const post = PostStore.create(agent.id, content, null, null, null, null);
-      applyBanIfNeeded(post.id, content, agent).catch(console.error);
 
       AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
       postCount24h++;
@@ -456,9 +475,6 @@ async function runReplyCycle(): Promise<void> {
 
         const gifUrl    = await maybeGif(agent, replyContent);
         const replyPost = PostStore.create(agent.id, replyContent, post.id, null, null, gifUrl);
-
-        // BAN check
-        applyBanIfNeeded(replyPost.id, replyContent, agent).catch(console.error);
 
         const delta       = await TimelineEngine.analyzeReplyTone(replyContent, agent, targetAgent);
         const newRelation = RelationStore.update(agent.id, post.agentId, delta);
@@ -689,7 +705,6 @@ async function runNewsCycle(): Promise<void> {
 
           const gifUrl = await maybeGif(agent, content);
           const post   = PostStore.create(agent.id, content, null, null, item.url, gifUrl);
-          applyBanIfNeeded(post.id, content, agent).catch(console.error);
 
           AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
           postCount24h++;
@@ -722,13 +737,17 @@ export class SimulateLoop {
 
     ensureOfficialFollows();
 
-    tasks.push(cron.schedule('*/15 * * * *', () => {
+    tasks.push(cron.schedule('0 * * * *', () => {
       runPostCycle().catch(console.error);
     }));
 
-    tasks.push(cron.schedule('*/18 * * * *', () => {
+    tasks.push(cron.schedule('0 * * * *', () => {
       runReplyCycle().catch(console.error);
     }));
+
+    tasks.push(cron.schedule('0 8,15,22 * * *', () => {
+      runBanCycle().catch(console.error);
+    }, { timezone: 'Asia/Tokyo' }));
 
     // eqpet_news専用：毎時0分に1投稿
     tasks.push(cron.schedule('0 * * * *', () => {

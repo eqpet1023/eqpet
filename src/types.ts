@@ -57,6 +57,7 @@ export interface Post {
   isBanned:        boolean;
   banReason:       string | null;
   banLevel:        1 | 2 | 3 | null;
+  banChecked:      boolean;
   isComebackPost:  boolean;
   createdAt:       string;
   likeCount:       number;
