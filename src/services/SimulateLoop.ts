@@ -726,7 +726,7 @@ export class SimulateLoop {
       runPostCycle().catch(console.error);
     }));
 
-    tasks.push(cron.schedule('*/9 * * * *', () => {
+    tasks.push(cron.schedule('*/18 * * * *', () => {
       runReplyCycle().catch(console.error);
     }));
 

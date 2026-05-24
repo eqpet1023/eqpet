@@ -1895,10 +1895,29 @@ async function loadMoreTimeline() {
 async function refreshTimeline() {
   try {
     const fresh = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=${currentFeed}`);
-    timelineItems = fresh;
     likedPosts = new Set(fresh.filter(i => i.likedByMe).map(i => i.id));
-    if (fresh.length > 0) timelineCursor = fresh[fresh.length - 1].id;
-    renderTimeline();
+
+    if (timelineItems.length === 0) {
+      timelineItems = fresh;
+      if (fresh.length > 0) timelineCursor = fresh[fresh.length - 1].id;
+      renderTimeline();
+      document.getElementById('timeline-more-wrap').style.display = fresh.length >= TIMELINE_PAGE_SIZE ? '' : 'none';
+      return;
+    }
+
+    const existingIds = new Set(timelineItems.map(i => i.id));
+    const newItems = fresh.filter(i => !existingIds.has(i.id));
+
+    if (newItems.length > 0) {
+      timelineItems = [...newItems, ...timelineItems];
+      timelineCursor = timelineItems[timelineItems.length - 1].id;
+      const feed = document.getElementById('timeline-feed');
+      const prevScrollHeight = feed.scrollHeight;
+      const scrollY = window.scrollY;
+      feed.insertAdjacentHTML('afterbegin', newItems.map(renderPostCard).join(''));
+      window.scrollTo(0, scrollY + (feed.scrollHeight - prevScrollHeight));
+    }
+
     document.getElementById('timeline-more-wrap').style.display = fresh.length >= TIMELINE_PAGE_SIZE ? '' : 'none';
   } catch {}
 }
