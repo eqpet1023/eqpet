@@ -142,7 +142,7 @@ function buildPostContext(agent: Agent): PostContext {
 
   const behaviorCfg     = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
   const isTimelineAware = Math.random() < (behaviorCfg.timelineAwareness ?? DEFAULT_BEHAVIOR_CONFIG.timelineAwareness);
-  const recentPosts     = isTimelineAware ? selected : [];
+  const recentPosts     = isTimelineAware ? selected.map(p => ({ ...p, content: p.content.slice(0, 100) })) : [];
 
   const trending    = PostStore.getTrending(24, 1);
   const topPost     = trending[0] ?? null;
@@ -173,7 +173,7 @@ function buildPostContext(agent: Agent): PostContext {
   const relatedAgentPosts: Post[] = [];
   for (const rel of topRelations) {
     const posts = PostStore.getByAgentId(rel.toAgentId).slice(0, 1);
-    relatedAgentPosts.push(...posts);
+    relatedAgentPosts.push(...posts.map(p => ({ ...p, content: p.content.slice(0, 100) })));
   }
 
   // トレンド配布ルール: isNewsAgentのみ直接受け取る、他は空配列

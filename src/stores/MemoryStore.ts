@@ -23,7 +23,7 @@ export class MemoryStore {
       entries = JSON.parse(fs.readFileSync(p, 'utf-8'));
     }
     entries.push({ timestamp: new Date().toISOString(), content, type });
-    if (entries.length > 50) entries = entries.slice(-50);
+    if (entries.length > 20) entries = entries.slice(-20);
     fs.writeFileSync(p, JSON.stringify(entries, null, 2));
   }
 
