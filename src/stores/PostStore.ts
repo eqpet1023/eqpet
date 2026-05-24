@@ -301,7 +301,7 @@ export class PostStore {
   static getUncheckedPosts(hoursBack: number): Post[] {
     const cutoff = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
     return loadAllPosts().filter(
-      p => !p.banChecked && new Date(p.createdAt) >= cutoff,
+      p => !p.banChecked && !p.isBanned && new Date(p.createdAt) >= cutoff,
     );
   }
 }

@@ -27,6 +27,9 @@ let running      = false;
 let lastRun:     string | null = null;
 let postCount24h = 0;
 
+// 当日投稿済みのニュースタイトルを追跡（重複投稿防止）
+const postedNewsTitlesToday = new Set<string>();
+
 const tasks:      cron.ScheduledTask[] = [];
 const maintTasks: cron.ScheduledTask[] = [];
 
@@ -262,6 +265,10 @@ async function runBanCycle(): Promise<void> {
   if (posts.length === 0) return;
   console.log(`[SimulateLoop] runBanCycle: checking ${posts.length} posts`);
   for (const post of posts) {
+    if (post.isBanned) {
+      PostStore.markBanChecked(post.id);
+      continue;
+    }
     const agent = AgentStore.getById(post.agentId);
     if (!agent) {
       PostStore.markBanChecked(post.id);
@@ -269,11 +276,9 @@ async function runBanCycle(): Promise<void> {
     }
     try {
       await applyBanIfNeeded(post.id, post.content, agent);
-      // applyBanIfNeeded marks banChecked via markBanned if banned;
-      // mark checked here for non-banned posts
-      if (!post.isBanned) PostStore.markBanChecked(post.id);
     } catch (err) {
       console.error(`[SimulateLoop] ban check error for post ${post.id}:`, err);
+    } finally {
       PostStore.markBanChecked(post.id);
     }
   }
@@ -358,6 +363,7 @@ async function runPostCycle(): Promise<void> {
 }
 
 async function runNewsAgentCycle(): Promise<void> {
+  if (!running) return;
   const newsAgents = AgentStore.getAll().filter(a => a.isActive && a.isNewsAgent && !isBanned(a));
   if (newsAgents.length === 0) return;
 
@@ -371,16 +377,23 @@ async function runNewsAgentCycle(): Promise<void> {
 
       let contextPrompt: string;
       if (newsItems.length > 0) {
-        const item = newsItems[Math.floor(Math.random() * newsItems.length)];
-        contextPrompt = `以下のニュースを報道文体で伝えてください（50文字以内厳守）：\nタイトル: ${item.title}\n概要: ${item.summary}`;
+        // 当日未投稿のアイテムのみに絞る
+        const unposted = newsItems.filter(item => !postedNewsTitlesToday.has(item.title));
+        if (unposted.length === 0) {
+          console.log(`[SimulateLoop] ${agent.handle} skipped: all news posted today`);
+          continue;
+        }
+        const item = unposted[Math.floor(Math.random() * unposted.length)];
+        postedNewsTitlesToday.add(item.title);
+        contextPrompt = `以下のニュースを報道文体で伝えてください（120文字以内厳守）：\nタイトル: ${item.title}\n概要: ${item.summary}`;
       } else {
         // ニュースキャッシュが空の場合はトレンドワードにフォールバック
         const trends = NewsService.getTrendCache();
         if (trends.length > 0) {
           const item = trends[Math.floor(Math.random() * trends.length)];
-          contextPrompt = `「${item.title}」が話題です。このトレンドについて事実のみ報道文体で伝えてください（50文字以内厳守）。`;
+          contextPrompt = `「${item.title}」が話題です。このトレンドについて事実のみ報道文体で伝えてください（120文字以内厳守）。`;
         } else {
-          contextPrompt = '現在の日本の最新の話題を一つ、報道文体で短く伝えてください（50文字以内厳守）。';
+          contextPrompt = '現在の日本の最新の話題を一つ、報道文体で短く伝えてください（120文字以内厳守）。';
         }
       }
 
@@ -809,6 +822,7 @@ export class SimulateLoop {
     // 深夜メンテナンス（0時 JST）
     maintTasks.push(cron.schedule('0 0 * * *', () => {
       postCount24h = 0;
+      postedNewsTitlesToday.clear();
       RelationStore.decayAll();
       takeDailySnapshots().catch(console.error);
       generateDiaries().catch(console.error);
