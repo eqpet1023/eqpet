@@ -163,7 +163,7 @@ export class TimelineEngine {
     const lengthTier  = pickPostLength(behaviorCfg.postLengthRatio);
     let sysPrompt     = systemPrompt(agent) + `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
     if (agent.isNewsAgent) {
-      sysPrompt += '\n\n【文字数制限】この投稿は120文字以内で完結させること。';
+      sysPrompt += '\n\n【文字数制限】120文字以内で完結した文章を生成すること。文章の途中で終わらないこと。';
     }
     // trendItemsが空（eqpet_news以外）の場合はトレンド注入をスキップ
     // eqpet_newsはtrendItemsをbuildContextStringで受け取るためここでは不要
@@ -176,14 +176,14 @@ export class TimelineEngine {
     try {
       const response = await callApiWithRetry(() => client.messages.create({
         model:      chooseModel(agent),
-        max_tokens: LENGTH_MAX_TOKENS[lengthTier],
+        max_tokens: agent.isNewsAgent ? 200 : LENGTH_MAX_TOKENS[lengthTier],
         system:     sysPrompt,
         messages:   [{ role: 'user', content: prompt }],
       }));
 
       const block = response.content[0];
       if (block.type !== 'text') return '';
-      return block.text.trim().slice(0, agent.isNewsAgent ? 50 : 280);
+      return block.text.trim().slice(0, 280);
     } catch (err) {
       console.error(`[TimelineEngine] generatePost error for ${agent.handle}:`, err);
       return '';

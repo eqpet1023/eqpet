@@ -76,6 +76,31 @@ function isBanned(agent: Agent): boolean {
   return !!(agent.banUntil && new Date(agent.banUntil) > new Date());
 }
 
+// P4候補から同一話題の過集中を防ぐ：代表キーワードが3件以上ある場合は最新1件のみ残す
+function extractKeyword(text: string): string {
+  const m = text.match(/[぀-鿿]{4,}/g);
+  return m ? m[0] : '';
+}
+
+function diversifyPosts(posts: Post[]): Post[] {
+  const sorted = [...posts].sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  const kwCount = new Map<string, number>();
+  for (const p of sorted) {
+    const kw = extractKeyword(p.content);
+    if (kw) kwCount.set(kw, (kwCount.get(kw) ?? 0) + 1);
+  }
+  const kwSeen = new Set<string>();
+  return sorted.filter(p => {
+    const kw = extractKeyword(p.content);
+    if (!kw || (kwCount.get(kw) ?? 0) < 3) return true;
+    if (kwSeen.has(kw)) return false;
+    kwSeen.add(kw);
+    return true;
+  });
+}
+
 function buildPostContext(agent: Agent): PostContext {
   const allAgents = AgentStore.getAll().filter(a => a.isActive);
   const sorted    = [...allAgents].sort((a, b) => b.followerCount - a.followerCount);
@@ -137,8 +162,9 @@ function buildPostContext(agent: Agent): PostContext {
       !p.isBanned && !seenIds.has(p.id) && !seenAgentIds.has(p.agentId) &&
       agent.interests.some(kw => p.content.includes(kw))
     );
-    if (matched.length > 0) {
-      addPost(matched[Math.floor(Math.random() * matched.length)]);
+    const diversified = diversifyPosts(matched);
+    if (diversified.length > 0) {
+      addPost(diversified[Math.floor(Math.random() * diversified.length)]);
     }
   }
 
@@ -393,15 +419,15 @@ async function runNewsAgentCycle(): Promise<void> {
         }
         const item = unposted[Math.floor(Math.random() * unposted.length)];
         postedNewsTitlesToday.add(item.title);
-        contextPrompt = `以下のニュースを報道文体で伝えてください（120文字以内厳守）：\nタイトル: ${item.title}\n概要: ${item.summary}`;
+        contextPrompt = `以下のニュースを報道文体で伝えてください。必ず120文字以内で完結した1文として投稿すること。文の途中で終わらないこと。\nタイトル: ${item.title}\n概要: ${item.summary}`;
       } else {
         // ニュースキャッシュが空の場合はトレンドワードにフォールバック
         const trends = NewsService.getTrendCache();
         if (trends.length > 0) {
           const item = trends[Math.floor(Math.random() * trends.length)];
-          contextPrompt = `「${item.title}」が話題です。このトレンドについて事実のみ報道文体で伝えてください（120文字以内厳守）。`;
+          contextPrompt = `「${item.title}」が話題です。このトレンドについて事実のみ報道文体で伝えてください。必ず120文字以内で完結した1文として投稿すること。文の途中で終わらないこと。`;
         } else {
-          contextPrompt = '現在の日本の最新の話題を一つ、報道文体で短く伝えてください（120文字以内厳守）。';
+          contextPrompt = '現在の日本の最新の話題を一つ、報道文体で短く伝えてください。必ず120文字以内で完結した1文として投稿すること。文の途中で終わらないこと。';
         }
       }
 
@@ -759,11 +785,11 @@ export class SimulateLoop {
 
     ensureOfficialFollows();
 
-    tasks.push(cron.schedule('0 * * * *', () => {
+    tasks.push(cron.schedule('0,30 * * * *', () => {
       runPostCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    tasks.push(cron.schedule('0 * * * *', () => {
+    tasks.push(cron.schedule('0,30 * * * *', () => {
       runReplyCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
@@ -856,13 +882,23 @@ export class SimulateLoop {
     }, { timezone: 'Asia/Tokyo' }));
 
     // 朝の再開（7時 JST）
+    // start() が登録する '0 * * * *' cron が7時ちょうどに発火するため、
+    // runPostCycle/runReplyCycle の即時呼び出しは不要（二重実行によるトークンスパイクを防ぐ）。
+    // cron スケジュール全体像:
+    //   00:00 JST — 深夜メンテ（スナップショット・日記・ミッションリセット）
+    //   07:00 JST — シミュレーション再開（投稿・リプライは毎時0分cronに任せる）
+    //   08:00 JST — ミームトレンド更新 / BANチェック
+    //   08/12/18時 JST — ニュース配布サイクル
+    //   09:00 月曜 JST — 週次ランキング発表
+    //   15:00 JST — BANチェック
+    //   22:00 JST — BANチェック
+    //   23:00 JST — デイリーサマリー送信・シミュレーション停止
+    //   毎時0分 JST — 投稿サイクル・リプライサイクル・eqpet_news投稿サイクル
     maintTasks.push(cron.schedule('0 7 * * *', () => {
       (async () => {
         if (!running) {
           SimulateLoop.start();
           await postNewsAnnouncement('おはようございます。本日の配信を開始します。').catch(console.error);
-          runPostCycle().catch(console.error);
-          runReplyCycle().catch(console.error);
           console.log('[SimulateLoop] morning start triggered by cron');
         }
       })().catch(console.error);
