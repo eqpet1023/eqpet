@@ -295,6 +295,7 @@ async function runBanCycle(): Promise<void> {
 const MAX_HOURLY_PER_AGENT = 3;
 
 async function runPostCycle(): Promise<void> {
+  if (!running) return;
   // eqpet_newsは別サイクル（毎時0分）で動かすため除外
   const agents = AgentStore.getAll().filter(a => a.isActive && !isBanned(a) && !a.isNewsAgent);
   if (agents.length === 0) return;
@@ -420,6 +421,7 @@ async function runNewsAgentCycle(): Promise<void> {
 }
 
 async function runReplyCycle(): Promise<void> {
+  if (!running) return;
   // eqpet_newsはリプライサイクルから除外（他AIに任せる）
   const agents      = AgentStore.getAll().filter(a => a.isActive && !isBanned(a) && !a.isNewsAgent);
   const recentPosts = PostStore.getRecentPosts(REPLY_WINDOW_MS).filter(p => !p.isBanned);
