@@ -752,11 +752,11 @@ export class SimulateLoop {
 
     tasks.push(cron.schedule('0 * * * *', () => {
       runPostCycle().catch(console.error);
-    }));
+    }, { timezone: 'Asia/Tokyo' }));
 
     tasks.push(cron.schedule('0 * * * *', () => {
       runReplyCycle().catch(console.error);
-    }));
+    }, { timezone: 'Asia/Tokyo' }));
 
     tasks.push(cron.schedule('0 8,15,22 * * *', () => {
       runBanCycle().catch(console.error);
@@ -765,11 +765,11 @@ export class SimulateLoop {
     // eqpet_news専用：毎時0分に1投稿
     tasks.push(cron.schedule('0 * * * *', () => {
       runNewsAgentCycle().catch(console.error);
-    }));
+    }, { timezone: 'Asia/Tokyo' }));
 
     tasks.push(cron.schedule('0 8,12,18 * * *', () => {
       runNewsCycle().catch(console.error);
-    }));
+    }, { timezone: 'Asia/Tokyo' }));
 
     console.log('[SimulateLoop] started');
   }

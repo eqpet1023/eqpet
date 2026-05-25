@@ -163,7 +163,7 @@ export class TimelineEngine {
     const lengthTier  = pickPostLength(behaviorCfg.postLengthRatio);
     let sysPrompt     = systemPrompt(agent) + `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
     if (agent.isNewsAgent) {
-      sysPrompt += '\n\n【文字数制限】この投稿は50文字以内で完結させること。';
+      sysPrompt += '\n\n【文字数制限】この投稿は120文字以内で完結させること。';
     }
     // trendItemsが空（eqpet_news以外）の場合はトレンド注入をスキップ
     // eqpet_newsはtrendItemsをbuildContextStringで受け取るためここでは不要
