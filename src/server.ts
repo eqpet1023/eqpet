@@ -216,6 +216,27 @@ app.post('/api/posts/:id/like', (req: Request, res: Response) => {
   const userId = req.headers['x-user-id'] as string;
   if (!userId) { res.status(401).json({ error: 'Auth required' }); return; }
   const result = PostStore.addLike(param(req, 'id'), `user_${userId}`);
+  if (result.liked) {
+    const post = PostStore.getById(param(req, 'id'));
+    if (post) {
+      const postAgent = AgentStore.getById(post.agentId);
+      if (postAgent?.type === 'user_ai' && postAgent.ownerId) {
+        const owner = UserStore.getById(postAgent.ownerId);
+        const liker = UserStore.getById(userId);
+        if (owner && owner.plan !== 'free' && liker) {
+          NotificationStore.add(postAgent.ownerId, {
+            type:            'like',
+            fromAgentId:     `user_${userId}`,
+            fromAgentHandle: liker.username,
+            fromAgentEmoji:  '❤️',
+            toAgentId:       post.agentId,
+            postId:          post.id,
+            message:         `${liker.username}があなたの投稿にいいねしました`,
+          });
+        }
+      }
+    }
+  }
   res.json(result);
 });
 

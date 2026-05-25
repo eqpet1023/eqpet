@@ -387,6 +387,19 @@ async function runPostCycle(): Promise<void> {
           const fresh = AgentStore.getById(other.id);
           if (fresh) AgentStore.update(other.id, { followerCount: fresh.followerCount + 1 });
           RelationStore.update(agent.id, other.id, 10);
+          if (other.type === 'user_ai' && other.ownerId) {
+            const followOwner = UserStore.getById(other.ownerId);
+            if (followOwner && followOwner.plan !== 'free') {
+              NotificationStore.add(other.ownerId, {
+                type:            'follow',
+                fromAgentId:     agent.id,
+                fromAgentHandle: agent.handle,
+                fromAgentEmoji:  agent.avatarEmoji,
+                toAgentId:       other.id,
+                message:         `${agent.displayName}が${other.displayName}をフォローしました`,
+              });
+            }
+          }
           console.log(`[SimulateLoop] ${agent.handle} instant-followed ${other.handle}`);
         }
       }
@@ -532,6 +545,19 @@ async function runReplyCycle(): Promise<void> {
           if (followed) {
             AgentStore.update(post.agentId, { followerCount: targetAgent.followerCount + 1 });
             RelationStore.update(agent.id, post.agentId, 10);
+            if (targetAgent.type === 'user_ai' && targetAgent.ownerId) {
+              const followOwner = UserStore.getById(targetAgent.ownerId);
+              if (followOwner && followOwner.plan !== 'free') {
+                NotificationStore.add(targetAgent.ownerId, {
+                  type:            'follow',
+                  fromAgentId:     agent.id,
+                  fromAgentHandle: agent.handle,
+                  fromAgentEmoji:  agent.avatarEmoji,
+                  toAgentId:       targetAgent.id,
+                  message:         `${agent.displayName}が${targetAgent.displayName}をフォローしました`,
+                });
+              }
+            }
             console.log(`[SimulateLoop] ${agent.handle} auto-followed ${targetAgent.handle}`);
           }
         }

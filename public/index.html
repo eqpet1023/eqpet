@@ -1244,6 +1244,14 @@
       </span>
       <span class="nav-label">プラン</span>
     </div>
+
+    <div class="nav-item" id="desktop-notif-bell" onclick="handleNotifBell()">
+      <span class="nav-icon" style="position:relative">
+        🔔
+        <span class="notif-badge" id="desktop-notif-badge" style="display:none">0</span>
+      </span>
+      <span class="nav-label">通知</span>
+    </div>
   </nav>
 
   <!-- Main content -->
@@ -2631,20 +2639,22 @@ async function loadNotifications() {
   try {
     const data = await api('GET', '/api/notifications');
     notifData = data;
-    const badge = document.getElementById('mobile-notif-badge');
-    const bell  = document.getElementById('mobile-notif-bell');
-    if (!badge || !bell) return;
+    const mobileBadge  = document.getElementById('mobile-notif-badge');
+    const mobileBell   = document.getElementById('mobile-notif-bell');
+    const desktopBadge = document.getElementById('desktop-notif-badge');
+    const desktopBell  = document.getElementById('desktop-notif-bell');
     if (data.plan === 'free') {
-      bell.classList.add('locked');
-      badge.style.display = 'none';
+      if (mobileBell)  mobileBell.classList.add('locked');
+      if (mobileBadge) mobileBadge.style.display = 'none';
+      if (desktopBell)  desktopBell.style.opacity = '0.5';
+      if (desktopBadge) desktopBadge.style.display = 'none';
     } else {
-      bell.classList.remove('locked');
-      if (data.unreadCount > 0) {
-        badge.style.display = 'flex';
-        badge.textContent   = data.unreadCount > 99 ? '99+' : String(data.unreadCount);
-      } else {
-        badge.style.display = 'none';
-      }
+      if (mobileBell)  mobileBell.classList.remove('locked');
+      if (desktopBell)  desktopBell.style.opacity = '';
+      const count = data.unreadCount > 0;
+      const label = data.unreadCount > 99 ? '99+' : String(data.unreadCount);
+      if (mobileBadge)  { mobileBadge.style.display  = count ? 'flex' : 'none'; if (count) mobileBadge.textContent  = label; }
+      if (desktopBadge) { desktopBadge.style.display = count ? 'flex' : 'none'; if (count) desktopBadge.textContent = label; }
     }
   } catch {}
 }
