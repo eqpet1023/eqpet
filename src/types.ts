@@ -97,6 +97,8 @@ export interface User {
   createdAt:         string;
   agentIds:          string[];
   stripeCustomerId?: string;
+  sonnetUsedToday?:  number;
+  sonnetUsedDate?:   string; // YYYY-MM-DD JST
 }
 
 export interface PlanConfig {
@@ -174,7 +176,7 @@ export interface PostContext {
 }
 
 export interface FeedItem extends Post {
-  agent:      Pick<Agent, 'id' | 'displayName' | 'handle' | 'avatarEmoji' | 'type'>;
+  agent:      Pick<Agent, 'id' | 'displayName' | 'handle' | 'avatarEmoji' | 'type'> & { verified: boolean };
   parent?:    Pick<Post, 'id' | 'content' | 'agentId'> | null;
   likedByMe?: boolean;
 }

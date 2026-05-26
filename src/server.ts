@@ -64,6 +64,17 @@ function requireUser(req: Request, res: Response): string | null {
   return userId;
 }
 
+function isPremiumOrAbove(plan: string): boolean {
+  return plan === 'premium' || plan === 'founder';
+}
+
+function computeAgentVerified(agent: { type: string; ownerId?: string | null }): boolean {
+  if (agent.type !== 'user_ai') return true;
+  if (!agent.ownerId) return false;
+  const owner = UserStore.getById(agent.ownerId);
+  return owner ? PLAN_CONFIG[owner.plan].verified : false;
+}
+
 function requireOfficial(req: Request, res: Response): boolean {
   const userId = req.headers['x-user-id'] as string;
   if (userId !== 'official') {
@@ -114,7 +125,7 @@ function buildFeedItem(post: ReturnType<typeof PostStore.getById>, reactorId?: s
   }
   return {
     ...post,
-    agent:     { id: agent.id, displayName: agent.displayName, handle: agent.handle, avatarEmoji: agent.avatarEmoji, type: agent.type },
+    agent:     { id: agent.id, displayName: agent.displayName, handle: agent.handle, avatarEmoji: agent.avatarEmoji, type: agent.type, verified: computeAgentVerified(agent) },
     parent,
     likedByMe: reactorId ? PostStore.isLikedBy(post.id, reactorId) : false,
   };
@@ -292,7 +303,7 @@ app.get('/api/agents/:id', (req: Request, res: Response) => {
     return;
   }
   const rootPostCount = PostStore.getByAgentId(agent.id).filter(p => !p.parentId && !p.isBanned).length;
-  res.json({ ...agent, postCount: rootPostCount });
+  res.json({ ...agent, postCount: rootPostCount, verified: computeAgentVerified(agent) });
 });
 
 app.get('/api/agents/:id/posts', (req: Request, res: Response) => {
@@ -476,7 +487,8 @@ app.get('/api/search', (req: Request, res: Response) => {
     a.handle.toLowerCase().includes(q)      ||
     a.bio.toLowerCase().includes(q)
   );
-  res.json(officialMatches ? [OFFICIAL_PROFILE, ...agents] : agents);
+  const enriched = agents.map(a => ({ ...a, verified: computeAgentVerified(a) }));
+  res.json(officialMatches ? [OFFICIAL_PROFILE, ...enriched] : enriched);
 });
 
 app.get('/api/trending', (req: Request, res: Response) => {
@@ -487,7 +499,7 @@ app.get('/api/trending', (req: Request, res: Response) => {
 
 app.get('/api/ranking/agents', (_req: Request, res: Response) => {
   const agents = AgentStore.getAll().sort((a, b) => b.followerCount - a.followerCount);
-  res.json(agents);
+  res.json(agents.map(a => ({ ...a, verified: computeAgentVerified(a) })));
 });
 
 app.get('/api/ranking/posts', (_req: Request, res: Response) => {
@@ -577,7 +589,7 @@ app.post('/api/agents/:id/chat', async (req: Request, res: Response) => {
   if (!userId) return;
 
   const user = UserStore.getById(userId)!;
-  if (user.plan !== 'premium') {
+  if (!isPremiumOrAbove(user.plan)) {
     res.status(403).json({ error: 'Premium plan required' });
     return;
   }
@@ -642,9 +654,9 @@ app.post('/api/agents/:id/chat', async (req: Request, res: Response) => {
   MemoryStore.add(agentId, chatKey, message.trim(), 'post');
 
   try {
-    const reply = await TimelineEngine.chat(agent, messages);
+    const reply = await TimelineEngine.chat(agent, messages, userId);
     MemoryStore.add(agentId, chatKey, reply, 'reply');
-    res.json({ reply });
+    res.json({ reply, sonnetRemaining: UserStore.sonnetRemaining(userId) });
   } catch (err) {
     console.error('[chat] error:', err);
     res.status(500).json({ error: 'AI応答に失敗しました' });
@@ -658,7 +670,7 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
   if (!userId) return;
 
   const user = UserStore.getById(userId)!;
-  if (user.plan !== 'premium') {
+  if (!isPremiumOrAbove(user.plan)) {
     res.status(403).json({ error: 'Premium plan required' });
     return;
   }
@@ -854,7 +866,7 @@ app.get('/api/agents/:id/diary', (req: Request, res: Response) => {
   if (!userId) return;
 
   const user = UserStore.getById(userId)!;
-  if (user.plan !== 'premium') {
+  if (!isPremiumOrAbove(user.plan)) {
     res.status(403).json({ error: 'Premium plan required' });
     return;
   }
@@ -872,7 +884,7 @@ app.get('/api/agents/:id/diary/:date', (req: Request, res: Response) => {
   if (!userId) return;
 
   const user = UserStore.getById(userId)!;
-  if (user.plan !== 'premium') {
+  if (!isPremiumOrAbove(user.plan)) {
     res.status(403).json({ error: 'Premium plan required' });
     return;
   }
@@ -894,7 +906,7 @@ app.post('/api/agents/:id/mission', (req: Request, res: Response) => {
   if (!userId) return;
 
   const user = UserStore.getById(userId)!;
-  if (user.plan !== 'premium') {
+  if (!isPremiumOrAbove(user.plan)) {
     res.status(403).json({ error: 'Premium plan required' });
     return;
   }
@@ -930,6 +942,12 @@ app.delete('/api/agents/:id/mission', (req: Request, res: Response) => {
 
 // ─── Notifications ───────────────────────────────────────────────────────────
 
+app.get('/api/user/sonnet-remaining', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  res.json({ remaining: UserStore.sonnetRemaining(userId) });
+});
+
 app.get('/api/notifications', (req: Request, res: Response) => {
   const userId = requireUser(req, res);
   if (!userId) return;
@@ -947,6 +965,13 @@ app.post('/api/notifications/read', (req: Request, res: Response) => {
   const userId = requireUser(req, res);
   if (!userId) return;
   NotificationStore.markAllRead(userId);
+  res.json({ ok: true });
+});
+
+app.post('/api/notifications/:id/read', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  NotificationStore.markOneRead(userId, param(req, 'id'));
   res.json({ ok: true });
 });
 

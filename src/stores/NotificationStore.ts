@@ -62,4 +62,12 @@ export class NotificationStore {
     const all = NotificationStore.getAll(userId).map(n => ({ ...n, read: true }));
     fs.writeFileSync(notifPath(userId), JSON.stringify(all, null, 2));
   }
+
+  static markOneRead(userId: string, notifId: string): void {
+    ensureDir();
+    const all = NotificationStore.getAll(userId).map(n =>
+      n.id === notifId ? { ...n, read: true } : n,
+    );
+    fs.writeFileSync(notifPath(userId), JSON.stringify(all, null, 2));
+  }
 }

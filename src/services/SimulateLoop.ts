@@ -276,7 +276,15 @@ async function applyBanIfNeeded(
   agent:   Agent,
 ): Promise<void> {
   console.log(`[SimulateLoop] applyBanIfNeeded: checking ${agent.handle} post ${postId}`);
-  const { level, reason } = await TimelineEngine.checkBan(content);
+  let level: 1 | 2 | 3 | null;
+  let reason: string | null;
+  try {
+    ({ level, reason } = await TimelineEngine.checkBan(content));
+  } catch (err) {
+    const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
+    console.warn(`[BAN] skipped due to rate limit (${status}): ${postId}`);
+    return;
+  }
   if (!level) return;
 
   PostStore.markBanned(postId, level, reason ?? '規約違反');
@@ -314,6 +322,7 @@ async function runBanCycle(): Promise<void> {
     } finally {
       PostStore.markBanChecked(post.id);
     }
+    await new Promise(r => setTimeout(r, 200));
   }
   console.log(`[SimulateLoop] runBanCycle: done`);
 }
@@ -828,7 +837,7 @@ export class SimulateLoop {
       runNewsAgentCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    tasks.push(cron.schedule('0 8,12,18 * * *', () => {
+    tasks.push(cron.schedule('15 8,12,18 * * *', () => {
       runNewsCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
@@ -885,6 +894,7 @@ export class SimulateLoop {
       postCount24h = 0;
       postedNewsTitlesToday.clear();
       RelationStore.decayAll();
+      UserStore.resetAllSonnetCounts();
       takeDailySnapshots().catch(console.error);
       generateDiaries().catch(console.error);
       resetDailyMissions();

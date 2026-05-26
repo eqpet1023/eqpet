@@ -161,23 +161,26 @@ export class TimelineEngine {
 
     const behaviorCfg = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
     const lengthTier  = pickPostLength(behaviorCfg.postLengthRatio);
-    let sysPrompt     = systemPrompt(agent) + `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
+    let dynamicSys    = `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
     if (agent.isNewsAgent) {
-      sysPrompt += '\n\n【文字数制限】120文字以内で完結した文章を生成すること。文章の途中で終わらないこと。';
+      dynamicSys += '\n\n【文字数制限】120文字以内で完結した文章を生成すること。文章の途中で終わらないこと。';
     }
     // trendItemsが空（eqpet_news以外）の場合はトレンド注入をスキップ
     // eqpet_newsはtrendItemsをbuildContextStringで受け取るためここでは不要
     const hasTrendItems = typeof context === 'object' && context !== null &&
       'trendItems' in context && (context as PostContext).trendItems?.length;
     if (!hasTrendItems && trendTopics.length > 0 && Math.random() < (behaviorCfg.trendSensitivity ?? DEFAULT_BEHAVIOR_CONFIG.trendSensitivity)) {
-      sysPrompt += `\n\n【環境情報】今日のSNSでは「${trendTopics.join('、')}」が話題になっている（背景知識として持っておく）。`;
+      dynamicSys += `\n\n【環境情報】今日のSNSでは「${trendTopics.join('、')}」が話題になっている（背景知識として持っておく）。`;
     }
 
     try {
       const response = await callApiWithRetry(() => client.messages.create({
         model:      chooseModel(agent),
         max_tokens: agent.isNewsAgent ? 200 : LENGTH_MAX_TOKENS[lengthTier],
-        system:     sysPrompt,
+        system: [
+          { type: 'text', text: systemPrompt(agent), cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: dynamicSys },
+        ],
         messages:   [{ role: 'user', content: prompt }],
       }));
 
@@ -214,13 +217,15 @@ export class TimelineEngine {
 
     const behaviorCfg  = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
     const lengthTier   = pickPostLength(behaviorCfg.postLengthRatio);
-    const replySysPrompt = systemPrompt(agent) + `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
 
     try {
       const response = await callApiWithRetry(() => client.messages.create({
         model:      chooseModel(agent),
         max_tokens: LENGTH_MAX_TOKENS[lengthTier],
-        system:     replySysPrompt,
+        system: [
+          { type: 'text', text: systemPrompt(agent), cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: `\n\n${LENGTH_INSTRUCTION[lengthTier]}` },
+        ],
         messages:   [{ role: 'user', content: prompt }],
       }));
 
@@ -236,11 +241,20 @@ export class TimelineEngine {
   static async chat(
     agent:    Agent,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    userId?:  string,
   ): Promise<string> {
+    let model = 'claude-haiku-4-5-20251001';
+    if (userId) {
+      const { UserStore } = await import('../stores/UserStore');
+      if (UserStore.canUseSonnet(userId)) {
+        model = 'claude-sonnet-4-6';
+        UserStore.incrementSonnetCount(userId);
+      }
+    }
     const response = await callApiWithRetry(() => client.messages.create({
-      model:      'claude-haiku-4-5-20251001',
+      model,
       max_tokens: 500,
-      system:     agent.systemPrompt,
+      system: [{ type: 'text', text: agent.systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages,
     }));
     const block = response.content[0];
@@ -264,7 +278,7 @@ BAN明けの最初の投稿として「釈明・復帰宣言」を1つ投稿し�
       const response = await callApiWithRetry(() => client.messages.create({
         model:      chooseModel(agent),
         max_tokens: 200,
-        system:     systemPrompt(agent),
+        system: [{ type: 'text', text: systemPrompt(agent), cache_control: { type: 'ephemeral' } }],
         messages:   [{ role: 'user', content: prompt }],
       }));
 
@@ -356,7 +370,7 @@ ${replySummary}
       const response = await callApiWithRetry(() => client.messages.create({
         model:      'claude-haiku-4-5-20251001',
         max_tokens: 400,
-        system:     agent.systemPrompt,
+        system: [{ type: 'text', text: agent.systemPrompt, cache_control: { type: 'ephemeral' } }],
         messages:   [{ role: 'user', content: prompt }],
       }));
       const block = response.content[0];
@@ -384,7 +398,9 @@ ${replySummary}
       if (!match) return { level: null, reason: null };
       const parsed = JSON.parse(match[0]) as { level: 1 | 2 | 3 | null; reason: string | null };
       return parsed;
-    } catch {
+    } catch (err) {
+      const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
+      if (status === 429) throw err; // 呼び出し元でpostIdとともにwarnログを出す
       return { level: null, reason: null };
     }
   }
