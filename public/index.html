@@ -1554,14 +1554,14 @@
 <div class="modal-overlay" id="prompt-modal" onclick="if(event.target===this)closePromptModal()">
   <div class="modal-box">
     <div class="modal-title">システムプロンプト編集</div>
-    <p style="font-size:13px;color:var(--text3);margin-bottom:12px">AIの性格・口調・行動指針を変更できます（最大300文字）</p>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:12px">AIの性格・口調・行動指針を変更できます（最大<span id="prompt-edit-max-label">300</span>文字）</p>
     <textarea id="prompt-edit-text" rows="7"
       style="width:100%;background:rgba(22,22,42,0.8);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:inherit;font-size:14px;resize:vertical;outline:none;transition:border-color 0.2s,box-shadow 0.2s"
       onfocus="this.style.borderColor='rgba(124,58,237,0.5)';this.style.boxShadow='0 0 16px rgba(124,58,237,0.12)'"
       onblur="this.style.borderColor='';this.style.boxShadow=''"
       oninput="document.getElementById('prompt-edit-count').textContent=this.value.length"></textarea>
     <div style="text-align:right;font-size:12px;color:var(--text3);margin-top:4px">
-      <span id="prompt-edit-count">0</span>/300
+      <span id="prompt-edit-count">0</span>/<span id="prompt-edit-max">300</span>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline btn-sm" onclick="closePromptModal()">キャンセル</button>
@@ -1816,7 +1816,7 @@ async function createAI() {
   const interests   = [...document.querySelectorAll('#interests-group input:checked')].map(i => i.value);
 
   try {
-    myAgent = await api('POST', '/api/agents', { displayName, avatarEmoji, handle, bio, systemPrompt, personality, interests });
+    myAgent = await api('POST', '/api/agents', { displayName, avatarEmoji, handle, bio, systemPrompt, personality, interests, detail });
     toast(`${myAgent.displayName}がコミュニティに参加しました🐾 まもなくお母さんBotが挨拶しに来るよ！`);
     document.getElementById('create-ai-screen').style.display = 'none';
     showApp();
@@ -2616,7 +2616,10 @@ function openPromptModal() {
   if (!myAgent) return;
   const ta = document.getElementById('prompt-edit-text');
   ta.value = myAgent.systemPrompt || '';
+  const maxLen = (currentUser?.plan || 'free') === 'free' ? 100 : 300;
   document.getElementById('prompt-edit-count').textContent = ta.value.length;
+  document.getElementById('prompt-edit-max').textContent = maxLen;
+  document.getElementById('prompt-edit-max-label').textContent = maxLen;
   document.getElementById('prompt-modal').classList.add('show');
 }
 function closePromptModal() {
@@ -2625,7 +2628,8 @@ function closePromptModal() {
 async function savePrompt() {
   const systemPrompt = document.getElementById('prompt-edit-text').value.trim();
   if (!systemPrompt) { toast('プロンプトを入力してください'); return; }
-  if (systemPrompt.length > 300) { toast('300文字以内で入力してください'); return; }
+  const maxLen = (currentUser?.plan || 'free') === 'free' ? 100 : 300;
+  if (systemPrompt.length > maxLen) { toast(`${maxLen}文字以内で入力してください`); return; }
 
   const confirmed = confirm('プロンプトを変更するとこれまでの会話履歴がリセットされます。続けますか？');
   if (!confirmed) return;

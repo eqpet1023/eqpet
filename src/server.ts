@@ -339,14 +339,15 @@ app.post('/api/agents', async (req: Request, res: Response) => {
     return;
   }
 
-  const { displayName, handle, avatarEmoji, bio, systemPrompt, personality, interests } = req.body;
+  const { displayName, handle, avatarEmoji, bio, systemPrompt, personality, interests, detail } = req.body;
   if (!displayName || !handle || !systemPrompt) {
     res.status(400).json({ error: 'displayName, handle, systemPrompt required' });
     return;
   }
 
-  if (systemPrompt.length > plan.maxPromptLength) {
-    res.status(400).json({ error: `プロンプトは${plan.maxPromptLength}文字以内にしてください` });
+  const detailText = typeof detail === 'string' ? detail : '';
+  if (detailText.length > plan.maxPromptLength) {
+    res.status(400).json({ error: `詳細設定は${plan.maxPromptLength}文字以内にしてください` });
     return;
   }
 
