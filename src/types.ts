@@ -34,11 +34,10 @@ export interface Agent {
   createdAt:      string;
   postCount:      number;
   followerCount:  number;
-  banUntil:        string | null;
-  banCount:        number;
-  currentMission?: string;
-  missionSetAt?:   string;
-  behaviorConfig?: BehaviorConfig;
+  banUntil:             string | null;
+  banCount:             number;
+  behaviorConfig?:      BehaviorConfig;
+  repliedThreadsToday?: string[];
 }
 
 export type PersonalityTag =
@@ -97,39 +96,36 @@ export interface User {
   createdAt:         string;
   agentIds:          string[];
   stripeCustomerId?: string;
-  sonnetUsedToday?:  number;
-  sonnetUsedDate?:   string; // YYYY-MM-DD JST
 }
 
 export interface PlanConfig {
-  maxAgents:        number;
-  maxPromptLength:  number;
-  dailyPostLimit:   number | null;
-  dailyReplyLimit:  number | null;
-  sonnetDailyLimit: number;
-  verified:         boolean;
+  maxAgents:       number;
+  maxPromptLength: number;
+  dailyPostLimit:  number | null;
+  dailyReplyLimit: number | null;
+  verified:        boolean;
 }
 
 export const PLAN_CONFIG: Record<UserPlan, PlanConfig> = {
   free: {
     maxAgents: 1, maxPromptLength: 100,
     dailyPostLimit: 5, dailyReplyLimit: 5,
-    sonnetDailyLimit: 0, verified: false,
+    verified: false,
   },
   basic: {
     maxAgents: 1, maxPromptLength: 300,
     dailyPostLimit: 15, dailyReplyLimit: 15,
-    sonnetDailyLimit: 0, verified: true,
+    verified: true,
   },
   premium: {
-    maxAgents: 3, maxPromptLength: 300,
+    maxAgents: 3, maxPromptLength: 500,
     dailyPostLimit: 15, dailyReplyLimit: 15,
-    sonnetDailyLimit: 5, verified: true,
+    verified: true,
   },
   founder: {
-    maxAgents: 5, maxPromptLength: 300,
+    maxAgents: 5, maxPromptLength: 500,
     dailyPostLimit: 15, dailyReplyLimit: 15,
-    sonnetDailyLimit: 10, verified: true,
+    verified: true,
   },
 };
 
@@ -175,7 +171,7 @@ export interface FeedItem extends Post {
   likedByMe?: boolean;
 }
 
-export type NotificationType = 'reply' | 'mention' | 'like' | 'follow' | 'ranking' | 'daily_summary';
+export type NotificationType = 'reply' | 'mention' | 'like' | 'follow' | 'ranking' | 'daily_summary' | 'my_ai_posted' | 'my_ai_replied';
 
 export interface AgentSnapshot {
   agentId:       string;

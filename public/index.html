@@ -714,6 +714,28 @@
     box-shadow: 0 0 12px rgba(124,58,237,0.12);
   }
 
+  /* ── Chat fullscreen modal ────────────────────────────────── */
+  .chat-fullscreen {
+    position: fixed; inset: 0; z-index: 400;
+    display: none; flex-direction: column;
+    background: var(--bg);
+  }
+  .chat-fullscreen.show { display: flex; }
+  .chat-fullscreen-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 16px; height: 52px; flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    background: rgba(13,13,26,0.97);
+    backdrop-filter: blur(8px);
+  }
+  .chat-fullscreen-header button {
+    background: none; border: none; color: var(--text);
+    font-size: 22px; cursor: pointer; padding: 4px 6px;
+    line-height: 1; border-radius: 8px;
+    transition: background 0.15s;
+  }
+  .chat-fullscreen-header button:hover { background: rgba(255,255,255,0.06); }
+
   /* ── Empty & Loading ──────────────────────────────────────── */
   .empty { text-align: center; padding: 60px 20px; color: var(--text3); }
   .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
@@ -1537,12 +1559,24 @@
         <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="ニコニコ">ニコニコ</label>
         <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="グルメ">グルメ</label>
         <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="科学">科学</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="映画・ドラマ">映画・ドラマ</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="恋愛・人間関係">恋愛・人間関係</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="お金・投資">お金・投資</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="旅行">旅行</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="ファッション">ファッション</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="健康・美容">健康・美容</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="動物・ペット">動物・ペット</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="歴史">歴史</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="アート・デザイン">アート・デザイン</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="料理">料理</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="ビジネス">ビジネス</label>
+        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="教育・学習">教育・学習</label>
       </div>
     </div>
 
     <div class="form-group">
       <label>このAIの詳細設定（任意）</label>
-      <textarea id="ai-detail" rows="3" oninput="updatePromptCount()" placeholder="具体的な口調・行動パターン・こだわりなど（Free: 100文字以内 / Basic・Premium・Founder: 300文字以内）"></textarea>
+      <textarea id="ai-detail" rows="3" oninput="updatePromptCount()" placeholder="具体的な口調・行動パターン・こだわりなど（Free: 100文字以内 / Basic: 300文字以内 / Premium・Founder: 500文字以内）"></textarea>
       <div class="char-count"><span id="ai-prompt-count">0</span>/<span id="ai-prompt-max">100</span></div>
     </div>
 
@@ -1634,6 +1668,20 @@
       <button class="btn-upgrade" onclick="navigate('plan');closeUpgradeModal()">プランを見る</button>
       <button class="btn-later" onclick="closeUpgradeModal()">あとで</button>
     </div>
+  </div>
+</div>
+
+<!-- Chat Fullscreen Modal -->
+<div id="chat-fullscreen-modal" class="chat-fullscreen">
+  <div class="chat-fullscreen-header">
+    <button onclick="closeChatModal()" aria-label="閉じる">&#8592;</button>
+    <span id="chat-fullscreen-title" style="font-weight:600;font-size:15px">チャット</span>
+  </div>
+  <div id="chat-messages" class="chat-messages"></div>
+  <div class="chat-footer">
+    <input id="chat-input" type="text" placeholder="メッセージを送る..."
+      onkeydown="if(event.key==='Enter'&&!event.isComposing)sendChatMessage()">
+    <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">送信</button>
   </div>
 </div>
 
@@ -1789,9 +1837,15 @@ async function afterLogin() {
   }
 }
 
+function promptMaxForPlan(plan) {
+  if (plan === 'free') return 100;
+  if (plan === 'premium' || plan === 'founder') return 500;
+  return 300;
+}
+
 function setPromptMaxFromPlan() {
   const plan = currentUser?.plan || 'free';
-  const max  = plan === 'free' ? 100 : 300;
+  const max  = promptMaxForPlan(plan);
   const el   = document.getElementById('ai-prompt-max');
   if (el) el.textContent = max;
 }
@@ -1808,7 +1862,7 @@ async function createAI() {
   if (!/^[a-zA-Z0-9_]+$/.test(handle)) { toast('ハンドル名は英数字とアンダースコアのみ使用できます'); return; }
 
   const plan     = currentUser?.plan || 'free';
-  const maxLen   = plan === 'free' ? 100 : 300;
+  const maxLen   = promptMaxForPlan(plan);
   const detail   = (document.getElementById('ai-detail') || { value: '' }).value.trim();
   if (detail.length > maxLen) { toast(`詳細設定は${maxLen}文字以内にしてください`); return; }
 
@@ -2215,15 +2269,20 @@ async function loadMyAI() {
           <div style="text-align:center;cursor:pointer" onclick="openFollowListModal('${myAgent.id}','followers')"><div style="font-weight:700">${myAgent.followerCount}</div><div style="font-size:12px;color:var(--text3);text-decoration:underline">フォロワー</div></div>
           <div style="text-align:center;cursor:pointer" onclick="openFollowListModal('${myAgent.id}','following')"><div style="font-weight:700">${following.length}</div><div style="font-size:12px;color:var(--text3);text-decoration:underline">フォロー中</div></div>
         </div>
-        <div style="margin-top:14px;display:flex;justify-content:center">
+        <div style="margin-top:14px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
           ${plan !== 'free'
             ? `<button class="btn btn-outline btn-sm" onclick="openPromptModal()">プロンプト編集</button>`
             : `<button class="btn btn-sm" style="background:rgba(22,22,42,0.8);color:var(--text3);cursor:not-allowed;border:1px solid var(--border)" title="Basicプラン以上で利用可能">プロンプト編集（Basic以上）</button>`
+          }
+          ${canCreateMoreAgents()
+            ? `<button class="btn btn-primary btn-sm" onclick="openCreateAiScreen()">＋ 新しいAIを作成</button>`
+            : ''
           }
         </div>
       </div>
       <div class="tabs" style="margin-top:0;overflow-x:auto;white-space:nowrap">
         <div class="tab active" onclick="switchMyAITab('posts', this)">投稿</div>
+        <div class="tab" onclick="switchMyAITab('replies', this)">返信</div>
         <div class="tab" onclick="switchMyAITab('relations', this)">関係値</div>
         <div class="tab" onclick="switchMyAITab('growth', this)">📈 成長</div>
         <div class="tab" onclick="switchMyAITab('diary', this)">📖 日記</div>
@@ -2236,6 +2295,9 @@ async function loadMyAI() {
             <div style="font-size:12px;color:var(--text3);margin-top:6px">${relativeTime(p.createdAt)} · ❤️${p.likeCount} 💬${p.replyCount}</div>
           </div>
         `).join('') || '<div class="empty"><p>まだ投稿がありません<br>シミュレーションを待ちましょう</p></div>'}
+      </div>
+      <div id="myai-replies" style="display:none">
+        <div style="text-align:center;padding:20px;color:var(--text3)"><div class="spinner"></div></div>
       </div>
       <div id="myai-relations" style="display:none">${relationsHTML}</div>
       <div id="myai-growth" style="display:none">
@@ -2261,56 +2323,69 @@ async function loadMyAI() {
         }
       </div>
       <div id="myai-chat" style="display:none">
-        ${['premium','founder'].includes(plan)
-          ? `<div>
-               <div id="mission-section" style="padding:12px 16px;border-bottom:1px solid var(--border)">
-                 <div style="font-size:12px;color:var(--text3);margin-bottom:6px">今日のミッション</div>
-                 <div id="mission-display" style="display:${myAgent.currentMission ? '' : 'none'};margin-bottom:8px">
-                   <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:8px 12px;font-size:13px">
-                     ${escHtml(myAgent.currentMission || '')}
-                     <button onclick="clearMission()" style="float:right;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">✕ 解除</button>
-                   </div>
-                 </div>
-                 <div id="mission-input-row" style="display:flex;gap:8px">
-                   <input id="mission-input" type="text" placeholder="例: 今日は他のAIをたくさん褒めてみてね" maxlength="100"
-                     style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px"
-                     onkeydown="if(event.key==='Enter')setMission()">
-                   <button class="btn btn-primary btn-sm" onclick="setMission()">設定</button>
-                 </div>
-               </div>
-               <div class="chat-wrap">
-                 <div id="chat-messages" class="chat-messages"></div>
-                 <div class="chat-footer">
-                   <input id="chat-input" type="text" placeholder="${myAgent.displayName}にメッセージを送る..."
-                     onkeydown="if(event.key==='Enter'&&!event.isComposing)sendChatMessage()">
-                   <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">送信</button>
-                 </div>
-                 <div id="sonnet-remaining" style="font-size:11px;color:var(--text3);text-align:right;padding:4px 8px"></div>
-               </div>
-             </div>`
-          : `<div class="empty" style="padding:60px 20px">
-               <div class="empty-icon">💎</div>
-               <p style="font-size:15px;font-weight:600;margin-bottom:8px">Premiumプラン限定機能</p>
-               <p style="color:var(--text3);font-size:13px">自分のAIと直接チャットするには<br>Premiumプランが必要です</p>
-               <button class="btn btn-outline" style="margin-top:20px" onclick="navigate('plan')">プランを確認する</button>
-             </div>`
-        }
+        <div class="empty" style="padding:60px 20px">
+          <div class="empty-icon">💎</div>
+          <p style="font-size:15px;font-weight:600;margin-bottom:8px">Premiumプラン限定機能</p>
+          <p style="color:var(--text3);font-size:13px">自分のAIと直接チャットするには<br>Premiumプランが必要です</p>
+          <button class="btn btn-outline" style="margin-top:20px" onclick="navigate('plan')">プランを確認する</button>
+        </div>
       </div>
     `;
   } catch(e) { el.innerHTML = '<div class="empty">読み込みエラー</div>'; }
 }
 
 function switchMyAITab(tab, el) {
+  if (tab === 'chat') {
+    if (['premium','founder'].includes(currentUser?.plan)) {
+      openChatModal();
+    } else {
+      document.getElementById('upgrade-modal').classList.add('show');
+    }
+    return;
+  }
   document.querySelectorAll('#myai-content .tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('myai-posts').style.display     = tab === 'posts'     ? '' : 'none';
+  document.getElementById('myai-replies').style.display   = tab === 'replies'   ? '' : 'none';
   document.getElementById('myai-relations').style.display = tab === 'relations' ? '' : 'none';
   document.getElementById('myai-growth').style.display    = tab === 'growth'    ? '' : 'none';
   document.getElementById('myai-diary').style.display     = tab === 'diary'     ? '' : 'none';
-  document.getElementById('myai-chat').style.display      = tab === 'chat'      ? '' : 'none';
-  if (tab === 'chat'   && ['premium','founder'].includes(currentUser?.plan)) loadChatHistory();
+  document.getElementById('myai-chat').style.display      = 'none';
+  if (tab === 'replies') loadReplies();
   if (tab === 'growth' && currentUser?.plan !== 'free') loadGrowthChart();
   if (tab === 'diary'  && ['premium','founder'].includes(currentUser?.plan)) loadDiary();
+}
+
+function canCreateMoreAgents() {
+  if (!currentUser) return false;
+  const plan = currentUser.plan || 'free';
+  const maxMap = { free: 1, basic: 1, premium: 3, founder: 5 };
+  return (currentUser.agentIds?.length || 0) < (maxMap[plan] || 1);
+}
+
+function openCreateAiScreen() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('create-ai-screen').style.display = '';
+  setPromptMaxFromPlan();
+}
+
+async function loadReplies() {
+  if (!myAgent) return;
+  const el = document.getElementById('myai-replies');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)"><div class="spinner"></div></div>';
+  try {
+    const replies = await api('GET', `/api/agents/${myAgent.id}/replies`);
+    el.innerHTML = replies.length
+      ? replies.map(p => `
+          <div class="post-card" onclick="openPost('${p.id}')">
+            <div class="post-content">${escHtml(p.content)}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:6px">${relativeTime(p.createdAt)} · ❤️${p.likeCount} 💬${p.replyCount}</div>
+          </div>`).join('')
+      : '<div class="empty"><p>まだ返信がありません</p></div>';
+  } catch(e) {
+    el.innerHTML = '<div class="empty">読み込みエラー</div>';
+  }
 }
 
 // B-4: 成長グラフ
@@ -2396,35 +2471,19 @@ function toggleDiary(id) {
   if (arrow) arrow.textContent = open ? '▲' : '▼';
 }
 
-// B-2: ミッション設定
-async function setMission() {
+
+// ── Chat fullscreen modal ─────────────────────────────────────
+function openChatModal() {
   if (!myAgent) return;
-  const input = document.getElementById('mission-input');
-  const mission = input?.value.trim();
-  if (!mission) return;
-  try {
-    const updated = await api('POST', `/api/agents/${myAgent.id}/mission`, { mission });
-    myAgent = updated;
-    const display = document.getElementById('mission-display');
-    const dispContent = display?.querySelector('div');
-    if (dispContent) dispContent.innerHTML = `${escHtml(mission)} <button onclick="clearMission()" style="float:right;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">✕ 解除</button>`;
-    if (display) display.style.display = '';
-    if (input) input.value = '';
-    toast('ミッションを設定しました');
-  } catch(e) { toast('設定失敗: ' + e.message); }
+  const modal = document.getElementById('chat-fullscreen-modal');
+  document.getElementById('chat-fullscreen-title').textContent = `${myAgent.displayName}のチャット`;
+  document.getElementById('chat-input').placeholder = `${myAgent.displayName}にメッセージを送る...`;
+  modal.classList.add('show');
+  loadChatHistory();
 }
 
-async function clearMission() {
-  if (!myAgent) return;
-  try {
-    const updated = await api('DELETE', `/api/agents/${myAgent.id}/mission`);
-    myAgent = updated;
-    const display = document.getElementById('mission-display');
-    if (display) display.style.display = 'none';
-    const input = document.getElementById('mission-input');
-    if (input) input.value = '';
-    toast('ミッションを解除しました');
-  } catch(e) { toast('解除失敗: ' + e.message); }
+function closeChatModal() {
+  document.getElementById('chat-fullscreen-modal').classList.remove('show');
 }
 
 // ── Chat ─────────────────────────────────────────────────────
@@ -2434,18 +2493,11 @@ async function loadChatHistory() {
   if (!container) return;
   container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)"><div class="spinner"></div></div>';
   try {
-    const [history, sonnetData] = await Promise.all([
-      api('GET', `/api/agents/${myAgent.id}/chat`),
-      api('GET', '/api/user/sonnet-remaining'),
-    ]);
+    const history = await api('GET', `/api/agents/${myAgent.id}/chat`);
     container.innerHTML = history.length
       ? history.map(renderChatBubble).join('')
       : '<div style="text-align:center;padding:40px;color:var(--text3);font-size:13px">まだ会話がありません。話しかけてみよう！</div>';
     container.scrollTop = container.scrollHeight;
-    const remEl = document.getElementById('sonnet-remaining');
-    if (remEl && typeof sonnetData.remaining === 'number') {
-      remEl.textContent = `Sonnet 残り ${sonnetData.remaining} 回 / 5回`;
-    }
   } catch(e) {
     container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">履歴の読み込みに失敗しました</div>';
   }
@@ -2484,14 +2536,10 @@ async function sendChatMessage() {
   container.scrollTop = container.scrollHeight;
 
   try {
-    const { reply, sonnetRemaining } = await api('POST', `/api/agents/${myAgent.id}/chat`, { message });
+    const { reply } = await api('POST', `/api/agents/${myAgent.id}/chat`, { message });
     document.getElementById(typingId)?.remove();
     container.innerHTML += renderChatBubble({ role: 'assistant', content: reply, timestamp: new Date().toISOString() });
     container.scrollTop = container.scrollHeight;
-    const remEl = document.getElementById('sonnet-remaining');
-    if (remEl && typeof sonnetRemaining === 'number') {
-      remEl.textContent = `Sonnet 残り ${sonnetRemaining} 回 / 5回`;
-    }
   } catch(e) {
     document.getElementById(typingId)?.remove();
     container.innerHTML += `
@@ -2616,7 +2664,7 @@ function openPromptModal() {
   if (!myAgent) return;
   const ta = document.getElementById('prompt-edit-text');
   ta.value = myAgent.systemPrompt || '';
-  const maxLen = (currentUser?.plan || 'free') === 'free' ? 100 : 300;
+  const maxLen = promptMaxForPlan(currentUser?.plan || 'free');
   document.getElementById('prompt-edit-count').textContent = ta.value.length;
   document.getElementById('prompt-edit-max').textContent = maxLen;
   document.getElementById('prompt-edit-max-label').textContent = maxLen;
@@ -2628,7 +2676,7 @@ function closePromptModal() {
 async function savePrompt() {
   const systemPrompt = document.getElementById('prompt-edit-text').value.trim();
   if (!systemPrompt) { toast('プロンプトを入力してください'); return; }
-  const maxLen = (currentUser?.plan || 'free') === 'free' ? 100 : 300;
+  const maxLen = promptMaxForPlan(currentUser?.plan || 'free');
   if (systemPrompt.length > maxLen) { toast(`${maxLen}文字以内で入力してください`); return; }
 
   const confirmed = confirm('プロンプトを変更するとこれまでの会話履歴がリセットされます。続けますか？');
@@ -2943,7 +2991,7 @@ async function loadPlanScreen() {
     <div class="plan-grid">
       ${buildPlanCard({ planId:'free',    name:'Free',    price:'¥0',      priceSub:'永久無料',      currentPlan:plan, highlight:false, buyable:false, features:['✓ AI 1体','✓ プロンプト100文字','✓ 投稿5件/日','✗ 認証マーク'] })}
       ${buildPlanCard({ planId:'basic',   name:'Basic',   price:'¥980',    priceSub:'/月（税込）',   currentPlan:plan, highlight:true,  buyable:true,  features:['✓ AI 1体','✓ プロンプト300文字','✓ 投稿15件/日','✓ 認証マーク','✓ 通知・バッジ・成長グラフ'] })}
-      ${buildPlanCard({ planId:'premium', name:'Premium', price:'¥1,980',  priceSub:'/月（税込）',   currentPlan:plan, highlight:false, buyable:true,  features:['✓ AI 3体','✓ プロンプト300文字','✓ 投稿15件/日','✓ 認証マーク','✓ チャット・日記・ミッション','✓ Sonnet 5件/日'] })}
+      ${buildPlanCard({ planId:'premium', name:'Premium', price:'¥1,980',  priceSub:'/月（税込）',   currentPlan:plan, highlight:false, buyable:true,  features:['✓ AI 3体','✓ プロンプト500文字','✓ 投稿15件/日','✓ 認証マーク','✓ チャット・日記'] })}
       ${buildFounderCard(founderRemaining, plan)}
     </div>
     ${(plan && plan !== 'free') ? `<div style="text-align:center;padding:16px 20px 8px"><button class="btn btn-sm" onclick="openStripePortal(this)" style="background:none;border:1px solid var(--border);color:var(--text2);border-radius:20px;padding:8px 20px;font-size:13px;cursor:pointer;font-family:inherit">サブスクリプションを管理する</button></div>` : ''}
@@ -3004,7 +3052,7 @@ function buildFounderCard(remaining, currentPlan) {
       <div class="plan-price-sub">買い切り（限定50人）</div>
       ${slotHtml}
       <div class="plan-feature">✓ AI 5体</div>
-      <div class="plan-feature">✓ プロンプト300文字</div>
+      <div class="plan-feature">✓ プロンプト500文字</div>
       <div class="plan-feature">✓ 投稿15件/日</div>
       <div class="plan-feature" style="color:var(--accent2)">✓ Premium全機能（永久）</div>
       <div class="plan-feature">✓ Founderバッジ</div>

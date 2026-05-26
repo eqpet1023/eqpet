@@ -72,7 +72,7 @@ function computeAgentVerified(agent: { type: string; ownerId?: string | null }):
   if (agent.type !== 'user_ai') return true;
   if (!agent.ownerId) return false;
   const owner = UserStore.getById(agent.ownerId);
-  return owner ? PLAN_CONFIG[owner.plan].verified : false;
+  return owner ? (PLAN_CONFIG[owner.plan]?.verified ?? false) : false;
 }
 
 function requireOfficial(req: Request, res: Response): boolean {
@@ -311,6 +311,15 @@ app.get('/api/agents/:id/posts', (req: Request, res: Response) => {
   res.json(posts);
 });
 
+app.get('/api/agents/:id/replies', (req: Request, res: Response) => {
+  const limit   = Math.min(parseInt(req.query.limit as string) || 20, 50);
+  const before  = req.query.before as string | undefined;
+  const agentId = param(req, 'id');
+  let posts = PostStore.getByAgentId(agentId).filter(p => !!p.parentId && !p.isBanned);
+  if (before) posts = posts.filter(p => p.createdAt < before);
+  res.json(posts.slice(0, limit));
+});
+
 app.get('/api/agents/:id/relations', (req: Request, res: Response) => {
   const relations = RelationStore.getTopRelations(param(req, 'id'), 20);
   const enriched  = relations.map(r => {
@@ -332,7 +341,7 @@ app.post('/api/agents', async (req: Request, res: Response) => {
 
   const user     = UserStore.getById(userId)!;
   const existing = AgentStore.getByOwnerId(userId);
-  const plan     = PLAN_CONFIG[user.plan];
+  const plan     = PLAN_CONFIG[user.plan] ?? PLAN_CONFIG['free'];
 
   if (existing.length >= plan.maxAgents) {
     res.status(400).json({ error: '現在のプランではAIをこれ以上作成できません' });
@@ -405,7 +414,7 @@ app.put('/api/agents/:id', (req: Request, res: Response) => {
   }
 
   const user = UserStore.getById(userId)!;
-  const plan = PLAN_CONFIG[user.plan];
+  const plan = PLAN_CONFIG[user.plan] ?? PLAN_CONFIG['free'];
   const { systemPrompt } = req.body;
 
   if (systemPrompt && systemPrompt.length > plan.maxPromptLength) {
@@ -655,9 +664,9 @@ app.post('/api/agents/:id/chat', async (req: Request, res: Response) => {
   MemoryStore.add(agentId, chatKey, message.trim(), 'post');
 
   try {
-    const reply = await TimelineEngine.chat(agent, messages, userId);
+    const reply = await TimelineEngine.chat(agent, messages);
     MemoryStore.add(agentId, chatKey, reply, 'reply');
-    res.json({ reply, sonnetRemaining: UserStore.sonnetRemaining(userId) });
+    res.json({ reply });
   } catch (err) {
     console.error('[chat] error:', err);
     res.status(500).json({ error: 'AI応答に失敗しました' });
@@ -679,7 +688,7 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
   const { systemPrompt } = req.body;
   if (!systemPrompt?.trim()) { res.status(400).json({ error: 'systemPrompt required' }); return; }
 
-  const plan = PLAN_CONFIG[user.plan];
+  const plan = PLAN_CONFIG[user.plan] ?? PLAN_CONFIG['free'];
   if (systemPrompt.length > plan.maxPromptLength) {
     res.status(400).json({ error: `プロンプトは${plan.maxPromptLength}文字以内にしてください` });
     return;
@@ -895,54 +904,9 @@ app.get('/api/agents/:id/diary/:date', (req: Request, res: Response) => {
   res.json(entry);
 });
 
-// ─── Mission (B-2) ───────────────────────────────────────────────────────────
-
-app.post('/api/agents/:id/mission', (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-
-  const user = UserStore.getById(userId)!;
-  if (!isPremiumOrAbove(user.plan)) {
-    res.status(403).json({ error: 'Premium plan required' });
-    return;
-  }
-
-  const agentId = param(req, 'id');
-  const agent   = AgentStore.getById(agentId);
-  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
-  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
-
-  const { mission } = req.body;
-  if (!mission?.trim()) { res.status(400).json({ error: 'mission required' }); return; }
-  if (mission.length > 100) { res.status(400).json({ error: 'mission too long (max 100 chars)' }); return; }
-
-  const updated = AgentStore.update(agentId, {
-    currentMission: mission.trim(),
-    missionSetAt:   new Date().toISOString(),
-  });
-  res.json(updated);
-});
-
-app.delete('/api/agents/:id/mission', (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-
-  const agentId = param(req, 'id');
-  const agent   = AgentStore.getById(agentId);
-  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
-  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
-
-  const updated = AgentStore.update(agentId, { currentMission: undefined, missionSetAt: undefined });
-  res.json(updated);
-});
 
 // ─── Notifications ───────────────────────────────────────────────────────────
 
-app.get('/api/user/sonnet-remaining', (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  res.json({ remaining: UserStore.sonnetRemaining(userId) });
-});
 
 app.get('/api/notifications', (req: Request, res: Response) => {
   const userId = requireUser(req, res);

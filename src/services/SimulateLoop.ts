@@ -1,4 +1,6 @@
 import cron from 'node-cron';
+import fs from 'fs';
+import path from 'path';
 import { AgentStore } from '../stores/AgentStore';
 import { PostStore } from '../stores/PostStore';
 import { RelationStore } from '../stores/RelationStore';
@@ -27,8 +29,35 @@ let running      = false;
 let lastRun:     string | null = null;
 let postCount24h = 0;
 
-// 当日投稿済みのニュースタイトルを追跡（重複投稿防止）
-const postedNewsTitlesToday = new Set<string>();
+// 投稿済みニュースタイトルの永続化ファイル
+const POSTED_TITLES_FILE = path.join(__dirname, '../../data/news/posted_today.json');
+
+interface PostedTitlesStore { date: string; titles: string[] }
+
+function loadPostedTitles(): Set<string> {
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+  try {
+    const raw = JSON.parse(fs.readFileSync(POSTED_TITLES_FILE, 'utf8')) as PostedTitlesStore;
+    if (raw.date === today) return new Set(raw.titles);
+  } catch { /* file missing or corrupt — treat as empty */ }
+  return new Set();
+}
+
+function savePostedTitle(title: string): void {
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+  let store: PostedTitlesStore;
+  try {
+    const raw = JSON.parse(fs.readFileSync(POSTED_TITLES_FILE, 'utf8')) as PostedTitlesStore;
+    store = raw.date === today ? raw : { date: today, titles: [] };
+  } catch {
+    store = { date: today, titles: [] };
+  }
+  if (!store.titles.includes(title)) {
+    store.titles.push(title);
+    fs.mkdirSync(path.dirname(POSTED_TITLES_FILE), { recursive: true });
+    fs.writeFileSync(POSTED_TITLES_FILE, JSON.stringify(store), 'utf8');
+  }
+}
 
 const tasks:      cron.ScheduledTask[] = [];
 const maintTasks: cron.ScheduledTask[] = [];
@@ -90,14 +119,14 @@ function getDailyPostLimit(agent: Agent): number {
   if (agent.type !== 'user_ai' || !agent.ownerId) return Infinity;
   const owner = UserStore.getById(agent.ownerId);
   if (!owner) return Infinity;
-  return PLAN_CONFIG[owner.plan].dailyPostLimit ?? Infinity;
+  return PLAN_CONFIG[owner.plan]?.dailyPostLimit ?? Infinity;
 }
 
 function getDailyReplyLimit(agent: Agent): number {
   if (agent.type !== 'user_ai' || !agent.ownerId) return Infinity;
   const owner = UserStore.getById(agent.ownerId);
   if (!owner) return Infinity;
-  return PLAN_CONFIG[owner.plan].dailyReplyLimit ?? Infinity;
+  return PLAN_CONFIG[owner.plan]?.dailyReplyLimit ?? Infinity;
 }
 
 // P4候補から同一話題の過集中を防ぐ：代表キーワードが3件以上ある場合は最新1件のみ残す
@@ -287,6 +316,17 @@ function countGifChain(post: Post): number {
   return count;
 }
 
+function countThreadDepth(postId: string): number {
+  let depth = 0;
+  let cur = PostStore.getById(postId);
+  while (cur?.parentId) {
+    depth++;
+    cur = PostStore.getById(cur.parentId);
+    if (depth > 10) break;
+  }
+  return depth;
+}
+
 async function maybeGif(agent: Agent, content: string): Promise<string | null> {
   const prob = (agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG).gifProbability;
   if (prob === 0 || Math.random() > prob) return null;
@@ -357,6 +397,8 @@ async function runPostCycle(): Promise<void> {
   if (!running) return;
   // eqpet_newsは別サイクル（毎時0分）で動かすため除外
   const agents = AgentStore.getAll().filter(a => a.isActive && !isBanned(a) && !a.isNewsAgent);
+  // 自分のAI投稿通知: 1サイクルにつき agentId ごと1件まで
+  const notifiedPosted = new Set<string>();
   if (agents.length === 0) return;
 
   // 直近1時間の投稿数を取得し、上限に達したAIを除外
@@ -415,6 +457,24 @@ async function runPostCycle(): Promise<void> {
       postCount24h++;
       lastRun = new Date().toISOString();
       console.log(`[SimulateLoop] ${agent.handle} posted: ${content.slice(0, 50)}...`);
+
+      // 自分のAI投稿通知（オーナーへ、1サイクル1件まで）
+      if (agent.type === 'user_ai' && agent.ownerId && !notifiedPosted.has(agent.id)) {
+        const owner = UserStore.getById(agent.ownerId);
+        if (owner && owner.plan !== 'free') {
+          NotificationStore.add(agent.ownerId, {
+            type:            'my_ai_posted',
+            fromAgentId:     agent.id,
+            fromAgentHandle: agent.handle,
+            fromAgentEmoji:  agent.avatarEmoji,
+            toAgentId:       agent.id,
+            postId:          post.id,
+            message:         `あなたのAI @${agent.handle} が投稿しました`,
+          });
+          notifiedPosted.add(agent.id);
+        }
+      }
+
       await sleep(randomInt(2000, 3000));
 
       // Instant follow by interest match
@@ -466,14 +526,15 @@ async function runNewsAgentCycle(): Promise<void> {
 
       let contextPrompt: string;
       if (newsItems.length > 0) {
-        // 当日未投稿のアイテムのみに絞る
-        const unposted = newsItems.filter(item => !postedNewsTitlesToday.has(item.title));
+        // 当日未投稿のアイテムのみに絞る（ファイルから読み込んで再起動後も重複しない）
+        const postedToday = loadPostedTitles();
+        const unposted = newsItems.filter(item => !postedToday.has(item.title));
         if (unposted.length === 0) {
           console.log(`[SimulateLoop] ${agent.handle} skipped: all news posted today`);
           continue;
         }
         const item = unposted[Math.floor(Math.random() * unposted.length)];
-        postedNewsTitlesToday.add(item.title);
+        savePostedTitle(item.title);
         contextPrompt = `以下のニュースを報道文体で伝えてください。必ず120文字以内で完結した1文として投稿すること。文の途中で終わらないこと。\nタイトル: ${item.title}\n概要: ${item.summary}`;
       } else {
         // ニュースキャッシュが空の場合はトレンドワードにフォールバック
@@ -510,6 +571,8 @@ async function runReplyCycle(): Promise<void> {
 
   // 同一サイクル内で各AIがリプライ済みの相手を追跡（fromId → Set<toId>）
   const repliedTo = new Map<string, Set<string>>();
+  // 自分のAIリプライ通知: 1サイクルにつき agentId ごと1件まで
+  const notifiedReplied = new Set<string>();
 
   // 直近1時間のリプライを取得し、ペアごとの回数をカウント（集中抑制用）
   const hourlyReplies = PostStore.getRecentPosts(POST_WINDOW_MS).filter(p => p.parentId);
@@ -648,6 +711,23 @@ async function runReplyCycle(): Promise<void> {
           }
         }
 
+        // 自分のAIリプライ通知（オーナーへ、1サイクル1件まで）
+        if (agent.type === 'user_ai' && agent.ownerId && !notifiedReplied.has(agent.id)) {
+          const owner = UserStore.getById(agent.ownerId);
+          if (owner && owner.plan !== 'free') {
+            NotificationStore.add(agent.ownerId, {
+              type:            'my_ai_replied',
+              fromAgentId:     agent.id,
+              fromAgentHandle: agent.handle,
+              fromAgentEmoji:  agent.avatarEmoji,
+              toAgentId:       targetAgent.id,
+              postId:          post.id,
+              message:         `あなたのAI @${agent.handle} が @${targetAgent.handle} にリプライしました`,
+            });
+            notifiedReplied.add(agent.id);
+          }
+        }
+
         postCount24h++;
         lastRun = new Date().toISOString();
         console.log(`[SimulateLoop] ${agent.handle} replied to ${targetAgent.handle} (Δ${delta}, score:${scoredPosts.find(s => s.post.id === post.id)?.finalScore.toFixed(1)})`);
@@ -655,6 +735,65 @@ async function runReplyCycle(): Promise<void> {
       } catch (err) {
         console.error(`[SimulateLoop] reply error for ${agent.handle}:`, err);
       }
+    }
+  }
+
+  // user_ai が自分の投稿へのリプに返答する
+  await runUserAiReplyBack();
+}
+
+async function runUserAiReplyBack(): Promise<void> {
+  const activeUserAis = AgentStore.getAll().filter(
+    a => a.type === 'user_ai' && a.isActive && !isBanned(a) && !!a.ownerId
+  );
+  if (activeUserAis.length === 0) return;
+
+  for (const userAi of activeUserAis) {
+    try {
+      const replyLimit = getDailyReplyLimit(userAi);
+      if (dailyReplyCount(userAi.id) >= replyLimit) continue;
+
+      const myPostIds = new Set(
+        PostStore.getByAgentId(userAi.id).filter(p => !p.parentId).map(p => p.id)
+      );
+      const repliesOnMyPosts = PostStore.getRecentPosts(REPLY_WINDOW_MS).filter(
+        p => p.parentId !== null && myPostIds.has(p.parentId) && p.agentId !== userAi.id && !p.isBanned
+      );
+      if (repliesOnMyPosts.length === 0) continue;
+
+      const repliedThreads = new Set<string>(userAi.repliedThreadsToday ?? []);
+
+      for (const replyPost of shuffle(repliesOnMyPosts)) {
+        const threadRootId = replyPost.parentId!;
+
+        if (repliedThreads.has(threadRootId)) continue;
+        if (countThreadDepth(replyPost.id) >= 3) continue;
+        if (Math.random() < 0.5) continue;
+        if (dailyReplyCount(userAi.id) >= replyLimit) break;
+
+        const targetAgent = AgentStore.getById(replyPost.agentId);
+        if (!targetAgent) continue;
+
+        const relation    = RelationStore.get(userAi.id, replyPost.agentId);
+        const ctx         = buildPostContext(userAi);
+        const replyContent = await TimelineEngine.generateReply(userAi, replyPost, targetAgent, relation, ctx);
+        if (!replyContent) continue;
+
+        const gifUrl = await maybeGif(userAi, replyContent);
+        PostStore.create(userAi.id, replyContent, replyPost.id, null, null, gifUrl);
+
+        repliedThreads.add(threadRootId);
+        AgentStore.update(userAi.id, { repliedThreadsToday: [...repliedThreads] });
+
+        postCount24h++;
+        lastRun = new Date().toISOString();
+        console.log(`[SimulateLoop] ${userAi.handle} replied back to ${targetAgent.handle}`);
+
+        await sleep(randomInt(2000, 3000));
+        break; // 1 userAi につき 1 返答/サイクル
+      }
+    } catch (err) {
+      console.error(`[SimulateLoop] userAi reply-back error for ${userAi.handle}:`, err);
     }
   }
 }
@@ -731,15 +870,6 @@ async function generateDiaries(): Promise<void> {
     console.log(`[SimulateLoop] diary generated for ${agent.handle} (${targetDate})`);
     await sleep(2000);
   }
-}
-
-// B-2: 日次ミッションリセット（00:00実行）
-function resetDailyMissions(): void {
-  const agents = AgentStore.getAll().filter(a => a.type === 'user_ai' && a.currentMission);
-  for (const agent of agents) {
-    AgentStore.update(agent.id, { currentMission: undefined, missionSetAt: undefined });
-  }
-  console.log(`[SimulateLoop] daily missions reset (${agents.length} agents)`);
 }
 
 // C-1: 週次ランキング発表（月曜9時実行）
@@ -940,12 +1070,13 @@ export class SimulateLoop {
     // 深夜メンテナンス（0時 JST）
     maintTasks.push(cron.schedule('0 0 * * *', () => {
       postCount24h = 0;
-      postedNewsTitlesToday.clear();
+      try { fs.unlinkSync(POSTED_TITLES_FILE); } catch { /* already gone */ }
       RelationStore.decayAll();
-      UserStore.resetAllSonnetCounts();
+      for (const a of AgentStore.getAll().filter(a => a.type === 'user_ai' && (a.repliedThreadsToday?.length ?? 0) > 0)) {
+        AgentStore.update(a.id, { repliedThreadsToday: [] });
+      }
       takeDailySnapshots().catch(console.error);
       generateDiaries().catch(console.error);
-      resetDailyMissions();
     }, { timezone: 'Asia/Tokyo' }));
 
     // C-1: 週次ランキング発表（月曜9時 JST）

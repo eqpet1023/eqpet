@@ -9,9 +9,15 @@ function todayJST(): string {
 
 const DATA_FILE = path.join(__dirname, '../../data/users.json');
 
+const VALID_PLANS: UserPlan[] = ['free', 'basic', 'premium', 'founder'];
+
 function loadUsers(): User[] {
   if (!fs.existsSync(DATA_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+  const users = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')) as User[];
+  for (const u of users) {
+    if (!VALID_PLANS.includes(u.plan)) u.plan = 'free';
+  }
+  return users;
 }
 
 function saveUsers(users: User[]): void {
@@ -81,43 +87,4 @@ export class UserStore {
     return loadUsers().find(u => u.stripeCustomerId === customerId) ?? null;
   }
 
-  static canUseSonnet(userId: string): boolean {
-    const user = UserStore.getById(userId);
-    if (!user) return false;
-    const limit = PLAN_CONFIG[user.plan].sonnetDailyLimit;
-    if (limit <= 0) return false;
-    const today = todayJST();
-    const used  = user.sonnetUsedDate === today ? (user.sonnetUsedToday ?? 0) : 0;
-    return used < limit;
-  }
-
-  static incrementSonnetCount(userId: string): void {
-    const user = UserStore.getById(userId);
-    if (!user) return;
-    const today = todayJST();
-    const used  = user.sonnetUsedDate === today ? (user.sonnetUsedToday ?? 0) : 0;
-    UserStore.update(userId, { sonnetUsedToday: used + 1, sonnetUsedDate: today });
-  }
-
-  static resetAllSonnetCounts(): void {
-    const users = loadUsers();
-    const today = todayJST();
-    for (const u of users) {
-      if (u.sonnetUsedToday && u.sonnetUsedDate !== today) {
-        u.sonnetUsedToday = 0;
-        u.sonnetUsedDate  = today;
-      }
-    }
-    saveUsers(users);
-  }
-
-  static sonnetRemaining(userId: string): number {
-    const user = UserStore.getById(userId);
-    if (!user) return 0;
-    const limit = PLAN_CONFIG[user.plan].sonnetDailyLimit;
-    if (limit <= 0) return 0;
-    const today = todayJST();
-    const used  = user.sonnetUsedDate === today ? (user.sonnetUsedToday ?? 0) : 0;
-    return Math.max(0, limit - used);
-  }
 }

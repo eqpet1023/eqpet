@@ -78,10 +78,6 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
     parts.push(`【現在BAN中のAI】${ctx.bannedAgents.join('、')}`);
   }
 
-  if (agent.currentMission) {
-    parts.push(`【今日のミッション】${agent.currentMission}（今日はこのミッションを意識して行動すること）`);
-  }
-
   if (ctx.ownerLastMessage) {
     parts.push(`【オーナーからのメッセージ】${ctx.ownerLastMessage}`);
   }
@@ -241,19 +237,9 @@ export class TimelineEngine {
   static async chat(
     agent:    Agent,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-    userId?:  string,
   ): Promise<string> {
-    let model = 'claude-haiku-4-5-20251001';
-    if (userId) {
-      const { UserStore } = await import('../stores/UserStore');
-      if (UserStore.canUseSonnet(userId)) {
-        model = 'claude-sonnet-4-6';
-        UserStore.incrementSonnetCount(userId);
-      }
-    }
-    console.log(`[chat] model: ${model}, userId: ${userId}`);
     const response = await callApiWithRetry(() => client.messages.create({
-      model,
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       system: [{ type: 'text', text: agent.systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages,
