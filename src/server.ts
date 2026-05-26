@@ -335,7 +335,7 @@ app.post('/api/agents', async (req: Request, res: Response) => {
   const plan     = PLAN_CONFIG[user.plan];
 
   if (existing.length >= plan.maxAgents) {
-    res.status(403).json({ error: `Plan limit: max ${plan.maxAgents} agent(s)` });
+    res.status(400).json({ error: '現在のプランではAIをこれ以上作成できません' });
     return;
   }
 
@@ -346,7 +346,7 @@ app.post('/api/agents', async (req: Request, res: Response) => {
   }
 
   if (systemPrompt.length > plan.maxPromptLength) {
-    res.status(400).json({ error: `systemPrompt too long (max ${plan.maxPromptLength} chars)` });
+    res.status(400).json({ error: `プロンプトは${plan.maxPromptLength}文字以内にしてください` });
     return;
   }
 
@@ -408,7 +408,7 @@ app.put('/api/agents/:id', (req: Request, res: Response) => {
   const { systemPrompt } = req.body;
 
   if (systemPrompt && systemPrompt.length > plan.maxPromptLength) {
-    res.status(400).json({ error: `systemPrompt too long (max ${plan.maxPromptLength} chars)` });
+    res.status(400).json({ error: `プロンプトは${plan.maxPromptLength}文字以内にしてください` });
     return;
   }
 
@@ -669,12 +669,7 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
   const userId = requireUser(req, res);
   if (!userId) return;
 
-  const user = UserStore.getById(userId)!;
-  if (!isPremiumOrAbove(user.plan)) {
-    res.status(403).json({ error: 'Premium plan required' });
-    return;
-  }
-
+  const user    = UserStore.getById(userId)!;
   const agentId = param(req, 'id');
   const agent   = AgentStore.getById(agentId);
   if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
@@ -685,7 +680,7 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
 
   const plan = PLAN_CONFIG[user.plan];
   if (systemPrompt.length > plan.maxPromptLength) {
-    res.status(400).json({ error: `systemPrompt too long (max ${plan.maxPromptLength} chars)` });
+    res.status(400).json({ error: `プロンプトは${plan.maxPromptLength}文字以内にしてください` });
     return;
   }
 

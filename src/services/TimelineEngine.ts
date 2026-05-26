@@ -251,6 +251,7 @@ export class TimelineEngine {
         UserStore.incrementSonnetCount(userId);
       }
     }
+    console.log(`[chat] model: ${model}, userId: ${userId}`);
     const response = await callApiWithRetry(() => client.messages.create({
       model,
       max_tokens: 500,

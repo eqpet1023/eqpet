@@ -11,7 +11,7 @@ import { UserStore } from '../stores/UserStore';
 import { TimelineEngine } from './TimelineEngine';
 import { NewsService } from './NewsService';
 import { GifService } from './GifService';
-import { Agent, AgentSnapshot, DEFAULT_BEHAVIOR_CONFIG, Post, PostContext, RelationStage } from '../types';
+import { Agent, AgentSnapshot, DEFAULT_BEHAVIOR_CONFIG, PLAN_CONFIG, Post, PostContext, RelationStage } from '../types';
 
 const POST_WINDOW_MS = 60 * 60 * 1000;
 const MAX_POSTS_PER_HOUR = 12;
@@ -74,6 +74,30 @@ function weightedSample<T>(items: T[], weights: number[], n: number): T[] {
 
 function isBanned(agent: Agent): boolean {
   return !!(agent.banUntil && new Date(agent.banUntil) > new Date());
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function dailyPostCount(agentId: string): number {
+  return PostStore.getPostsInWindow(agentId, DAY_MS).filter(p => p.parentId === null).length;
+}
+
+function dailyReplyCount(agentId: string): number {
+  return PostStore.getPostsInWindow(agentId, DAY_MS).filter(p => p.parentId !== null).length;
+}
+
+function getDailyPostLimit(agent: Agent): number {
+  if (agent.type !== 'user_ai' || !agent.ownerId) return Infinity;
+  const owner = UserStore.getById(agent.ownerId);
+  if (!owner) return Infinity;
+  return PLAN_CONFIG[owner.plan].dailyPostLimit ?? Infinity;
+}
+
+function getDailyReplyLimit(agent: Agent): number {
+  if (agent.type !== 'user_ai' || !agent.ownerId) return Infinity;
+  const owner = UserStore.getById(agent.ownerId);
+  if (!owner) return Infinity;
+  return PLAN_CONFIG[owner.plan].dailyReplyLimit ?? Infinity;
 }
 
 // P4候補から同一話題の過集中を防ぐ：代表キーワードが3件以上ある場合は最新1件のみ残す
@@ -352,6 +376,15 @@ async function runPostCycle(): Promise<void> {
       const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
       if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
+      // user_ai: 日次投稿制限チェック
+      if (agent.type === 'user_ai') {
+        const postLimit = getDailyPostLimit(agent);
+        if (dailyPostCount(agent.id) >= postLimit) {
+          console.log(`[SimulateLoop] ${agent.handle} daily post limit reached (${postLimit})`);
+          continue;
+        }
+      }
+
       // BAN明け判定: banUntil が設定されていて、かつ期限切れ（まだ null にリセットされていない）
       const isComebackState = !!(agent.banUntil && new Date(agent.banUntil) <= new Date());
 
@@ -521,6 +554,15 @@ async function runReplyCycle(): Promise<void> {
         // 同一サイクル内で既にリプライ済みの相手はスキップ
         if (agentRepliedTo.has(post.agentId)) continue;
 
+        // user_ai: 日次リプライ制限チェック
+        if (agent.type === 'user_ai') {
+          const replyLimit = getDailyReplyLimit(agent);
+          if (dailyReplyCount(agent.id) >= replyLimit) {
+            console.log(`[SimulateLoop] ${agent.handle} daily reply limit reached (${replyLimit})`);
+            break;
+          }
+        }
+
         if (!TimelineEngine.shouldReply(agent, post, relation, isMutual)) continue;
 
         const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
@@ -667,12 +709,12 @@ async function generateDiaries(): Promise<void> {
   // Generate for previous day (end-of-day recap)
   const targetDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  // Only for user_ai agents with Premium owners
+  // Only for user_ai agents with Premium/Founder owners
   const agents = AgentStore.getAll().filter(a => a.type === 'user_ai' && a.ownerId);
   for (const agent of agents) {
     if (!agent.ownerId) continue;
     const owner = UserStore.getById(agent.ownerId);
-    if (!owner || owner.plan !== 'premium') continue;
+    if (!owner || (owner.plan !== 'premium' && owner.plan !== 'founder')) continue;
 
     const existing = DiaryStore.getByDate(agent.id, targetDate);
     if (existing) continue; // already generated

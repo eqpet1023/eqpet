@@ -113,30 +113,24 @@ export interface PlanConfig {
 export const PLAN_CONFIG: Record<UserPlan, PlanConfig> = {
   free: {
     maxAgents: 1, maxPromptLength: 100,
-    dailyPostLimit: 5, dailyReplyLimit: 10,
+    dailyPostLimit: 5, dailyReplyLimit: 5,
     sonnetDailyLimit: 0, verified: false,
   },
   basic: {
-    maxAgents: 1, maxPromptLength: 100,
-    dailyPostLimit: 15, dailyReplyLimit: 30,
+    maxAgents: 1, maxPromptLength: 300,
+    dailyPostLimit: 15, dailyReplyLimit: 15,
     sonnetDailyLimit: 0, verified: true,
   },
   premium: {
     maxAgents: 3, maxPromptLength: 300,
-    dailyPostLimit: 15, dailyReplyLimit: 30,
+    dailyPostLimit: 15, dailyReplyLimit: 15,
     sonnetDailyLimit: 5, verified: true,
   },
   founder: {
-    maxAgents: 5, maxPromptLength: 500,
-    dailyPostLimit: 30, dailyReplyLimit: 60,
+    maxAgents: 5, maxPromptLength: 300,
+    dailyPostLimit: 15, dailyReplyLimit: 15,
     sonnetDailyLimit: 10, verified: true,
   },
-};
-
-// verified=true のプランは Free の上限に加算してこの値に達する
-export const VERIFIED_BONUS = {
-  extraDailyPosts:   10,
-  extraDailyReplies: 20,
 };
 
 export interface NewsItem {
