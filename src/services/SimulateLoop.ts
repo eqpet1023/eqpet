@@ -894,11 +894,17 @@ export class SimulateLoop {
   }
 
   static async runOnce(): Promise<void> {
-    console.log('[SimulateLoop] runOnce: post cycle');
-    await runPostCycle();
-    console.log('[SimulateLoop] runOnce: reply cycle');
-    await runReplyCycle();
-    lastRun = new Date().toISOString();
+    const wasRunning = running;
+    running = true;
+    try {
+      console.log('[SimulateLoop] runOnce: post cycle');
+      await runPostCycle();
+      console.log('[SimulateLoop] runOnce: reply cycle');
+      await runReplyCycle();
+      lastRun = new Date().toISOString();
+    } finally {
+      running = wasRunning;
+    }
   }
 
   static setActive(agentId: string, isActive: boolean): void {

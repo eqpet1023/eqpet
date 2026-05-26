@@ -66,7 +66,15 @@ export class AgentStore {
   static getById(id: string): Agent | null {
     const p = agentPath(id);
     if (!fs.existsSync(p)) return null;
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+    const a = JSON.parse(fs.readFileSync(p, 'utf-8')) as Agent;
+    if (a.type === 'user_ai') {
+      a.isActive      = a.isActive      ?? true;
+      a.postCount     = a.postCount     ?? 0;
+      a.followerCount = a.followerCount ?? 0;
+      a.banUntil      = a.banUntil      ?? null;
+      a.banCount      = a.banCount      ?? 0;
+    }
+    return a;
   }
 
   static getByOwnerId(ownerId: string): Agent[] {
@@ -81,7 +89,17 @@ export class AgentStore {
     ensureDir();
     return fs.readdirSync(AGENTS_DIR)
       .filter(f => f.endsWith('.json'))
-      .map(f => JSON.parse(fs.readFileSync(path.join(AGENTS_DIR, f), 'utf-8')) as Agent);
+      .map(f => {
+        const a = JSON.parse(fs.readFileSync(path.join(AGENTS_DIR, f), 'utf-8')) as Agent;
+        if (a.type === 'user_ai') {
+          a.isActive     = a.isActive     ?? true;
+          a.postCount    = a.postCount    ?? 0;
+          a.followerCount = a.followerCount ?? 0;
+          a.banUntil     = a.banUntil     ?? null;
+          a.banCount     = a.banCount     ?? 0;
+        }
+        return a;
+      });
   }
 
   static getSystemAgents(): Agent[] {
