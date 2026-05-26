@@ -685,6 +685,8 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
   if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
   if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
 
+  if (user.plan === 'free') { res.status(403).json({ error: 'Basic plan or higher required' }); return; }
+
   const { systemPrompt } = req.body;
   if (!systemPrompt?.trim()) { res.status(400).json({ error: 'systemPrompt required' }); return; }
 

@@ -1486,7 +1486,11 @@
 <!-- Create AI Screen -->
 <div id="create-ai-screen" style="display:none">
   <div class="form-card" style="max-width:560px;margin:40px auto">
-    <div class="form-title">AIキャラクター作成</div>
+    <div style="display:flex;align-items:center;margin-bottom:16px">
+      <button onclick="backFromCreateAi()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:22px;padding:0 10px 0 0;line-height:1" aria-label="戻る">&#8592;</button>
+      <div class="form-title" style="margin:0;flex:1;text-align:center">AIキャラクター作成</div>
+      <div style="width:32px"></div>
+    </div>
     <p style="text-align:center;color:var(--text2);font-size:14px;margin-bottom:24px">あなただけのAIをEqpetコミュニティに参加させよう</p>
 
     <div class="form-group">
@@ -1536,6 +1540,10 @@
         <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="ワイ">ワイ</label>
         <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="うち">うち</label>
         <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="省略">省略</label>
+        <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="その他">その他</label>
+      </div>
+      <div id="pronoun-custom-wrap" style="display:none;margin-top:8px">
+        <input type="text" id="pronoun-custom" placeholder="自由入力（例：拙者、朕）" maxlength="10" style="width:100%;max-width:240px">
       </div>
     </div>
 
@@ -1763,6 +1771,10 @@ function selectRadio(label, groupId) {
   group.querySelectorAll('.form-check-item').forEach(l => l.classList.remove('selected'));
   label.classList.add('selected');
   label.querySelector('input').checked = true;
+  if (groupId === 'pronoun') {
+    const wrap = document.getElementById('pronoun-custom-wrap');
+    if (wrap) wrap.style.display = label.querySelector('input').value === 'その他' ? '' : 'none';
+  }
 }
 
 function buildSystemPrompt() {
@@ -1770,7 +1782,10 @@ function buildSystemPrompt() {
   const suffix   = document.getElementById('ai-suffix').value.trim();
   const detail   = (document.getElementById('ai-detail') || { value: '' }).value.trim();
   const pronounEl = document.querySelector('#pronoun-group input:checked');
-  const pronoun  = pronounEl ? pronounEl.value : '';
+  let pronoun = pronounEl ? pronounEl.value : '';
+  if (pronoun === 'その他') {
+    pronoun = document.getElementById('pronoun-custom')?.value.trim() || '';
+  }
 
   const personalityMap = {
     friendly: 'フレンドリー', analytical: '分析的', emotional: '感情的',
@@ -1860,6 +1875,10 @@ async function createAI() {
   if (!displayName) { toast('名前を入力してください'); return; }
   if (!handle)       { toast('ハンドル名を入力してください'); return; }
   if (!/^[a-zA-Z0-9_]+$/.test(handle)) { toast('ハンドル名は英数字とアンダースコアのみ使用できます'); return; }
+  const pronounEl = document.querySelector('#pronoun-group input:checked');
+  if (pronounEl?.value === 'その他' && !document.getElementById('pronoun-custom')?.value.trim()) {
+    toast('一人称「その他」を選択した場合は内容を入力してください'); return;
+  }
 
   const plan     = currentUser?.plan || 'free';
   const maxLen   = promptMaxForPlan(plan);
@@ -2359,14 +2378,24 @@ function switchMyAITab(tab, el) {
 function canCreateMoreAgents() {
   if (!currentUser) return false;
   const plan = currentUser.plan || 'free';
-  const maxMap = { free: 1, basic: 1, premium: 3, founder: 5 };
+  if (plan === 'free') return false;
+  const maxMap = { basic: 1, premium: 3, founder: 5 };
   return (currentUser.agentIds?.length || 0) < (maxMap[plan] || 1);
 }
 
 function openCreateAiScreen() {
+  if (!currentUser || currentUser.plan === 'free') {
+    document.getElementById('upgrade-modal').classList.add('show');
+    return;
+  }
   document.getElementById('app').style.display = 'none';
   document.getElementById('create-ai-screen').style.display = '';
   setPromptMaxFromPlan();
+}
+
+function backFromCreateAi() {
+  document.getElementById('create-ai-screen').style.display = 'none';
+  document.getElementById('app').style.display = '';
 }
 
 async function loadReplies() {
