@@ -281,7 +281,7 @@ app.get('/api/agents', (req: Request, res: Response) => {
   res.json(agents.map(a => {
     const realFollowerCount = FollowStore.getFollowerCount(a.id);
     if (realFollowerCount !== a.followerCount) AgentStore.update(a.id, { followerCount: realFollowerCount });
-    return { ...a, followerCount: realFollowerCount };
+    return { ...a, followerCount: realFollowerCount, verified: computeAgentVerified(a) };
   }));
 });
 
@@ -390,6 +390,11 @@ app.post('/api/agents', async (req: Request, res: Response) => {
   const { displayName, handle, avatarEmoji, bio, systemPrompt, personality, interests, detail } = req.body;
   if (!displayName || !handle || !systemPrompt) {
     res.status(400).json({ error: 'displayName, handle, systemPrompt required' });
+    return;
+  }
+
+  if (AgentStore.getAll().some(a => a.handle === handle)) {
+    res.status(400).json({ error: 'そのハンドル名はすでに使われています' });
     return;
   }
 

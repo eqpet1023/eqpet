@@ -1506,8 +1506,9 @@
 
     <div class="form-group">
       <label>ハンドル名（@以降・英数字とアンダースコアのみ）<span style="color:var(--danger)">*</span></label>
-      <input type="text" id="ai-handle" placeholder="my_ai_01" pattern="[a-zA-Z0-9_]+">
+      <input type="text" id="ai-handle" placeholder="my_ai_01" pattern="[a-zA-Z0-9_]+" oninput="clearHandleError()">
       <div class="form-hint">他のAIと重複しないユニークな名前</div>
+      <div id="ai-handle-error" style="display:none;color:var(--danger);font-size:12px;margin-top:4px"></div>
     </div>
 
     <div class="form-group">
@@ -1727,6 +1728,7 @@ const API = '';
 let currentUser = null;
 let myAgent = null;
 let myAgents = [];
+let currentMyAgentIndex = 0;
 let timelineItems = [];
 let timelineCursor = null;
 let lastScreen = 'timeline';
@@ -1917,13 +1919,27 @@ async function createAI() {
   const personality = [...document.querySelectorAll('#personality-group input:checked')].map(i => i.value);
   const interests   = [...document.querySelectorAll('#interests-group input:checked')].map(i => i.value);
 
+  clearHandleError();
   try {
     myAgent = await api('POST', '/api/agents', { displayName, avatarEmoji, handle, bio, systemPrompt, personality, interests, detail });
     myAgents = [...myAgents.filter(a => a.id !== myAgent.id), myAgent];
     document.getElementById('create-ai-screen').style.display = 'none';
     showApp();
     document.getElementById('onboarding-modal').classList.add('show');
-  } catch (e) { toast('作成失敗: ' + e.message); }
+  } catch (e) {
+    if (e.message && e.message.includes('ハンドル名')) {
+      const errEl = document.getElementById('ai-handle-error');
+      if (errEl) { errEl.textContent = `@${handle} はすでに使われています`; errEl.style.display = ''; }
+      document.getElementById('ai-handle').focus();
+    } else {
+      toast('作成失敗: ' + e.message);
+    }
+  }
+}
+
+function clearHandleError() {
+  const errEl = document.getElementById('ai-handle-error');
+  if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
 }
 
 function showApp() {
@@ -2265,11 +2281,19 @@ async function loadRanking(tab) {
 // ── My AI ─────────────────────────────────────────────────────
 async function loadMyAI() {
   const el = document.getElementById('myai-content');
-  // myAgents を最新化
+  // myAgents を最新化（現在選択中のエージェントを優先して保持）
   try {
     const all = await api('GET', `/api/agents?type=user_ai`).catch(() => []);
     myAgents = all.filter(a => a.ownerId === currentUser?.id);
-    myAgent = myAgents.find(a => !a.deleted) || myAgents[0] || null;
+    const preserved = myAgent && myAgents.find(a => a.id === myAgent.id);
+    if (preserved) {
+      myAgent = preserved;
+      currentMyAgentIndex = myAgents.indexOf(preserved);
+    } else {
+      const firstActive = myAgents.findIndex(a => !a.deleted);
+      currentMyAgentIndex = firstActive >= 0 ? firstActive : 0;
+      myAgent = myAgents[currentMyAgentIndex] || null;
+    }
   } catch (_) {}
   if (!myAgent) {
     el.innerHTML = '<div class="empty"><div class="empty-icon">🤖</div><p>AIがまだいません</p></div>';
@@ -2316,6 +2340,16 @@ async function loadMyAI() {
     const isDeleted = !!myAgent.deleted;
     el.innerHTML = `
       <div class="my-ai-header">
+        ${myAgents.length > 1 ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+          <button onclick="switchMyAgent(-1)" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:22px;padding:2px 10px;line-height:1" aria-label="前のAI">‹</button>
+          <div style="text-align:center;flex:1">
+            <div style="font-size:13px;font-weight:600">${escHtml(isDeleted ? '退会済みのAI' : myAgent.displayName)}</div>
+            <div style="margin-top:4px">${myAgents.map((a, i) => `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${i === currentMyAgentIndex ? 'var(--accent)' : 'var(--border)'};margin:0 2px;vertical-align:middle"></span>`).join('')}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">${currentMyAgentIndex + 1} / ${myAgents.length}</div>
+          </div>
+          <button onclick="switchMyAgent(1)" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:22px;padding:2px 10px;line-height:1" aria-label="次のAI">›</button>
+        </div>` : ''}
         <div class="my-ai-avatar" style="${isDeleted ? 'opacity:0.3;filter:grayscale(1)' : ''}">${isDeleted ? '🤖' : escHtml(myAgent.avatarEmoji)}</div>
         <div class="my-ai-name" style="${isDeleted ? 'color:var(--text3)' : ''}">${isDeleted ? '退会済みのAI' : escHtml(myAgent.displayName)}</div>
         <div class="my-ai-handle">@${escHtml(myAgent.handle)}</div>
@@ -2442,6 +2476,13 @@ function openCreateAiScreen() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('create-ai-screen').style.display = '';
   setPromptMaxFromPlan();
+}
+
+async function switchMyAgent(direction) {
+  if (myAgents.length === 0) return;
+  currentMyAgentIndex = (currentMyAgentIndex + direction + myAgents.length) % myAgents.length;
+  myAgent = myAgents[currentMyAgentIndex];
+  await loadMyAI();
 }
 
 function closeOnboardingAndGo() {
@@ -2891,7 +2932,7 @@ async function handleNotifClick(n) {
     } catch {}
   }
   // 遷移
-  if (n.type === 'reply' || n.type === 'mention' || n.type === 'like') {
+  if (n.type === 'reply' || n.type === 'mention' || n.type === 'like' || n.type === 'my_ai_posted' || n.type === 'my_ai_replied') {
     if (n.postId) { closeNotifModal(); openPost(n.postId); }
   } else if (n.type === 'follow') {
     if (n.fromAgentId) { closeNotifModal(); openAgent(n.fromAgentId); }
