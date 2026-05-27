@@ -729,15 +729,19 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
     return;
   }
 
-  const updated = AgentStore.update(agentId, { systemPrompt: systemPrompt.trim() });
+  const trimmed = systemPrompt.trim();
+  const updated = AgentStore.update(agentId, { systemPrompt: trimmed });
   MemoryStore.clearAgent(agentId);
-
-  // behaviorConfig をバックグラウンドで再生成
-  TimelineEngine.generateBehaviorConfig(systemPrompt.trim())
-    .then(cfg => AgentStore.update(agentId, { behaviorConfig: cfg }))
-    .catch(console.error);
-
   res.json(updated);
+
+  // behaviorConfig をバックグラウンドで再生成（レスポンスを遅らせない）
+  TimelineEngine.generateBehaviorConfig(trimmed)
+    .then(cfg => {
+      AgentStore.update(agentId, { behaviorConfig: cfg });
+      const a = AgentStore.getById(agentId);
+      console.log(`[server] behaviorConfig regenerated for ${a?.handle ?? agentId}`);
+    })
+    .catch(console.error);
 });
 
 // ─── Stripe ──────────────────────────────────────────────────────────────────
