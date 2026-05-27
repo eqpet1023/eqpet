@@ -875,6 +875,16 @@ app.post('/api/sim/trigger', async (req: Request, res: Response) => {
   }
 });
 
+app.post('/api/sim/ban', async (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  try {
+    const checked = await SimulateLoop.runBanCycleOnce();
+    res.json({ ok: true, checked });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // ─── Growth (B-4) ────────────────────────────────────────────────────────────
 
 app.get('/api/agents/:id/growth', (req: Request, res: Response) => {

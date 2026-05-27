@@ -1060,6 +1060,13 @@ export class SimulateLoop {
     }
   }
 
+  static async runBanCycleOnce(): Promise<number> {
+    const before = PostStore.getUncheckedPosts(8).length;
+    await runBanCycle();
+    const after = PostStore.getUncheckedPosts(8).length;
+    return Math.max(0, before - after);
+  }
+
   static setActive(agentId: string, isActive: boolean): void {
     AgentStore.update(agentId, { isActive });
   }
