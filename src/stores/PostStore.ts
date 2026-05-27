@@ -215,7 +215,7 @@ export class PostStore {
     return recent
       .map(p => {
         const mentionBonus = (replyAgents.get(p.id)?.size ?? 0) * 5;
-        const score        = p.likeCount * 3 + p.replyCount * 2 + p.repostCount + mentionBonus;
+        const score        = p.likeCount * 10 + p.replyCount * 2 + p.repostCount + mentionBonus;
         return { post: p, score };
       })
       .sort((a, b) => b.score - a.score)

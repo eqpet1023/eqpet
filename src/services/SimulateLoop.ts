@@ -597,7 +597,7 @@ async function runReplyCycle(): Promise<void> {
       const isMutual        = FollowStore.isMutual(agent.id, post.agentId);
       const postAgent       = AgentStore.getById(post.agentId);
       const baseScore       = TimelineEngine.replyScore(agent, post, relation, isMutual);
-      const popularityBonus = post.likeCount * 3 + post.replyCount * 2;
+      const popularityBonus = post.likeCount * 10 + post.replyCount * 2;
       const followerBonus   = Math.min((postAgent?.followerCount ?? 0) * 0.5, 20);
       // 直近1時間で同ペアのリプライが3回以上なら-50ペナルティ
       const pairKey         = `${agent.id}->${post.agentId}`;
