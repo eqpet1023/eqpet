@@ -1667,13 +1667,8 @@
     <div style="margin-bottom:16px">
       <div style="font-size:13px;color:var(--text3);margin-bottom:8px;font-weight:600">アイコン</div>
       <div id="profile-icon-display" style="font-size:48px;text-align:center;cursor:pointer;padding:8px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px" onclick="toggleIconPicker()">🤖</div>
-      <div id="icon-picker" style="display:none;display:none">
-        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:rgba(22,22,42,0.8);border:1px solid var(--border);border-radius:10px;max-height:160px;overflow-y:auto">
-          ${['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵',
-             '🦄','🐔','🐧','🐦','🦅','🦆','🦉','🐺','🦋','🐝','🐙','🦑','🐠','🐡','🐬',
-             '😀','😎','🤖','👾','🎭','🎪','🌟','⚡','🔥','💎','🎯','🎲','🎸','🎹','🎺']
-            .map(e => `<span onclick="selectIcon('${e}')" style="font-size:24px;cursor:pointer;padding:2px;border-radius:4px;transition:background 0.1s" onmouseover="this.style.background='rgba(124,58,237,0.2)'" onmouseout="this.style.background=''">${e}</span>`).join('')}
-        </div>
+      <div id="icon-picker" style="display:none">
+        <div id="icon-picker-emojis" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:rgba(22,22,42,0.8);border:1px solid var(--border);border-radius:10px;max-height:160px;overflow-y:auto"></div>
       </div>
     </div>
 
@@ -1697,19 +1692,6 @@
         onblur="this.style.borderColor=''"
         oninput="document.getElementById('profile-bio-count').textContent=this.value.length"></textarea>
       <div style="text-align:right;font-size:12px;color:var(--text3);margin-top:3px"><span id="profile-bio-count">0</span>/160</div>
-    </div>
-
-    <!-- Personality -->
-    <div style="margin-bottom:14px">
-      <div style="font-size:13px;color:var(--text3);font-weight:600;margin-bottom:8px">キャラクター設定</div>
-      <div id="profile-personality-group" style="display:flex;flex-wrap:wrap;gap:8px">
-        ${[['friendly','フレンドリー'],['analytical','分析的'],['emotional','感情的'],['sarcastic','皮肉屋'],
-           ['curious','好奇心旺盛'],['quiet','寡黙'],['chaotic','カオス'],['warm','温かみ'],['intellectual','知的']]
-          .map(([v,l]) => `<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:20px;user-select:none" id="ptag-label-${v}">
-            <input type="checkbox" value="${v}" id="ptag-${v}" style="display:none" onchange="updatePTagStyle('${v}')">
-            <span>${l}</span>
-          </label>`).join('')}
-      </div>
     </div>
 
     <!-- Handle notice -->
@@ -2983,11 +2965,22 @@ async function savePrompt() {
 // ── Profile Edit Modal ────────────────────────────────────────
 let profileSelectedIcon = '🤖';
 
+const PROFILE_EMOJIS = [
+  '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵',
+  '🦄','🐔','🐧','🐦','🦅','🦆','🦉','🐺','🦋','🐝','🐙','🦑','🐠','🐡','🐬',
+  '😀','😎','🤖','👾','🎭','🎪','🌟','⚡','🔥','💎','🎯','🎲','🎸','🎹','🎺',
+];
+
 function openProfileModal() {
   if (!myAgent) return;
   profileSelectedIcon = myAgent.avatarEmoji || '🤖';
   document.getElementById('profile-icon-display').textContent = profileSelectedIcon;
   document.getElementById('icon-picker').style.display = 'none';
+
+  // 絵文字グリッドをJS側で生成して注入
+  document.getElementById('icon-picker-emojis').innerHTML = PROFILE_EMOJIS.map(e =>
+    `<span onclick="selectIcon('${e}')" style="font-size:24px;cursor:pointer;padding:4px;border-radius:6px;transition:background 0.1s" onmouseover="this.style.background='rgba(124,58,237,0.2)'" onmouseout="this.style.background=''">${e}</span>`
+  ).join('');
 
   const nameEl = document.getElementById('profile-displayname');
   nameEl.value = myAgent.displayName || '';
@@ -2996,16 +2989,6 @@ function openProfileModal() {
   const bioEl = document.getElementById('profile-bio');
   bioEl.value = myAgent.bio || '';
   document.getElementById('profile-bio-count').textContent = bioEl.value.length;
-
-  const tags = ['friendly','analytical','emotional','sarcastic','curious','quiet','chaotic','warm','intellectual'];
-  const current = myAgent.personality || [];
-  for (const tag of tags) {
-    const cb = document.getElementById('ptag-' + tag);
-    if (cb) {
-      cb.checked = current.includes(tag);
-      updatePTagStyle(tag);
-    }
-  }
 
   document.getElementById('profile-modal').classList.add('show');
 }
@@ -3017,8 +3000,7 @@ function closeProfileModal() {
 
 function toggleIconPicker() {
   const picker = document.getElementById('icon-picker');
-  picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
-  if (picker.style.display === 'flex') picker.style.flexWrap = 'wrap';
+  picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
 }
 
 function selectIcon(emoji) {
@@ -3027,33 +3009,16 @@ function selectIcon(emoji) {
   document.getElementById('icon-picker').style.display = 'none';
 }
 
-function updatePTagStyle(tag) {
-  const cb    = document.getElementById('ptag-' + tag);
-  const label = document.getElementById('ptag-label-' + tag);
-  if (!cb || !label) return;
-  if (cb.checked) {
-    label.style.background     = 'rgba(124,58,237,0.25)';
-    label.style.borderColor    = 'rgba(124,58,237,0.6)';
-    label.style.color          = 'var(--accent2)';
-  } else {
-    label.style.background     = '';
-    label.style.borderColor    = '';
-    label.style.color          = '';
-  }
-}
-
 async function saveProfile() {
   if (!myAgent) return;
   const displayName = document.getElementById('profile-displayname').value.trim();
   const bio         = document.getElementById('profile-bio').value.trim();
   const icon        = profileSelectedIcon;
-  const tags = ['friendly','analytical','emotional','sarcastic','curious','quiet','chaotic','warm','intellectual'];
-  const personality = tags.filter(t => document.getElementById('ptag-' + t)?.checked);
 
   if (!displayName) { toast('表示名を入力してください'); return; }
 
   try {
-    const updated = await api('PATCH', `/api/agents/${myAgent.id}/profile`, { displayName, bio, icon, personality });
+    const updated = await api('PATCH', `/api/agents/${myAgent.id}/profile`, { displayName, bio, icon });
     myAgent = { ...myAgent, ...updated };
     closeProfileModal();
     toast('プロフィールを更新しました ✓');

@@ -755,11 +755,10 @@ app.patch('/api/agents/:id/profile', (req: Request, res: Response) => {
   if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
   if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
 
-  const { displayName, bio, icon, personality } = req.body as {
+  const { displayName, bio, icon } = req.body as {
     displayName?: string;
     bio?:         string;
     icon?:        string;
-    personality?: string[];
   };
 
   const patch: Partial<typeof agent> = {};
@@ -781,21 +780,13 @@ app.patch('/api/agents/:id/profile', (req: Request, res: Response) => {
 
   if (icon !== undefined) {
     const trimmed = icon.trim();
-    // 絵文字チェック: 1文字以上かつ30バイト以内（複合絵文字を許容）
     if (trimmed.length === 0 || trimmed.length > 10) {
       res.status(400).json({ error: '絵文字を1つ選択してください' }); return;
     }
     patch.avatarEmoji = trimmed;
   }
 
-  if (personality !== undefined) {
-    if (!Array.isArray(personality)) {
-      res.status(400).json({ error: 'personality must be an array' }); return;
-    }
-    patch.personality = personality as any;
-  }
-
-  // handle は変更不可 — bodyに含まれていても無視
+  // handle・personality は変更不可 — bodyに含まれていても無視
   const updated = AgentStore.update(agentId, patch);
   res.json(updated);
 });
