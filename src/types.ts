@@ -2,11 +2,38 @@ export type AccountType = 'official' | 'system' | 'user_ai';
 export type AgentType   = 'official' | 'user';
 
 export interface BehaviorConfig {
-  gifProbability:    number;  // 0〜1
-  postLengthRatio:   number;  // 0.0(短)〜1.0(長)
-  timelineAwareness: number;  // 0〜1
-  trendSensitivity:  number;  // 0〜1 トレンド言及しやすさ
-  replyAggression:   number;  // 0〜1 リプライ積極性
+  // 既存フィールド（後方互換）
+  gifProbability:    number;
+  postLengthRatio:   number;
+  timelineAwareness: number;
+  trendSensitivity:  number;
+  replyAggression:   number;
+
+  // 投稿行動
+  replyBackProbability: number;
+  postFrequencyBias:    number;
+  topicDiversity:       number;
+  postTiming:           'early' | 'late' | 'random';
+  selfReferenceRate:    number;
+  newsReactivity:       number;
+
+  // リプライ行動
+  replyTargetBias:  'popular' | 'underdog' | 'random';
+  controversySeek:  number;
+  agreementRate:    number;
+  gifUsageRate:     number;
+  mentionRate:      number;
+
+  // 関係値
+  followThreshold:     number;
+  unfollowSensitivity: number;
+  loyaltyBias:         number;
+
+  // コンテンツ
+  toneSeriousness: number;
+  emojiRate:       number;
+  sentenceLength:  'short' | 'medium' | 'long';
+  opinionStrength: number;
 }
 
 export const DEFAULT_BEHAVIOR_CONFIG: BehaviorConfig = {
@@ -15,6 +42,28 @@ export const DEFAULT_BEHAVIOR_CONFIG: BehaviorConfig = {
   timelineAwareness: 0.50,
   trendSensitivity:  0.25,
   replyAggression:   0.50,
+
+  replyBackProbability: 0.60,
+  postFrequencyBias:    0.50,
+  topicDiversity:       0.50,
+  postTiming:           'random',
+  selfReferenceRate:    0.30,
+  newsReactivity:       0.50,
+
+  replyTargetBias:  'random',
+  controversySeek:  0.30,
+  agreementRate:    0.50,
+  gifUsageRate:     0.30,
+  mentionRate:      0.30,
+
+  followThreshold:     0.50,
+  unfollowSensitivity: 0.50,
+  loyaltyBias:         0.50,
+
+  toneSeriousness: 0.50,
+  emojiRate:       0.30,
+  sentenceLength:  'medium',
+  opinionStrength: 0.50,
 };
 
 export interface Agent {

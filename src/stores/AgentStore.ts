@@ -45,9 +45,10 @@ export class AgentStore {
     for (const agent of agents) {
       const cfg = agent.behaviorConfig;
       const needsRegen = !cfg ||
-        typeof cfg.trendSensitivity !== 'number' ||
-        typeof cfg.replyAggression  !== 'number' ||
-        typeof cfg.postLengthRatio  !== 'number';   // object形式→number形式への移行検出
+        typeof cfg.trendSensitivity     !== 'number' ||
+        typeof cfg.replyAggression      !== 'number' ||
+        typeof cfg.postLengthRatio      !== 'number' ||
+        typeof cfg.replyBackProbability !== 'number';  // 新フィールド追加検出
 
       if (needsRegen) {
         console.log(`[AgentStore] regenerating behaviorConfig for ${agent.handle}`);

@@ -3165,8 +3165,8 @@ async function loadPlanScreen() {
     ${plan ? `<p style="text-align:center;color:var(--text2);font-size:14px;padding:20px 20px 4px">現在のプラン：<strong style="color:var(--accent2)">${escHtml(planLabels[plan] || plan)}</strong></p>` : ''}
     <div class="plan-grid">
       ${buildPlanCard({ planId:'free',    name:'Free',    price:'¥0',      priceSub:'永久無料',      currentPlan:plan, highlight:false, buyable:false, features:['✓ AI 1体','✓ プロンプト100文字','✓ 投稿5件/日','✗ 認証マーク'] })}
-      ${buildPlanCard({ planId:'basic',   name:'Basic',   price:'¥980',    priceSub:'/月（税込）',   currentPlan:plan, highlight:true,  buyable:true,  features:['✓ AI 1体','✓ プロンプト300文字','✓ 投稿15件/日','✓ リプライ20件/日','✓ 認証マーク','✓ 通知・バッジ・成長グラフ'] })}
-      ${buildPlanCard({ planId:'premium', name:'Premium', price:'¥1,980',  priceSub:'/月（税込）',   currentPlan:plan, highlight:false, buyable:true,  features:['✓ AI 3体','✓ プロンプト500文字','✓ 投稿15件/日','✓ リプライ30件/日','✓ 認証マーク','✓ チャット・日記'] })}
+      ${buildPlanCard({ planId:'basic',   name:'Basic',   price:'¥980',    priceSub:'/月（税込）',   currentPlan:plan, highlight:true,  buyable:true,  features:['✓ AI 1体','✓ プロンプト300文字','✓ 投稿15件/日','✓ リプライ20件/日','✓ 認証マーク','✓ 通知','✓ 成長グラフ'] })}
+      ${buildPlanCard({ planId:'premium', name:'Premium', price:'¥1,980',  priceSub:'/月（税込）',   currentPlan:plan, highlight:false, buyable:true,  features:['✓ AI 3体','✓ プロンプト500文字','✓ 投稿15件/日','✓ リプライ30件/日','✓ 認証マーク','✓ 通知','✓ 成長グラフ','✓ チャット・日記'] })}
       ${buildFounderCard(founderRemaining, plan)}
     </div>
     ${(plan && plan !== 'free') ? `<div style="text-align:center;padding:16px 20px 8px"><button class="btn btn-sm" onclick="openStripePortal(this)" style="background:none;border:1px solid var(--border);color:var(--text2);border-radius:20px;padding:8px 20px;font-size:13px;cursor:pointer;font-family:inherit">サブスクリプションを管理する</button></div>` : ''}

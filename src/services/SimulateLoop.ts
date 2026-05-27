@@ -135,7 +135,7 @@ function extractKeyword(text: string): string {
   return m ? m[0] : '';
 }
 
-function diversifyPosts(posts: Post[]): Post[] {
+function diversifyPosts(posts: Post[], minCount = 3): Post[] {
   const sorted = [...posts].sort((a, b) =>
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
@@ -147,7 +147,7 @@ function diversifyPosts(posts: Post[]): Post[] {
   const kwSeen = new Set<string>();
   return sorted.filter(p => {
     const kw = extractKeyword(p.content);
-    if (!kw || (kwCount.get(kw) ?? 0) < 3) return true;
+    if (!kw || (kwCount.get(kw) ?? 0) < minCount) return true;
     if (kwSeen.has(kw)) return false;
     kwSeen.add(kw);
     return true;
@@ -215,7 +215,10 @@ function buildPostContext(agent: Agent): PostContext {
       !p.isBanned && !seenIds.has(p.id) && !seenAgentIds.has(p.agentId) &&
       agent.interests.some(kw => p.content.includes(kw))
     );
-    const diversified = diversifyPosts(matched);
+    // topicDiversity高=多様性重視=除外閾値低め、低=1話題特化=除外閾値高め
+    const topicDiv        = agent.behaviorConfig?.topicDiversity ?? DEFAULT_BEHAVIOR_CONFIG.topicDiversity;
+    const diversifyThresh = Math.max(2, Math.round(4 - topicDiv * 2));
+    const diversified = diversifyPosts(matched, diversifyThresh);
 
     // 直近24h投稿（eqpet_news除外）から過剰トピック上位3件を特定し除外
     const newsAgentIds = new Set(allAgents.filter(a => a.isNewsAgent).map(a => a.id));
@@ -499,8 +502,11 @@ async function runPostCycle(): Promise<void> {
   const eligible = agents.filter(a => (hourlyCountMap.get(a.id) ?? 0) < MAX_HOURLY_PER_AGENT);
   if (eligible.length === 0) return;
 
-  // 投稿数が少ないAIほど選ばれやすくなる重み付けでweighted random選出
-  const weights  = eligible.map(a => 1 / ((hourlyCountMap.get(a.id) ?? 0) + 1));
+  // 投稿数が少ないAIほど選ばれやすく、postFrequencyBias高いAIも選ばれやすい
+  const weights  = eligible.map(a => {
+    const freqBias = (a.behaviorConfig?.postFrequencyBias ?? DEFAULT_BEHAVIOR_CONFIG.postFrequencyBias) + 0.5;
+    return (1 / ((hourlyCountMap.get(a.id) ?? 0) + 1)) * freqBias;
+  });
   const count    = Math.min(randomInt(2, 4), eligible.length);
   const selected = weightedSample(eligible, weights, count);
 
@@ -681,6 +687,11 @@ async function runReplyCycle(): Promise<void> {
     if (!repliedTo.has(agent.id)) repliedTo.set(agent.id, new Set());
     const agentRepliedTo = repliedTo.get(agent.id)!;
 
+    // behaviorConfig によるスコア調整変数
+    const behaviorCfg    = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
+    const controversyAdj = (behaviorCfg.controversySeek ?? DEFAULT_BEHAVIOR_CONFIG.controversySeek) - 0.5;
+    const agreementAdj   = (behaviorCfg.agreementRate   ?? DEFAULT_BEHAVIOR_CONFIG.agreementRate)   - 0.5;
+
     // 各投稿にスコアを付けて人気・フォロワー数の高い投稿を優先
     const scoredPosts = otherPosts.map(post => {
       const relation        = RelationStore.get(agent.id, post.agentId);
@@ -692,11 +703,27 @@ async function runReplyCycle(): Promise<void> {
       // 直近1時間で同ペアのリプライが3回以上なら-50ペナルティ
       const pairKey         = `${agent.id}->${post.agentId}`;
       const pairPenalty     = (pairReplyCount.get(pairKey) ?? 0) >= 3 ? -50 : 0;
-      return { post, finalScore: baseScore + popularityBonus + followerBonus + pairPenalty, relation, isMutual };
+      // controversySeek高=敵対的ターゲット優先 / agreementRate高=友好的ターゲット優先
+      const relVal          = relation?.value ?? 50;
+      const behaviorAdj     = (agreementAdj - controversyAdj) * (relVal - 50) * 0.4;
+      return { post, finalScore: baseScore + popularityBonus + followerBonus + pairPenalty + behaviorAdj, relation, isMutual };
     }).sort((a, b) => b.finalScore - a.finalScore);
 
-    const priorityCandidates = scoredPosts.slice(0, 3);
-    const normalCandidates   = scoredPosts.slice(3).filter(() => Math.random() < 0.30);
+    // replyTargetBias: popular=高スコア優先(デフォルト) / underdog=低スコア優先 / random=シャッフル
+    const replyBias = behaviorCfg.replyTargetBias ?? DEFAULT_BEHAVIOR_CONFIG.replyTargetBias;
+    if (replyBias === 'underdog') {
+      scoredPosts.sort((a, b) => a.finalScore - b.finalScore);
+    } else if (replyBias === 'random') {
+      for (let i = scoredPosts.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [scoredPosts[i], scoredPosts[j]] = [scoredPosts[j], scoredPosts[i]];
+      }
+    }
+
+    // user_ai は現状維持、公式AIは候補数を約25%削減
+    const isUserAi           = agent.type === 'user_ai';
+    const priorityCandidates = scoredPosts.slice(0, isUserAi ? 3 : 2);
+    const normalCandidates   = scoredPosts.slice(isUserAi ? 3 : 2).filter(() => Math.random() < (isUserAi ? 0.30 : 0.22));
     const candidates         = [...priorityCandidates, ...normalCandidates];
 
     for (const { post, relation, isMutual } of candidates) {
@@ -723,7 +750,7 @@ async function runReplyCycle(): Promise<void> {
 
         // GIFリプライ連鎖判定
         const chainLen = countGifChain(post);
-        if (post.gifUrl && chainLen < 3 && Math.random() < 0.30) {
+        if (post.gifUrl && chainLen < 3 && Math.random() < (behaviorCfg.gifUsageRate ?? DEFAULT_BEHAVIOR_CONFIG.gifUsageRate)) {
           const gifUrl = await GifService.fetchGif(GifService.inferEmotion(post.content));
           if (gifUrl) {
             PostStore.create(agent.id, '', post.id, null, null, gifUrl);
@@ -744,7 +771,10 @@ async function runReplyCycle(): Promise<void> {
         const delta       = await TimelineEngine.analyzeReplyTone(replyContent, agent, targetAgent);
         const newRelation = RelationStore.update(agent.id, post.agentId, delta);
 
-        if (newRelation.value >= 41 && !FollowStore.isFollowing(agent.id, post.agentId)) {
+        // followThreshold高=フォローしやすい(低閾値) / unfollowSensitivity高=アンフォローしやすい(高閾値)
+        const followRelThres   = Math.round(20 + (1 - (behaviorCfg.followThreshold   ?? DEFAULT_BEHAVIOR_CONFIG.followThreshold))   * 40);
+        const unfollowRelThres = Math.round(35 - (1 - (behaviorCfg.unfollowSensitivity ?? DEFAULT_BEHAVIOR_CONFIG.unfollowSensitivity)) * 30);
+        if (newRelation.value >= followRelThres && !FollowStore.isFollowing(agent.id, post.agentId)) {
           const followed = FollowStore.follow(agent.id, post.agentId);
           if (followed) {
             AgentStore.update(post.agentId, { followerCount: targetAgent.followerCount + 1 });
@@ -766,7 +796,7 @@ async function runReplyCycle(): Promise<void> {
           }
         }
 
-        if (newRelation.value <= 20 && FollowStore.isFollowing(agent.id, post.agentId)) {
+        if (newRelation.value <= unfollowRelThres && FollowStore.isFollowing(agent.id, post.agentId)) {
           const unfollowed = FollowStore.unfollow(agent.id, post.agentId);
           if (unfollowed) {
             const fresh = AgentStore.getById(post.agentId);
@@ -858,7 +888,7 @@ async function runUserAiReplyBack(): Promise<void> {
 
         if (repliedThreads.has(threadRootId)) continue;
         if (countThreadDepth(replyPost.id) >= 3) continue;
-        if (Math.random() < 0.5) continue;
+        if (Math.random() >= (userAi.behaviorConfig?.replyBackProbability ?? DEFAULT_BEHAVIOR_CONFIG.replyBackProbability)) continue;
         if (dailyReplyCount(userAi.id) >= replyLimit) break;
 
         const targetAgent = AgentStore.getById(replyPost.agentId);

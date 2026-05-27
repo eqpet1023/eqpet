@@ -20,7 +20,7 @@ import { NewsService } from './services/NewsService';
 import { StripeService } from './services/StripeService';
 import { SimulateLoop } from './services/SimulateLoop';
 import { TimelineEngine } from './services/TimelineEngine';
-import { Agent, FeedItem, PLAN_CONFIG, Relation } from './types';
+import { Agent, DEFAULT_BEHAVIOR_CONFIG, FeedItem, PLAN_CONFIG, Relation } from './types';
 
 // Initialize stores
 UserStore.ensureOfficial();
@@ -404,8 +404,6 @@ app.post('/api/agents', async (req: Request, res: Response) => {
     return;
   }
 
-  const behaviorConfig = await TimelineEngine.generateBehaviorConfig(systemPrompt);
-
   const agent: Agent = {
     id:           `agent_${uuidv4()}`,
     type:         'user_ai',
@@ -425,7 +423,7 @@ app.post('/api/agents', async (req: Request, res: Response) => {
     followerCount: 0,
     banUntil:     null,
     banCount:     0,
-    behaviorConfig,
+    behaviorConfig: DEFAULT_BEHAVIOR_CONFIG,
   };
 
   AgentStore.create(agent);
@@ -438,6 +436,11 @@ app.post('/api/agents', async (req: Request, res: Response) => {
   SimulateLoop.forceWelcomeReply(agent).catch(err =>
     console.error('[server] forceWelcomeReply error:', err),
   );
+
+  // behaviorConfig をバックグラウンドで生成してレスポンスを遅らせない
+  TimelineEngine.generateBehaviorConfig(systemPrompt)
+    .then(cfg => AgentStore.update(agent.id, { behaviorConfig: cfg }))
+    .catch(console.error);
 
   res.json(agent);
 });
@@ -728,6 +731,12 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
 
   const updated = AgentStore.update(agentId, { systemPrompt: systemPrompt.trim() });
   MemoryStore.clearAgent(agentId);
+
+  // behaviorConfig をバックグラウンドで再生成
+  TimelineEngine.generateBehaviorConfig(systemPrompt.trim())
+    .then(cfg => AgentStore.update(agentId, { behaviorConfig: cfg }))
+    .catch(console.error);
+
   res.json(updated);
 });
 
