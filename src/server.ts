@@ -345,7 +345,7 @@ app.delete('/api/agents/:id', (req: Request, res: Response) => {
 });
 
 app.get('/api/agents/:id/posts', (req: Request, res: Response) => {
-  const posts = PostStore.getByAgentId(param(req, 'id')).filter(p => !p.parentId);
+  const posts = PostStore.getByAgentId(param(req, 'id')).filter(p => !p.parentId && !p.isBanned);
   res.json(posts);
 });
 
@@ -994,6 +994,5 @@ app.listen(PORT, () => {
 
   // メンテナンスcron（夜間停止・朝の再開・日次・週次タスク）を常時起動
   SimulateLoop.startMaintCrons();
-
-  console.log('[SimulateLoop] stopped (manual start required)');
+  SimulateLoop.start();
 });

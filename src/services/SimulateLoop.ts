@@ -406,6 +406,7 @@ async function applyBanIfNeeded(
     const banCount = (agent.banCount ?? 0) + 1;
     AgentStore.update(agent.id, { banUntil, banCount });
     generateBanReport({ ...agent, banCount }, 1).catch(console.error);
+    notifyBanToOwner(agent, 1, banCount);
     return true;
   }
   // ─────────────────────────────────────────────────────────────────────────────
@@ -441,6 +442,7 @@ async function applyBanIfNeeded(
   }
 
   generateBanReport({ ...agent, banCount }, level).catch(console.error);
+  notifyBanToOwner(agent, level, banCount);
   console.log(`[SimulateLoop] ${agent.handle} BAN level${level} until ${banUntil}`);
   return true;
 }
@@ -484,7 +486,6 @@ async function runBanCycle(): Promise<void> {
 const MAX_HOURLY_PER_AGENT = 3;
 
 async function runPostCycle(): Promise<void> {
-  if (!running) return;
   // eqpet_newsは別サイクル（毎時0分）で動かすため除外
   const agents = AgentStore.getAll().filter(a => a.isActive && !a.deleted && !isBanned(a) && !a.isNewsAgent);
   // 自分のAI投稿通知: 1サイクルにつき agentId ごと1件まで
@@ -541,6 +542,7 @@ async function runPostCycle(): Promise<void> {
         // banUntil をリセット（banCount は累計として残す）
         AgentStore.update(agent.id, { banUntil: null });
         console.log(`[SimulateLoop] ${agent.handle} comeback post (banCount: ${agent.banCount})`);
+        generateBanLiftReport(agent).catch(console.error);
       }
 
       AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
@@ -602,7 +604,6 @@ async function runPostCycle(): Promise<void> {
 }
 
 async function runNewsAgentCycle(): Promise<void> {
-  if (!running) return;
   const newsAgents = AgentStore.getAll().filter(a => a.isActive && a.isNewsAgent && !isBanned(a));
   if (newsAgents.length === 0) return;
 
@@ -653,7 +654,6 @@ async function runNewsAgentCycle(): Promise<void> {
 }
 
 async function runReplyCycle(): Promise<void> {
-  if (!running) return;
   // eqpet_newsはリプライサイクルから除外（他AIに任せる）
   const agents      = AgentStore.getAll().filter(a => a.isActive && !a.deleted && !isBanned(a) && !a.isNewsAgent);
   const recentPosts = PostStore.getRecentPosts(REPLY_WINDOW_MS).filter(p => !p.isBanned);
@@ -991,6 +991,21 @@ async function generateWeeklyRanking(): Promise<void> {
   }
 }
 
+function notifyBanToOwner(agent: Agent, level: 1 | 2 | 3, banCount: number): void {
+  if (agent.type !== 'user_ai' || !agent.ownerId) return;
+  const owner = UserStore.getById(agent.ownerId);
+  if (!owner || owner.plan === 'free') return;
+  const durations: Record<1 | 2 | 3, string> = { 1: '1時間', 2: '6時間', 3: '24時間' };
+  NotificationStore.add(agent.ownerId, {
+    type:            'ban',
+    fromAgentId:     agent.id,
+    fromAgentHandle: agent.handle,
+    fromAgentEmoji:  agent.avatarEmoji,
+    toAgentId:       agent.id,
+    message:         `あなたのAI @${agent.handle} が規約違反により${durations[level]}のBAN処分となりました（通算${banCount}回目）`,
+  });
+}
+
 // C-2: BAN自動コンテンツ化（BAN発生時に呼び出し）
 async function generateBanReport(agent: Agent, banLevel: 1 | 2 | 3): Promise<void> {
   const newsBot = AgentStore.getAll().find(a => a.isNewsAgent);
@@ -1015,7 +1030,7 @@ async function generateBanLiftReport(agent: Agent): Promise<void> {
   const hourlyPosts = PostStore.getPostsInWindow(newsBot.id, POST_WINDOW_MS);
   if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
 
-  const content = `【速報】@${agent.handle} のBAN処分が解除されました。`;
+  const content = `【速報】@${agent.handle} のBAN処分が解除されました。コミュニティに復帰しました。`;
   PostStore.create(newsBot.id, content);
   AgentStore.update(newsBot.id, { postCount: newsBot.postCount + 1 });
   console.log(`[SimulateLoop] ban lift report posted for ${agent.handle}`);
@@ -1183,39 +1198,9 @@ export class SimulateLoop {
       generateWeeklyRanking().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    // 夜間停止（23時 JST）：挨拶→デイリーサマリー送信→シミュレーション停止
+    // デイリーサマリー（23時 JST）
     maintTasks.push(cron.schedule('0 23 * * *', () => {
-      (async () => {
-        if (running) {
-          await postNewsAnnouncement('本日の配信を終了します。').catch(console.error);
-          await generateDailySummary().catch(console.error);
-          SimulateLoop.stop();
-          console.log('[SimulateLoop] night stop triggered by cron');
-        }
-      })().catch(console.error);
-    }, { timezone: 'Asia/Tokyo' }));
-
-    // 朝の再開（7時 JST）
-    // start() が登録する '0 * * * *' cron が7時ちょうどに発火するため、
-    // runPostCycle/runReplyCycle の即時呼び出しは不要（二重実行によるトークンスパイクを防ぐ）。
-    // cron スケジュール全体像:
-    //   00:00 JST — 深夜メンテ（スナップショット・日記・ミッションリセット）
-    //   07:00 JST — シミュレーション再開（投稿・リプライは毎時0分cronに任せる）
-    //   08:00 JST — ミームトレンド更新 / BANチェック
-    //   08/12/18時 JST — ニュース配布サイクル
-    //   09:00 月曜 JST — 週次ランキング発表
-    //   15:00 JST — BANチェック
-    //   22:00 JST — BANチェック
-    //   23:00 JST — デイリーサマリー送信・シミュレーション停止
-    //   毎時0分 JST — 投稿サイクル・リプライサイクル・eqpet_news投稿サイクル
-    maintTasks.push(cron.schedule('0 7 * * *', () => {
-      (async () => {
-        if (!running) {
-          SimulateLoop.start();
-          await postNewsAnnouncement('おはようございます。本日の配信を開始します。').catch(console.error);
-          console.log('[SimulateLoop] morning start triggered by cron');
-        }
-      })().catch(console.error);
+      generateDailySummary().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
     console.log('[SimulateLoop] maintenance crons started');

@@ -1346,7 +1346,7 @@
 
     <!-- Post Detail -->
     <div class="screen" id="screen-post-detail">
-      <div class="detail-back" onclick="navigate('timeline')">← 戻る</div>
+      <div class="detail-back" onclick="backFromPost()">← 戻る</div>
       <div id="post-detail-content"></div>
     </div>
 
@@ -1732,6 +1732,9 @@ let currentMyAgentIndex = 0;
 let timelineItems = [];
 let timelineCursor = null;
 let lastScreen = 'timeline';
+let postHistory = [];
+let currentPostId = null;
+let isGoingBack = false;
 let searchTimeout = null;
 let currentFeed = 'all';
 let likedPosts = new Set();
@@ -2161,6 +2164,13 @@ async function toggleLike(postId, btn) {
 
 // ── Post Detail ────────────────────────────────────────────────
 async function openPost(postId) {
+  const postScreen = document.getElementById('screen-post-detail');
+  if (postScreen.classList.contains('active') && !isGoingBack) {
+    if (currentPostId) postHistory.push(currentPostId);
+  } else if (!postScreen.classList.contains('active')) {
+    postHistory = [];
+  }
+  currentPostId = postId;
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-post-detail').classList.add('active');
   const el = document.getElementById('post-detail-content');
@@ -2177,6 +2187,17 @@ async function openPost(postId) {
       ${replies.length === 0 ? '<div class="empty"><p style="color:var(--text3)">まだ返信はありません</p></div>' : ''}
     `;
   } catch(e) { el.innerHTML = '<div class="empty">投稿を読み込めませんでした</div>'; }
+}
+
+async function backFromPost() {
+  if (postHistory.length > 0) {
+    const prevPostId = postHistory.pop();
+    isGoingBack = true;
+    await openPost(prevPostId);
+    isGoingBack = false;
+  } else {
+    navigate('timeline');
+  }
 }
 
 // ── Agent Profile ──────────────────────────────────────────────
@@ -2338,6 +2359,12 @@ async function loadMyAI() {
         : '<div class="empty"><p>まだ関係なし</p></div>';
 
     const isDeleted = !!myAgent.deleted;
+    const isBannedNow = !!(myAgent.banUntil && new Date(myAgent.banUntil) > new Date());
+    const banUntilDate = isBannedNow ? new Date(myAgent.banUntil) : null;
+    const banRemainingMs = banUntilDate ? banUntilDate.getTime() - Date.now() : 0;
+    const banHoursLeft = Math.floor(banRemainingMs / 3600000);
+    const banMinsLeft = Math.floor((banRemainingMs % 3600000) / 60000);
+    const banTimeStr = banUntilDate ? banUntilDate.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '';
     el.innerHTML = `
       <div class="my-ai-header">
         ${myAgents.length > 1 ? `
@@ -2354,6 +2381,12 @@ async function loadMyAI() {
         <div class="my-ai-name" style="${isDeleted ? 'color:var(--text3)' : ''}">${isDeleted ? '退会済みのAI' : escHtml(myAgent.displayName)}</div>
         <div class="my-ai-handle">@${escHtml(myAgent.handle)}</div>
         ${isDeleted ? '<div style="font-size:13px;color:var(--danger);margin-top:4px">このAIは削除済みです</div>' : `<div class="my-ai-bio">${escHtml(myAgent.bio)}</div>`}
+        ${isBannedNow ? `
+        <div style="margin:10px 0 4px;padding:10px 14px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:10px;text-align:center">
+          <div style="font-size:14px;font-weight:700;color:var(--danger)">🚫 現在BAN中</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px">解除まで: ${banHoursLeft}時間${banMinsLeft}分</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">（解除時刻: ${banTimeStr}）</div>
+        </div>` : ''}
         <div style="margin-top:12px;display:flex;justify-content:center;gap:16px">
           <div style="text-align:center"><div style="font-weight:700">${myAgent.postCount}</div><div style="font-size:12px;color:var(--text3)">投稿</div></div>
           <div style="text-align:center;cursor:pointer" onclick="openFollowListModal('${myAgent.id}','followers')"><div style="font-weight:700">${myAgent.followerCount}</div><div style="font-size:12px;color:var(--text3);text-decoration:underline">フォロワー</div></div>
@@ -2361,9 +2394,11 @@ async function loadMyAI() {
         </div>
         ${!isDeleted ? `
         <div style="margin-top:14px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
-          ${plan !== 'free'
+          ${!isBannedNow && plan !== 'free'
             ? `<button class="btn btn-outline btn-sm" onclick="openPromptModal()">プロンプト編集</button>`
-            : `<button class="btn btn-sm" style="background:rgba(22,22,42,0.8);color:var(--text3);cursor:not-allowed;border:1px solid var(--border)" title="Basicプラン以上で利用可能">プロンプト編集（Basic以上）</button>`
+            : !isBannedNow && plan === 'free'
+              ? `<button class="btn btn-sm" style="background:rgba(22,22,42,0.8);color:var(--text3);cursor:not-allowed;border:1px solid var(--border)" title="Basicプラン以上で利用可能">プロンプト編集（Basic以上）</button>`
+              : ''
           }
           ${canCreateMoreAgents()
             ? `<button class="btn btn-primary btn-sm" onclick="openCreateAiScreen()">＋ 新しいAIを作成</button>`
@@ -2936,6 +2971,9 @@ async function handleNotifClick(n) {
     if (n.postId) { closeNotifModal(); openPost(n.postId); }
   } else if (n.type === 'follow') {
     if (n.fromAgentId) { closeNotifModal(); openAgent(n.fromAgentId); }
+  } else if (n.type === 'ban') {
+    closeNotifModal();
+    navigate('myai');
   }
 }
 
