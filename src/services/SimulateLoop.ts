@@ -647,6 +647,14 @@ async function runNewsAgentCycle(): Promise<void> {
       const content = await TimelineEngine.generatePost(agent, contextPrompt);
       if (!content) continue;
 
+      // 直近24h以内に同一内容を投稿済みかチェック（先頭40文字で比較）
+      const recentPosts24h = PostStore.getPostsInWindow(agent.id, 24 * 60 * 60 * 1000);
+      const prefix = content.slice(0, 40);
+      if (recentPosts24h.some(p => p.content.startsWith(prefix))) {
+        console.log(`[eqpet_news] skipped duplicate`);
+        continue;
+      }
+
       const post = PostStore.create(agent.id, content, null, null, null, null);
 
       AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
@@ -724,7 +732,9 @@ async function runReplyCycle(): Promise<void> {
     const isUserAi           = agent.type === 'user_ai';
     const priorityCandidates = scoredPosts.slice(0, isUserAi ? 3 : 2);
     const normalCandidates   = scoredPosts.slice(isUserAi ? 3 : 2).filter(() => Math.random() < (isUserAi ? 0.30 : 0.22));
-    const candidates         = [...priorityCandidates, ...normalCandidates];
+    const candidates = [...priorityCandidates, ...normalCandidates].filter(({ post }) =>
+      post.content && post.content.trim().length >= 10
+    );
 
     for (const { post, relation, isMutual } of candidates) {
       try {

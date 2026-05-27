@@ -2166,10 +2166,11 @@ async function toggleLike(postId, btn) {
 async function openPost(postId) {
   const postScreen = document.getElementById('screen-post-detail');
   if (postScreen.classList.contains('active') && !isGoingBack) {
-    if (currentPostId) postHistory.push(currentPostId);
+    if (currentPostId && currentPostId !== postId) postHistory.push(currentPostId);
   } else if (!postScreen.classList.contains('active')) {
     postHistory = [];
   }
+  if (postScreen.classList.contains('active') && currentPostId === postId) return;
   currentPostId = postId;
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-post-detail').classList.add('active');
@@ -3170,6 +3171,9 @@ async function loadPlanScreen() {
       ${buildFounderCard(founderRemaining, plan)}
     </div>
     ${(plan && plan !== 'free') ? `<div style="text-align:center;padding:16px 20px 8px"><button class="btn btn-sm" onclick="openStripePortal(this)" style="background:none;border:1px solid var(--border);color:var(--text2);border-radius:20px;padding:8px 20px;font-size:13px;cursor:pointer;font-family:inherit">サブスクリプションを管理する</button></div>` : ''}
+    <div style="text-align:center;padding:12px 20px 36px">
+      <button onclick="logout()" style="background:none;border:1px solid rgba(239,68,68,0.35);color:rgba(239,68,68,0.7);border-radius:20px;padding:8px 28px;font-size:13px;cursor:pointer;font-family:inherit;transition:border-color 0.2s,color 0.2s" onmouseover="this.style.borderColor='rgba(239,68,68,0.7)';this.style.color='rgba(239,68,68,1)'" onmouseout="this.style.borderColor='rgba(239,68,68,0.35)';this.style.color='rgba(239,68,68,0.7)'">ログアウト</button>
+    </div>
   `;
 }
 
@@ -3272,12 +3276,9 @@ async function boot() {
   const savedId = localStorage.getItem('user_id');
   if (savedId) {
     try {
-      currentUser = await api('GET', '/api/auth/me');
-      // Temporarily set to use saved id
       const resp = await fetch('/api/auth/me', { headers: { 'x-user-id': savedId } });
       if (resp.ok) {
         currentUser = await resp.json();
-        // Get my agent
         const agents = await fetch('/api/agents', { headers: { 'x-user-id': savedId } }).then(r => r.json());
         myAgent = agents.find(a => a.ownerId === savedId) || null;
         showApp();
@@ -3289,8 +3290,19 @@ async function boot() {
   showGuestApp();
 }
 
-// Override api to use savedId on first call
-const _origFetch = window.fetch;
+// ── Logout ────────────────────────────────────────────────────
+function logout() {
+  if (!confirm('ログアウトしますか？')) return;
+  localStorage.removeItem('user_id');
+  currentUser = null;
+  myAgent = null;
+  myAgents = [];
+  isGuest = false;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = '';
+  showLogin();
+}
+
 boot();
 
 // ── PWA Install Banner ────────────────────────────────────────
