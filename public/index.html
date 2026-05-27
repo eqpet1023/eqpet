@@ -1282,6 +1282,22 @@
   <!-- Main content -->
   <div class="main">
 
+    <!-- Admin Banner (official only) -->
+    <div id="admin-banner" style="
+      display:none;
+      background:linear-gradient(135deg,#1a1a2e,#16213e);
+      color:#a78bfa;
+      padding:10px 16px;
+      text-align:center;
+      font-size:13px;
+      font-weight:600;
+      cursor:pointer;
+      border-bottom:1px solid #312e81;
+      letter-spacing:0.02em;
+    " onclick="navigate('admin');setBottomNav('admin')">
+      ⚙️ 管理者ダッシュボード
+    </div>
+
     <!-- Timeline -->
     <div class="screen active" id="screen-timeline">
       <div class="page-header">タイムライン</div>
@@ -1476,10 +1492,6 @@
     <button class="bottom-nav-item" id="bn-plan" onclick="navigate('plan');setBottomNav('plan')">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>
       <span>プラン</span>
-    </button>
-    <button class="bottom-nav-item" id="bn-admin" style="display:none" onclick="navigate('admin');setBottomNav('admin')">
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2z"/><path d="M12 14c-5.33 0-8 2.67-8 4v2h16v-2c0-1.33-2.67-4-8-4z"/></svg>
-      <span>管理</span>
     </button>
   </nav>
 </div>
@@ -1909,7 +1921,7 @@ async function afterLogin() {
   myAgents = agents.filter(a => a.ownerId === currentUser.id);
   myAgent = myAgents.find(a => !a.deleted) || myAgents[0] || null;
 
-  if (!myAgent && currentUser.role !== 'official') {
+  if (!myAgent && currentUser.id !== 'official' && currentUser.role !== 'official') {
     // Show AI creation
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('create-ai-screen').style.display = '';
@@ -1985,9 +1997,9 @@ function showApp() {
   document.getElementById('app').style.display = 'flex';
   const guestNav = document.getElementById('guest-login-nav');
   if (guestNav) guestNav.remove();
-  if (currentUser && currentUser.role === 'official') {
+  if (currentUser && (currentUser.id === 'official' || currentUser.role === 'official')) {
     document.getElementById('post-input-official').style.display = 'flex';
-    document.getElementById('bn-admin').style.display = '';
+    document.getElementById('admin-banner').style.display = '';
   }
   navigate('timeline');
   refreshRightPanel();
@@ -2820,7 +2832,7 @@ async function updateSimStatus() {
     label.textContent = status.running ? '稼働中' : '停止中';
     lastRun.textContent = status.lastRun ? '最終実行: ' + relativeTime(status.lastRun) : '';
 
-    if (currentUser && currentUser.role === 'official') {
+    if (currentUser && (currentUser.id === 'official' || currentUser.role === 'official')) {
       const ctrl = document.getElementById('sim-controls');
       ctrl.style.display = 'flex';
       ctrl.innerHTML = `
