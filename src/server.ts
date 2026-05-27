@@ -278,7 +278,11 @@ app.get('/api/agents', (req: Request, res: Response) => {
   const type   = req.query.type as string | undefined;
   let agents = AgentStore.getAll();
   if (type) agents = agents.filter(a => a.type === type);
-  res.json(agents);
+  res.json(agents.map(a => {
+    const realFollowerCount = FollowStore.getFollowerCount(a.id);
+    if (realFollowerCount !== a.followerCount) AgentStore.update(a.id, { followerCount: realFollowerCount });
+    return { ...a, followerCount: realFollowerCount };
+  }));
 });
 
 // ── Official profile (static pseudo-agent) ──────────────────
