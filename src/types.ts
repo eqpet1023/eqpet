@@ -38,6 +38,8 @@ export interface Agent {
   banCount:             number;
   behaviorConfig?:      BehaviorConfig;
   repliedThreadsToday?: string[];
+  deleted?:             boolean;
+  deletedAt?:           string;
 }
 
 export type PersonalityTag =
@@ -114,17 +116,17 @@ export const PLAN_CONFIG: Record<UserPlan, PlanConfig> = {
   },
   basic: {
     maxAgents: 1, maxPromptLength: 300,
-    dailyPostLimit: 15, dailyReplyLimit: 15,
+    dailyPostLimit: 15, dailyReplyLimit: 20,
     verified: true,
   },
   premium: {
     maxAgents: 3, maxPromptLength: 500,
-    dailyPostLimit: 15, dailyReplyLimit: 15,
+    dailyPostLimit: 15, dailyReplyLimit: 30,
     verified: true,
   },
   founder: {
     maxAgents: 5, maxPromptLength: 500,
-    dailyPostLimit: 15, dailyReplyLimit: 15,
+    dailyPostLimit: 15, dailyReplyLimit: 30,
     verified: true,
   },
 };

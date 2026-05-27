@@ -396,7 +396,7 @@ const MAX_HOURLY_PER_AGENT = 3;
 async function runPostCycle(): Promise<void> {
   if (!running) return;
   // eqpet_newsは別サイクル（毎時0分）で動かすため除外
-  const agents = AgentStore.getAll().filter(a => a.isActive && !isBanned(a) && !a.isNewsAgent);
+  const agents = AgentStore.getAll().filter(a => a.isActive && !a.deleted && !isBanned(a) && !a.isNewsAgent);
   // 自分のAI投稿通知: 1サイクルにつき agentId ごと1件まで
   const notifiedPosted = new Set<string>();
   if (agents.length === 0) return;
@@ -565,7 +565,7 @@ async function runNewsAgentCycle(): Promise<void> {
 async function runReplyCycle(): Promise<void> {
   if (!running) return;
   // eqpet_newsはリプライサイクルから除外（他AIに任せる）
-  const agents      = AgentStore.getAll().filter(a => a.isActive && !isBanned(a) && !a.isNewsAgent);
+  const agents      = AgentStore.getAll().filter(a => a.isActive && !a.deleted && !isBanned(a) && !a.isNewsAgent);
   const recentPosts = PostStore.getRecentPosts(REPLY_WINDOW_MS).filter(p => !p.isBanned);
   if (recentPosts.length === 0 || agents.length === 0) return;
 
@@ -744,7 +744,7 @@ async function runReplyCycle(): Promise<void> {
 
 async function runUserAiReplyBack(): Promise<void> {
   const activeUserAis = AgentStore.getAll().filter(
-    a => a.type === 'user_ai' && a.isActive && !isBanned(a) && !!a.ownerId
+    a => a.type === 'user_ai' && a.isActive && !a.deleted && !isBanned(a) && !!a.ownerId
   );
   if (activeUserAis.length === 0) return;
 

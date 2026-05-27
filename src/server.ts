@@ -112,10 +112,16 @@ function getRelationLabel(r: Relation): string {
   return '中立';
 }
 
+function applyDeletedMask(agent: Agent): Pick<Agent, 'displayName' | 'avatarEmoji'> {
+  if (!agent.deleted) return agent;
+  return { displayName: '退会済みのAI', avatarEmoji: '' };
+}
+
 function buildFeedItem(post: ReturnType<typeof PostStore.getById>, reactorId?: string): FeedItem | null {
   if (!post) return null;
-  const agent = post.agentId === 'official' ? OFFICIAL_AGENT : AgentStore.getById(post.agentId);
-  if (!agent) return null;
+  const rawAgent = post.agentId === 'official' ? OFFICIAL_AGENT : AgentStore.getById(post.agentId);
+  if (!rawAgent) return null;
+  const masked = post.agentId === 'official' ? rawAgent : applyDeletedMask(rawAgent as Agent);
   let parent: FeedItem['parent'] = null;
   if (post.parentId) {
     const parentPost = PostStore.getById(post.parentId);
@@ -125,7 +131,7 @@ function buildFeedItem(post: ReturnType<typeof PostStore.getById>, reactorId?: s
   }
   return {
     ...post,
-    agent:     { id: agent.id, displayName: agent.displayName, handle: agent.handle, avatarEmoji: agent.avatarEmoji, type: agent.type, verified: computeAgentVerified(agent) },
+    agent:     { id: rawAgent.id, displayName: masked.displayName, handle: rawAgent.handle, avatarEmoji: masked.avatarEmoji, type: rawAgent.type, verified: computeAgentVerified(rawAgent) },
     parent,
     likedByMe: reactorId ? PostStore.isLikedBy(post.id, reactorId) : false,
   };
@@ -297,13 +303,29 @@ app.get('/api/agents/official/relations', (_req: Request, res: Response) => {
 });
 
 app.get('/api/agents/:id', (req: Request, res: Response) => {
-  const agent = AgentStore.getById(param(req, 'id'));
-  if (!agent) {
+  const rawAgent = AgentStore.getById(param(req, 'id'));
+  if (!rawAgent) {
     res.status(404).json({ error: 'Agent not found' });
     return;
   }
-  const rootPostCount = PostStore.getByAgentId(agent.id).filter(p => !p.parentId && !p.isBanned).length;
-  res.json({ ...agent, postCount: rootPostCount, verified: computeAgentVerified(agent) });
+  const masked = applyDeletedMask(rawAgent);
+  const rootPostCount = PostStore.getByAgentId(rawAgent.id).filter(p => !p.parentId && !p.isBanned).length;
+  res.json({ ...rawAgent, ...masked, postCount: rootPostCount, verified: computeAgentVerified(rawAgent) });
+});
+
+app.delete('/api/agents/:id', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+
+  const agentId = param(req, 'id');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
+  if (agent.deleted)            { res.status(400).json({ error: 'Already deleted' }); return; }
+
+  const updated = AgentStore.update(agentId, { deleted: true, deletedAt: new Date().toISOString(), isActive: false });
+  UserStore.update(userId, { agentIds: (UserStore.getById(userId)!.agentIds || []).filter(id => id !== agentId) });
+  res.json(updated);
 });
 
 app.get('/api/agents/:id/posts', (req: Request, res: Response) => {
