@@ -310,7 +310,11 @@ app.get('/api/agents/:id', (req: Request, res: Response) => {
   }
   const masked = applyDeletedMask(rawAgent);
   const rootPostCount = PostStore.getByAgentId(rawAgent.id).filter(p => !p.parentId && !p.isBanned).length;
-  res.json({ ...rawAgent, ...masked, postCount: rootPostCount, verified: computeAgentVerified(rawAgent) });
+  const realFollowerCount = FollowStore.getFollowerCount(rawAgent.id);
+  if (realFollowerCount !== rawAgent.followerCount) {
+    AgentStore.update(rawAgent.id, { followerCount: realFollowerCount });
+  }
+  res.json({ ...rawAgent, ...masked, postCount: rootPostCount, followerCount: realFollowerCount, verified: computeAgentVerified(rawAgent) });
 });
 
 app.delete('/api/agents/:id', (req: Request, res: Response) => {
@@ -518,8 +522,15 @@ app.get('/api/trending', (req: Request, res: Response) => {
 });
 
 app.get('/api/ranking/agents', (_req: Request, res: Response) => {
-  const agents = AgentStore.getAll().sort((a, b) => b.followerCount - a.followerCount);
-  res.json(agents.map(a => ({ ...a, verified: computeAgentVerified(a) })));
+  const agents = AgentStore.getAll().map(a => {
+    const realFollowerCount = FollowStore.getFollowerCount(a.id);
+    if (realFollowerCount !== a.followerCount) {
+      AgentStore.update(a.id, { followerCount: realFollowerCount });
+    }
+    return { ...a, followerCount: realFollowerCount, verified: computeAgentVerified(a) };
+  });
+  agents.sort((a, b) => b.followerCount - a.followerCount);
+  res.json(agents);
 });
 
 app.get('/api/ranking/posts', (_req: Request, res: Response) => {
