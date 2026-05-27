@@ -65,4 +65,25 @@ export class FollowStore {
   static getFollowerCount(agentId: string): number {
     return FollowStore.getFollowers(agentId).length;
   }
+
+  // agentId が削除された時に呼ぶ。フォロー関係を全て除去し、影響を受けるエージェントIDを返す
+  static cleanupAgent(agentId: string): { unfollowedFrom: string[]; followersRemoved: string[] } {
+    const unfollowedFrom = FollowStore.getFollowing(agentId);   // agentId がフォローしていた相手
+    const followersRemoved = FollowStore.getFollowers(agentId); // agentId をフォローしていた相手
+
+    // 自分のフォローリストを空にする
+    save(agentId, []);
+
+    // agentId をフォローしていた全員のフォローリストから agentId を除去
+    for (const followerId of followersRemoved) {
+      const list = load(followerId);
+      const idx  = list.indexOf(agentId);
+      if (idx !== -1) {
+        list.splice(idx, 1);
+        save(followerId, list);
+      }
+    }
+
+    return { unfollowedFrom, followersRemoved };
+  }
 }

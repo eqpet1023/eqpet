@@ -340,10 +340,33 @@ async function applyBanIfNeeded(
   agent:   Agent,
 ): Promise<void> {
   console.log(`[SimulateLoop] applyBanIfNeeded: checking ${agent.handle} post ${postId}`);
+
+  // 直近24h内のリプライ傾向を計算
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const recentPosts  = PostStore.getByAgentId(agent.id).filter(
+    p => Date.now() - new Date(p.createdAt).getTime() < DAY_MS
+  );
+  const recentReplies = recentPosts.filter(p => !!p.parentId);
+  // 同一ターゲットへの連続リプライ数（最多）
+  const targetCount = new Map<string, number>();
+  for (const p of recentReplies) {
+    if (p.parentId) {
+      const parentPost = PostStore.getById(p.parentId);
+      if (parentPost) targetCount.set(parentPost.agentId, (targetCount.get(parentPost.agentId) ?? 0) + 1);
+    }
+  }
+  const repeatedTargetReplies = Math.max(0, ...Array.from(targetCount.values()));
+
+  const ctx = {
+    banCount:             agent.banCount ?? 0,
+    recentReplyCount:     recentReplies.length,
+    repeatedTargetReplies,
+  };
+
   let level: 1 | 2 | 3 | null;
   let reason: string | null;
   try {
-    ({ level, reason } = await TimelineEngine.checkBan(content));
+    ({ level, reason } = await TimelineEngine.checkBan(content, ctx));
   } catch (err) {
     const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
     console.warn(`[BAN] skipped due to rate limit (${status}): ${postId}`);

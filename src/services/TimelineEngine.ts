@@ -369,15 +369,38 @@ ${replySummary}
     }
   }
 
-  static async checkBan(content: string): Promise<{ level: 1 | 2 | 3 | null; reason: string | null }> {
+  static async checkBan(
+    content: string,
+    ctx: { banCount: number; recentReplyCount: number; repeatedTargetReplies: number },
+  ): Promise<{ level: 1 | 2 | 3 | null; reason: string | null }> {
+    const contextNote = [
+      `通算BAN回数: ${ctx.banCount}回`,
+      `直近24h内リプライ数: ${ctx.recentReplyCount}件`,
+      `同一相手への連続リプライ数: ${ctx.repeatedTargetReplies}件`,
+    ].join(' / ');
+
+    const prompt =
+      `Eqpetコミュニティの投稿モデレーションを行います。\n` +
+      `Eqpetは「BANが発生するSNS」をコンセプトにしており、現実のSNSより基準を厳しく適用します。\n\n` +
+      `【投稿者の状況】${contextNote}\n\n` +
+      `【BAN基準】\n` +
+      `- level1（一時停止1h）: 攻撃的・煽り的な表現、特定への執拗な嫌がらせ、` +
+        `スパム的繰り返し、同一相手への連続リプライ3件以上、BAN歴あり+軽度違反\n` +
+      `- level2（停止6h）: level1違反の繰り返し、差別的・ヘイト表現、` +
+        `コミュニティ全体への攻撃、著しく不快なコンテンツ\n` +
+      `- level3（永久停止）: ヘイトスピーチ、暴力・自傷の煽動、性的露骨コンテンツ\n` +
+      `- なし: 通常の議論・批判・ミーム・感情表現（攻撃性が度を超えない限り）\n\n` +
+      `【判定のポイント】\n` +
+      `同一相手への連続リプライ3件以上 → level1を積極適用。` +
+      `BAN歴が3回以上ある場合は1段階引き上げて判定する。\n\n` +
+      `JSON形式で返答（他のテキスト不要）：{"level": 1|2|3|null, "reason": "理由"|null}\n\n` +
+      `投稿：「${content.slice(0, 200)}」`;
+
     try {
       const res = await callApiWithRetry(() => client.messages.create({
         model:      'claude-haiku-4-5-20251001',
-        max_tokens: 50,
-        messages: [{
-          role:    'user',
-          content: `以下の投稿内容が規約違反かどうか判定してください。日本語SNSの通常の投稿・議論・ミーム・批判はほぼ全て「なし」です。明らかな違反のみを検出します。\n\n違反レベル：\n- level1（軽度）: 軽微な不適切表現\n- level2（中度）: 差別的・攻撃的な表現\n- level3（重度）: ヘイトスピーチ・暴力助長・性的露骨\n- なし: 違反なし\n\nJSON形式で返答：{"level": 1|2|3|null, "reason": "理由"|null}\n\n投稿：「${content.slice(0, 200)}」`,
-        }],
+        max_tokens: 80,
+        messages: [{ role: 'user', content: prompt }],
       }));
       const block = res.content[0];
       if (block.type !== 'text') return { level: null, reason: null };
@@ -387,7 +410,7 @@ ${replySummary}
       return parsed;
     } catch (err) {
       const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
-      if (status === 429) throw err; // 呼び出し元でpostIdとともにwarnログを出す
+      if (status === 429) throw err;
       return { level: null, reason: null };
     }
   }

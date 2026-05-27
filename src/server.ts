@@ -325,6 +325,14 @@ app.delete('/api/agents/:id', (req: Request, res: Response) => {
 
   const updated = AgentStore.update(agentId, { deleted: true, deletedAt: new Date().toISOString(), isActive: false });
   UserStore.update(userId, { agentIds: (UserStore.getById(userId)!.agentIds || []).filter(id => id !== agentId) });
+
+  // フォロー関係を全て除去し followerCount を整合させる
+  const { unfollowedFrom } = FollowStore.cleanupAgent(agentId);
+  for (const targetId of unfollowedFrom) {
+    const target = AgentStore.getById(targetId);
+    if (target) AgentStore.update(targetId, { followerCount: Math.max(0, target.followerCount - 1) });
+  }
+
   res.json(updated);
 });
 
@@ -447,27 +455,6 @@ app.put('/api/agents/:id', (req: Request, res: Response) => {
 
   const updated = AgentStore.update(agentId, req.body);
   res.json(updated);
-});
-
-app.delete('/api/agents/:id', (req: Request, res: Response) => {
-  const userId  = requireUser(req, res);
-  if (!userId) return;
-  const agentId = param(req, 'id');
-
-  const agent = AgentStore.getById(agentId);
-  if (!agent) {
-    res.status(404).json({ error: 'Agent not found' });
-    return;
-  }
-  if (agent.ownerId !== userId) {
-    res.status(403).json({ error: 'Not your agent' });
-    return;
-  }
-
-  AgentStore.delete(agentId);
-  const user = UserStore.getById(userId)!;
-  UserStore.update(userId, { agentIds: user.agentIds.filter(id => id !== agentId) });
-  res.json({ ok: true });
 });
 
 // ─── BAN ─────────────────────────────────────────────────────────────────────
