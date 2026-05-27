@@ -208,9 +208,9 @@ function buildPostContext(agent: Agent): PostContext {
     }
   }
 
-  // P4: interests keyword match in last 3h (max 1, random pick)
+  // P4: interests keyword match in last 1.5h (max 1, random pick)
   if (selected.length < 6 && agent.interests.length > 0) {
-    const posts3h = PostStore.getRecentPosts(3 * 60 * 60 * 1000); // ①: 24h→3h
+    const posts3h = PostStore.getRecentPosts(90 * 60 * 1000);
     const matched = posts3h.filter(p =>
       !p.isBanned && !seenIds.has(p.id) && !seenAgentIds.has(p.agentId) &&
       agent.interests.some(kw => p.content.includes(kw))
@@ -334,20 +334,26 @@ async function maybeGif(agent: Agent, content: string): Promise<string | null> {
   return GifService.fetchGif(emotion);
 }
 
+const DANGEROUS_KEYWORDS = ['死ね', '殺す', '殺せ', '殺してやる', 'ヘイト', '差別', '消えろ', 'クズ', '最悪', 'バカ野郎', 'ゴミ', 'キモい', 'うざい', '氏ね'];
+
+function containsDangerousKeywords(text: string): boolean {
+  return DANGEROUS_KEYWORDS.some(kw => text.includes(kw));
+}
+
 async function applyBanIfNeeded(
   postId:  string,
   content: string,
   agent:   Agent,
+  debugLog = false,
 ): Promise<void> {
-  console.log(`[SimulateLoop] applyBanIfNeeded: checking ${agent.handle} post ${postId}`);
-
   // 直近24h内のリプライ傾向を計算
   const DAY_MS = 24 * 60 * 60 * 1000;
-  const recentPosts  = PostStore.getByAgentId(agent.id).filter(
+  const recentPosts   = PostStore.getByAgentId(agent.id).filter(
     p => Date.now() - new Date(p.createdAt).getTime() < DAY_MS
   );
   const recentReplies = recentPosts.filter(p => !!p.parentId);
-  // 同一ターゲットへの連続リプライ数（最多）
+
+  // 同一ターゲットへの24h内リプライ数（最多）— Map が空でも 0 になるよう修正
   const targetCount = new Map<string, number>();
   for (const p of recentReplies) {
     if (p.parentId) {
@@ -355,7 +361,8 @@ async function applyBanIfNeeded(
       if (parentPost) targetCount.set(parentPost.agentId, (targetCount.get(parentPost.agentId) ?? 0) + 1);
     }
   }
-  const repeatedTargetReplies = Math.max(0, ...Array.from(targetCount.values()));
+  const vals = Array.from(targetCount.values());
+  const repeatedTargetReplies = vals.length > 0 ? Math.max(...vals) : 0;
 
   const ctx = {
     banCount:             agent.banCount ?? 0,
@@ -363,10 +370,37 @@ async function applyBanIfNeeded(
     repeatedTargetReplies,
   };
 
+  if (debugLog) {
+    console.log(`[BAN-DEBUG] agent=${agent.handle} post="${content.slice(0, 80)}" ctx=${JSON.stringify(ctx)}`);
+  }
+
+  // ─── 行動パターンによる決定論的BAN（LLM不要）──────────────────────────────
+  // 同一相手に24h内5件以上リプライ → level1 確定
+  if (repeatedTargetReplies >= 5) {
+    const reason = `同一相手への連続リプライ${repeatedTargetReplies}件（24h）`;
+    console.log(`[BAN] ${agent.handle} auto-level1: ${reason}`);
+    PostStore.markBanned(postId, 1, reason);
+    const banUntil = new Date(Date.now() + BAN_DURATION[1]).toISOString();
+    const banCount = (agent.banCount ?? 0) + 1;
+    AgentStore.update(agent.id, { banUntil, banCount });
+    generateBanReport({ ...agent, banCount }, 1).catch(console.error);
+    return;
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // LLMスキップ: リプライ集中なし・初回BAN・危険キーワードなし → 安全とみなしスキップ
+  if (repeatedTargetReplies < 3 && ctx.banCount === 0 && !containsDangerousKeywords(content)) {
+    if (debugLog) console.log(`[BAN-DEBUG] skipped LLM (safe pattern)`);
+    return;
+  }
+
   let level: 1 | 2 | 3 | null;
   let reason: string | null;
   try {
     ({ level, reason } = await TimelineEngine.checkBan(content, ctx));
+    if (debugLog) {
+      console.log(`[BAN-DEBUG] llm result: level=${level} reason=${reason}`);
+    }
   } catch (err) {
     const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
     console.warn(`[BAN] skipped due to rate limit (${status}): ${postId}`);
@@ -392,6 +426,7 @@ async function runBanCycle(): Promise<void> {
   const posts = PostStore.getUncheckedPosts(8);
   if (posts.length === 0) return;
   console.log(`[SimulateLoop] runBanCycle: checking ${posts.length} posts`);
+  let firstDebugDone = false;
   for (const post of posts) {
     if (post.isBanned) {
       PostStore.markBanChecked(post.id);
@@ -402,8 +437,11 @@ async function runBanCycle(): Promise<void> {
       PostStore.markBanChecked(post.id);
       continue;
     }
+    // 最初の1件だけ詳細デバッグログを出力
+    const doDebug = !firstDebugDone;
+    if (doDebug) firstDebugDone = true;
     try {
-      await applyBanIfNeeded(post.id, post.content, agent);
+      await applyBanIfNeeded(post.id, post.content, agent, doDebug);
     } catch (err) {
       console.error(`[SimulateLoop] ban check error for post ${post.id}:`, err);
     } finally {
@@ -1101,6 +1139,8 @@ export class SimulateLoop {
     maintTasks.push(cron.schedule('0 0 * * *', () => {
       postCount24h = 0;
       try { fs.unlinkSync(POSTED_TITLES_FILE); } catch { /* already gone */ }
+      const fetchedQueriesFile = path.join(__dirname, '../../data/news/fetched_queries.json');
+      try { fs.unlinkSync(fetchedQueriesFile); } catch { /* already gone */ }
       RelationStore.decayAll();
       for (const a of AgentStore.getAll().filter(a => a.type === 'user_ai' && (a.repliedThreadsToday?.length ?? 0) > 0)) {
         AgentStore.update(a.id, { repliedThreadsToday: [] });

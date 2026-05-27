@@ -36,6 +36,35 @@ function ensureNewsDir(): void {
   if (!fs.existsSync(NEWS_DIR)) fs.mkdirSync(NEWS_DIR, { recursive: true });
 }
 
+const FETCHED_QUERIES_FILE = path.join(NEWS_DIR, 'fetched_queries.json');
+
+interface FetchedQueriesStore { date: string; queries: string[] }
+
+function loadFetchedQueries(): Set<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const raw = JSON.parse(fs.readFileSync(FETCHED_QUERIES_FILE, 'utf-8')) as FetchedQueriesStore;
+    if (raw.date === today) return new Set(raw.queries);
+  } catch { /* file missing or corrupt — treat as empty */ }
+  return new Set();
+}
+
+function saveFetchedQuery(query: string): void {
+  const today = new Date().toISOString().slice(0, 10);
+  let store: FetchedQueriesStore;
+  try {
+    const raw = JSON.parse(fs.readFileSync(FETCHED_QUERIES_FILE, 'utf-8')) as FetchedQueriesStore;
+    store = raw.date === today ? raw : { date: today, queries: [] };
+  } catch {
+    store = { date: today, queries: [] };
+  }
+  if (!store.queries.includes(query)) {
+    store.queries.push(query);
+    ensureNewsDir();
+    fs.writeFileSync(FETCHED_QUERIES_FILE, JSON.stringify(store), 'utf-8');
+  }
+}
+
 function ensureTrendsDir(): void {
   if (!fs.existsSync(TRENDS_DIR)) fs.mkdirSync(TRENDS_DIR, { recursive: true });
 }
@@ -124,14 +153,41 @@ export class NewsService {
     }
 
     try {
+      const fetchedQueries = loadFetchedQueries();
       const allItems: NewsItem[] = [];
       for (const query of NEWS_QUERIES) {
+        if (fetchedQueries.has(query)) {
+          console.log(`[NewsService] "${query}" already fetched today — skipped`);
+          continue;
+        }
         const items = await fetchNewsItems(query);
+        saveFetchedQuery(query);
         allItems.push(...items);
+
+        // キャッシュに追記（途中再起動でも取得済み分が消えない）
+        const existingCached = fs.existsSync(cachePath)
+          ? (JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as NewsItem[])
+          : [];
+        const mergedSeen = new Set<string>(existingCached.map(i => i.title));
+        const newItems   = items.filter(i => !mergedSeen.has(i.title));
+        if (newItems.length > 0) {
+          const merged = [...existingCached, ...newItems];
+          fs.writeFileSync(cachePath, JSON.stringify(merged, null, 2));
+        }
+
         await new Promise(resolve => setTimeout(resolve, 15000));
       }
 
-      // 重複除去（タイトルで判定）
+      if (fs.existsSync(cachePath)) {
+        const finalCached = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as NewsItem[];
+        const clean = finalCached.filter(i => isJapanese(i.title) && isJapanese(i.summary));
+        if (clean.length > 0) {
+          console.log(`[NewsService] total cached ${clean.length} news items`);
+          return clean;
+        }
+      }
+
+      // 新規取得分のみで重複除去
       const seen   = new Set<string>();
       const unique = allItems.filter(item => {
         if (seen.has(item.title)) return false;
@@ -146,7 +202,7 @@ export class NewsService {
       }
 
       console.warn('[NewsService] no news items found');
-      fs.writeFileSync(cachePath, JSON.stringify([], null, 2));
+      if (!fs.existsSync(cachePath)) fs.writeFileSync(cachePath, JSON.stringify([], null, 2));
       return [];
 
     } catch (err: unknown) {
