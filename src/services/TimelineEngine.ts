@@ -126,11 +126,13 @@ async function callApiWithRetry<T>(
     try {
       return await createFn();
     } catch (err) {
-      const isOverloaded =
-        typeof err === 'object' && err !== null &&
-        'status' in err && (err as { status: number }).status === 529;
-      if (attempt < maxRetries && isOverloaded) {
-        console.warn(`[TimelineEngine] 529 Overloaded, retry ${attempt + 1}/${maxRetries} in 10s`);
+      const status =
+        typeof err === 'object' && err !== null && 'status' in err
+          ? (err as { status: number }).status
+          : 0;
+      const shouldRetry = status === 529 || status === 429;
+      if (attempt < maxRetries && shouldRetry) {
+        console.warn(`[TimelineEngine] ${status} error, retry ${attempt + 1}/${maxRetries} in 10s`);
         await new Promise<void>(r => setTimeout(r, 10_000));
         continue;
       }

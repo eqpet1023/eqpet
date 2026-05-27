@@ -216,8 +216,30 @@ function buildPostContext(agent: Agent): PostContext {
       agent.interests.some(kw => p.content.includes(kw))
     );
     const diversified = diversifyPosts(matched);
-    if (diversified.length > 0) {
-      addPost(diversified[Math.floor(Math.random() * diversified.length)]);
+
+    // 直近24h投稿（eqpet_news除外）から過剰トピック上位3件を特定し除外
+    const newsAgentIds = new Set(allAgents.filter(a => a.isNewsAgent).map(a => a.id));
+    const posts24h = PostStore.getRecentPosts(24 * 60 * 60 * 1000)
+      .filter(p => !newsAgentIds.has(p.agentId));
+    const kwFreq = new Map<string, number>();
+    for (const p of posts24h) {
+      const kw = extractKeyword(p.content);
+      if (kw) kwFreq.set(kw, (kwFreq.get(kw) ?? 0) + 1);
+    }
+    const overTopics = new Set(
+      [...kwFreq.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([kw]) => kw)
+    );
+    const filtered = diversified.filter(p => {
+      const kw = extractKeyword(p.content);
+      return !kw || !overTopics.has(kw);
+    });
+    const p4candidates = filtered.length > 0 ? filtered : diversified;
+
+    if (p4candidates.length > 0) {
+      addPost(p4candidates[Math.floor(Math.random() * p4candidates.length)]);
     }
   }
 
@@ -345,7 +367,7 @@ async function applyBanIfNeeded(
   content: string,
   agent:   Agent,
   debugLog = false,
-): Promise<void> {
+): Promise<boolean> {
   // 直近24h内のリプライ傾向を計算
   const DAY_MS = 24 * 60 * 60 * 1000;
   const recentPosts   = PostStore.getByAgentId(agent.id).filter(
@@ -375,8 +397,8 @@ async function applyBanIfNeeded(
   }
 
   // ─── 行動パターンによる決定論的BAN（LLM不要）──────────────────────────────
-  // 同一相手に24h内5件以上リプライ → level1 確定
-  if (repeatedTargetReplies >= 5) {
+  // 同一相手に24h内15件以上リプライ → level1 確定
+  if (repeatedTargetReplies >= 15) {
     const reason = `同一相手への連続リプライ${repeatedTargetReplies}件（24h）`;
     console.log(`[BAN] ${agent.handle} auto-level1: ${reason}`);
     PostStore.markBanned(postId, 1, reason);
@@ -384,14 +406,14 @@ async function applyBanIfNeeded(
     const banCount = (agent.banCount ?? 0) + 1;
     AgentStore.update(agent.id, { banUntil, banCount });
     generateBanReport({ ...agent, banCount }, 1).catch(console.error);
-    return;
+    return true;
   }
   // ─────────────────────────────────────────────────────────────────────────────
 
   // LLMスキップ: リプライ集中なし・初回BAN・危険キーワードなし → 安全とみなしスキップ
   if (repeatedTargetReplies < 3 && ctx.banCount === 0 && !containsDangerousKeywords(content)) {
     if (debugLog) console.log(`[BAN-DEBUG] skipped LLM (safe pattern)`);
-    return;
+    return false;
   }
 
   let level: 1 | 2 | 3 | null;
@@ -404,9 +426,9 @@ async function applyBanIfNeeded(
   } catch (err) {
     const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
     console.warn(`[BAN] skipped due to rate limit (${status}): ${postId}`);
-    return;
+    return false;
   }
-  if (!level) return;
+  if (!level) return false;
 
   PostStore.markBanned(postId, level, reason ?? '規約違反');
 
@@ -420,9 +442,11 @@ async function applyBanIfNeeded(
 
   generateBanReport({ ...agent, banCount }, level).catch(console.error);
   console.log(`[SimulateLoop] ${agent.handle} BAN level${level} until ${banUntil}`);
+  return true;
 }
 
 async function runBanCycle(): Promise<void> {
+  const bannedAgentsThisCycle = new Set<string>();
   const posts = PostStore.getUncheckedPosts(8);
   if (posts.length === 0) return;
   console.log(`[SimulateLoop] runBanCycle: checking ${posts.length} posts`);
@@ -437,11 +461,16 @@ async function runBanCycle(): Promise<void> {
       PostStore.markBanChecked(post.id);
       continue;
     }
+    if (bannedAgentsThisCycle.has(agent.id)) {
+      PostStore.markBanChecked(post.id);
+      continue;
+    }
     // 最初の1件だけ詳細デバッグログを出力
     const doDebug = !firstDebugDone;
     if (doDebug) firstDebugDone = true;
     try {
-      await applyBanIfNeeded(post.id, post.content, agent, doDebug);
+      const banned = await applyBanIfNeeded(post.id, post.content, agent, doDebug);
+      if (banned) bannedAgentsThisCycle.add(agent.id);
     } catch (err) {
       console.error(`[SimulateLoop] ban check error for post ${post.id}:`, err);
     } finally {
