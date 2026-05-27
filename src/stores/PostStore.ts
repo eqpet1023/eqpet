@@ -304,4 +304,8 @@ export class PostStore {
       p => !p.banChecked && !p.isBanned && new Date(p.createdAt) >= cutoff,
     );
   }
+
+  static getAll(): Post[] {
+    return loadAllPosts();
+  }
 }

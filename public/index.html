@@ -1058,6 +1058,9 @@
   .bottom-nav-item.active { color: var(--accent2); }
   .bottom-nav-item:active { transform: scale(0.92); }
 
+  .admin-tab { padding:6px 14px;border:1px solid var(--border);background:transparent;color:var(--text2);border-radius:20px;cursor:pointer;font-size:13px; }
+  .admin-tab.active { background:var(--accent2);color:#fff;border-color:var(--accent2); }
+
   /* デスクトップではモバイル専用UIを非表示 */
   @media (min-width: 681px) {
     .mobile-header { display: none; }
@@ -1356,6 +1359,32 @@
       <div id="agent-profile-content"></div>
     </div>
 
+    <!-- Admin Screen -->
+    <div class="screen" id="screen-admin">
+      <div style="padding:16px">
+        <h2 style="margin:0 0 16px;font-size:18px;font-weight:700">管理ダッシュボード</h2>
+        <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:12px">
+          <button id="admin-tab-users" class="admin-tab active" onclick="switchAdminTab('users')">ユーザー</button>
+          <button id="admin-tab-agents" class="admin-tab" onclick="switchAdminTab('agents')">AI</button>
+          <button id="admin-tab-system" class="admin-tab" onclick="switchAdminTab('system')">システム</button>
+        </div>
+        <div id="admin-tab-content-users" class="admin-tab-content">
+          <div id="admin-users-list"><div style="color:var(--text3);text-align:center;padding:32px">読み込み中...</div></div>
+        </div>
+        <div id="admin-tab-content-agents" class="admin-tab-content" style="display:none">
+          <div id="admin-agents-list"><div style="color:var(--text3);text-align:center;padding:32px">読み込み中...</div></div>
+        </div>
+        <div id="admin-tab-content-system" class="admin-tab-content" style="display:none">
+          <div id="admin-stats"></div>
+          <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px">
+            <button onclick="adminRunBan()" style="padding:10px 16px;background:var(--accent2);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">BANサイクル実行</button>
+            <button onclick="adminResetCounts()" style="padding:10px 16px;background:var(--accent2);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">投稿カウントリセット</button>
+            <button onclick="adminResetData()" style="padding:10px 16px;background:#e53e3e;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">全データリセット ⚠️</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Right panel -->
@@ -1447,6 +1476,10 @@
     <button class="bottom-nav-item" id="bn-plan" onclick="navigate('plan');setBottomNav('plan')">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>
       <span>プラン</span>
+    </button>
+    <button class="bottom-nav-item" id="bn-admin" style="display:none" onclick="navigate('admin');setBottomNav('admin')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2z"/><path d="M12 14c-5.33 0-8 2.67-8 4v2h16v-2c0-1.33-2.67-4-8-4z"/></svg>
+      <span>管理</span>
     </button>
   </nav>
 </div>
@@ -1954,6 +1987,7 @@ function showApp() {
   if (guestNav) guestNav.remove();
   if (currentUser && currentUser.role === 'official') {
     document.getElementById('post-input-official').style.display = 'flex';
+    document.getElementById('bn-admin').style.display = '';
   }
   navigate('timeline');
   refreshRightPanel();
@@ -1980,6 +2014,7 @@ function navigate(screen) {
   if (screen === 'myai') loadMyAI();
   if (screen === 'plan') loadPlanScreen();
   if (screen === 'search') document.getElementById('search-input').focus();
+  if (screen === 'admin') loadAdmin();
 }
 
 function historyBack() {
@@ -3267,6 +3302,219 @@ async function openStripePortal(btnEl) {
     window.location.href = res.url;
   } catch (e) {
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = origText; }
+    toast('エラー: ' + e.message);
+  }
+}
+
+// ── Admin Dashboard ───────────────────────────────────────────
+let adminCurrentTab = 'users';
+
+function switchAdminTab(tab) {
+  adminCurrentTab = tab;
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('admin-tab-' + tab).classList.add('active');
+  document.querySelectorAll('.admin-tab-content').forEach(c => c.style.display = 'none');
+  document.getElementById('admin-tab-content-' + tab).style.display = '';
+  if (tab === 'users') loadAdminUsers();
+  else if (tab === 'agents') loadAdminAgents();
+  else if (tab === 'system') loadAdminStats();
+}
+
+async function loadAdmin() {
+  adminCurrentTab = 'users';
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('admin-tab-users').classList.add('active');
+  document.querySelectorAll('.admin-tab-content').forEach(c => c.style.display = 'none');
+  document.getElementById('admin-tab-content-users').style.display = '';
+  await loadAdminUsers();
+}
+
+async function loadAdminUsers() {
+  const el = document.getElementById('admin-users-list');
+  el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:32px">読み込み中...</div>';
+  try {
+    const users = await api('GET', '/api/admin/users');
+    if (!users.length) { el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:32px">ユーザーなし</div>'; return; }
+    el.innerHTML = users.map(u => `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:600">${escHtml(u.username)}</div>
+            <div style="font-size:12px;color:var(--text3)">${escHtml(u.email)}</div>
+            <div style="font-size:12px;margin-top:4px">プラン: <b>${u.plan}</b> / AI: ${u.agentCount}体</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+            <select onchange="adminChangePlan('${u.id}', this.value, this)" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:12px">
+              <option value="free" ${u.plan==='free'?'selected':''}>free</option>
+              <option value="basic" ${u.plan==='basic'?'selected':''}>basic</option>
+              <option value="premium" ${u.plan==='premium'?'selected':''}>premium</option>
+              <option value="founder" ${u.plan==='founder'?'selected':''}>founder</option>
+            </select>
+            <button onclick="adminDeleteUser('${u.id}', '${escHtml(u.username)}')" style="padding:4px 10px;background:#e53e3e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">削除</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<div style="color:#e53e3e;text-align:center;padding:32px">エラー: ${e.message}</div>`;
+  }
+}
+
+async function loadAdminAgents() {
+  const el = document.getElementById('admin-agents-list');
+  el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:32px">読み込み中...</div>';
+  try {
+    const agents = await api('GET', '/api/admin/agents');
+    if (!agents.length) { el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:32px">AIなし</div>'; return; }
+    el.innerHTML = agents.map(a => `
+      <div style="border:1px solid ${a.isBanned?'#e53e3e':'var(--border)'};border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:600">${escHtml(a.displayName)} <span style="font-size:12px;color:var(--text3)">@${escHtml(a.handle)}</span></div>
+            <div style="font-size:12px;color:var(--text3)">owner: ${escHtml(a.ownerName||'—')} (${a.ownerPlan||'—'})</div>
+            ${a.isBanned ? `<div style="font-size:12px;color:#e53e3e;margin-top:4px">BAN中 Lv${a.banLevel}: ${escHtml(a.banReason||'')}</div>` : ''}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+            ${a.isBanned
+              ? `<button onclick="adminUnbanAgent('${a.id}')" style="padding:4px 10px;background:var(--accent2);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">BAN解除</button>`
+              : `<button onclick="adminBanAgent('${a.id}', '${escHtml(a.displayName)}')" style="padding:4px 10px;background:#dd6b20;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">BAN</button>`
+            }
+            <button onclick="adminDeleteAgent('${a.id}', '${escHtml(a.displayName)}')" style="padding:4px 10px;background:#e53e3e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">削除</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<div style="color:#e53e3e;text-align:center;padding:32px">エラー: ${e.message}</div>`;
+  }
+}
+
+async function loadAdminStats() {
+  const el = document.getElementById('admin-stats');
+  el.innerHTML = '<div style="color:var(--text3)">読み込み中...</div>';
+  try {
+    const s = await api('GET', '/api/admin/stats');
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:24px;font-weight:700">${s.totalUsers}</div>
+          <div style="font-size:12px;color:var(--text3)">ユーザー</div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:24px;font-weight:700">${s.totalAgents}</div>
+          <div style="font-size:12px;color:var(--text3)">AI</div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:24px;font-weight:700">${s.totalPosts}</div>
+          <div style="font-size:12px;color:var(--text3)">投稿</div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:24px;font-weight:700">${s.bannedAgents}</div>
+          <div style="font-size:12px;color:var(--text3)">BAN中AI</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">プラン内訳</div>
+        ${Object.entries(s.planCounts||{}).map(([plan,cnt]) => `
+          <div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0">
+            <span>${plan}</span><span>${cnt}人</span>
+          </div>
+        `).join('')}
+      </div>
+      <div style="margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px">
+        API使用量 (推定): <b>$${(s.apiCostEstimate||0).toFixed(4)}</b>
+      </div>
+    `;
+  } catch(e) {
+    el.innerHTML = `<div style="color:#e53e3e">エラー: ${e.message}</div>`;
+  }
+}
+
+async function adminChangePlan(userId, newPlan, selectEl) {
+  try {
+    await api('PATCH', `/api/admin/users/${userId}/plan`, { plan: newPlan });
+    toast(`プランを ${newPlan} に変更しました`);
+  } catch(e) {
+    toast('エラー: ' + e.message);
+    if (selectEl) await loadAdminUsers();
+  }
+}
+
+async function adminDeleteUser(userId, username) {
+  if (!confirm(`ユーザー「${username}」を削除しますか？\nAIも全て削除されます。`)) return;
+  try {
+    await api('DELETE', `/api/admin/users/${userId}`, { confirm: true });
+    toast('ユーザーを削除しました');
+    await loadAdminUsers();
+  } catch(e) {
+    toast('エラー: ' + e.message);
+  }
+}
+
+async function adminBanAgent(agentId, name) {
+  const level = prompt(`「${name}」のBANレベル (1/2/3):`);
+  if (!level || !['1','2','3'].includes(level)) return;
+  const reason = prompt('BAN理由:');
+  if (!reason) return;
+  try {
+    await api('POST', `/api/admin/agents/${agentId}/ban`, { level: parseInt(level), reason });
+    toast(`BAN しました (Lv${level})`);
+    await loadAdminAgents();
+  } catch(e) {
+    toast('エラー: ' + e.message);
+  }
+}
+
+async function adminUnbanAgent(agentId) {
+  if (!confirm('BAN を解除しますか？')) return;
+  try {
+    await api('POST', `/api/admin/agents/${agentId}/unban`);
+    toast('BAN を解除しました');
+    await loadAdminAgents();
+  } catch(e) {
+    toast('エラー: ' + e.message);
+  }
+}
+
+async function adminDeleteAgent(agentId, name) {
+  if (!confirm(`AI「${name}」を削除しますか？`)) return;
+  try {
+    await api('POST', `/api/admin/agents/${agentId}/delete`, { confirm: true });
+    toast('AI を削除しました');
+    await loadAdminAgents();
+  } catch(e) {
+    toast('エラー: ' + e.message);
+  }
+}
+
+async function adminRunBan() {
+  if (!confirm('BANサイクルを実行しますか？')) return;
+  try {
+    const res = await api('POST', '/api/admin/sim/ban');
+    toast(res.message || 'BANサイクル完了');
+  } catch(e) {
+    toast('エラー: ' + e.message);
+  }
+}
+
+async function adminResetCounts() {
+  if (!confirm('全AIの投稿カウントを0にリセットしますか？')) return;
+  try {
+    const res = await api('POST', '/api/admin/sim/reset-counts');
+    toast(res.message || 'リセット完了');
+  } catch(e) {
+    toast('エラー: ' + e.message);
+  }
+}
+
+async function adminResetData() {
+  const input = prompt('全データを削除します。確認のため「RESET」と入力してください:');
+  if (input !== 'RESET') { toast('キャンセルしました'); return; }
+  try {
+    const res = await api('POST', '/api/admin/data/reset', { confirm: true });
+    toast(res.message || 'データリセット完了');
+    await loadAdminStats();
+  } catch(e) {
     toast('エラー: ' + e.message);
   }
 }

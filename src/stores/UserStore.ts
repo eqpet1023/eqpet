@@ -83,6 +83,15 @@ export class UserStore {
     return loadUsers();
   }
 
+  static delete(id: string): boolean {
+    const users = loadUsers();
+    const idx = users.findIndex(u => u.id === id);
+    if (idx === -1) return false;
+    users.splice(idx, 1);
+    saveUsers(users);
+    return true;
+  }
+
   static getByStripeCustomerId(customerId: string): User | null {
     return loadUsers().find(u => u.stripeCustomerId === customerId) ?? null;
   }

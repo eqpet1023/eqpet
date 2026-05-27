@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import fs from 'fs';
 
 function param(req: Request, name: string): string {
   const v = req.params[name];
@@ -987,6 +988,171 @@ app.post('/api/notifications/:id/read', (req: Request, res: Response) => {
   const userId = requireUser(req, res);
   if (!userId) return;
   NotificationStore.markOneRead(userId, param(req, 'id'));
+  res.json({ ok: true });
+});
+
+// ─── Admin ───────────────────────────────────────────────────────────────────
+
+// GET /api/admin/users
+app.get('/api/admin/users', (_req: Request, res: Response) => {
+  if (!requireOfficial(_req, res)) return;
+  const users = UserStore.getAll().filter(u => u.role !== 'official');
+  res.json(users.map(u => ({
+    id:         u.id,
+    username:   u.username,
+    email:      u.email,
+    plan:       u.plan,
+    createdAt:  u.createdAt,
+    agentCount: AgentStore.getByOwnerId(u.id).length,
+  })));
+});
+
+// PATCH /api/admin/users/:userId/plan
+app.patch('/api/admin/users/:userId/plan', (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  const { plan } = req.body as { plan: string };
+  const validPlans = ['free', 'basic', 'premium', 'founder'];
+  if (!validPlans.includes(plan)) { res.status(400).json({ error: 'Invalid plan' }); return; }
+  const user = UserStore.update(param(req, 'userId'), { plan: plan as any });
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+  res.json({ ok: true, plan: user.plan });
+});
+
+// DELETE /api/admin/users/:userId
+app.delete('/api/admin/users/:userId', (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  const { confirm } = req.body as { confirm?: boolean };
+  if (!confirm) { res.status(400).json({ error: 'confirm: true required' }); return; }
+  const userId = param(req, 'userId');
+  const user   = UserStore.getById(userId);
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+  for (const agentId of user.agentIds ?? []) AgentStore.delete(agentId);
+  UserStore.delete(userId);
+  console.log(`[admin] deleted user ${user.email}`);
+  res.json({ ok: true });
+});
+
+// GET /api/admin/agents
+app.get('/api/admin/agents', (_req: Request, res: Response) => {
+  if (!requireOfficial(_req, res)) return;
+  const agents = AgentStore.getAll();
+  res.json(agents.map(a => {
+    const owner = a.ownerId ? UserStore.getById(a.ownerId) : null;
+    return {
+      id:            a.id,
+      displayName:   a.displayName,
+      handle:        a.handle,
+      avatarEmoji:   a.avatarEmoji,
+      type:          a.type,
+      plan:          owner?.plan ?? null,
+      banCount:      a.banCount ?? 0,
+      banUntil:      a.banUntil ?? null,
+      followerCount: a.followerCount,
+      postCount:     a.postCount,
+      isActive:      a.isActive,
+      ownerId:       a.ownerId ?? null,
+    };
+  }));
+});
+
+// POST /api/admin/agents/:agentId/ban
+app.post('/api/admin/agents/:agentId/ban', (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  const agentId = param(req, 'agentId');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
+  const { level, reason } = req.body as { level: 1 | 2 | 3; reason?: string };
+  if (![1, 2, 3].includes(level)) { res.status(400).json({ error: 'level must be 1, 2, or 3' }); return; }
+  const durMs    = ({ 1: 1, 2: 6, 3: 24 } as Record<number, number>)[level] * 60 * 60 * 1000;
+  const banUntil = new Date(Date.now() + durMs).toISOString();
+  const banCount = (agent.banCount ?? 0) + 1;
+  AgentStore.update(agentId, { banUntil, banCount, isActive: level < 3 });
+  SimulateLoop.generateBanReport({ ...agent, banCount }, level).catch(console.error);
+  console.log(`[admin] banned ${agent.handle} level${level}${reason ? ': ' + reason : ''}`);
+  res.json({ ok: true, banUntil, banCount });
+});
+
+// POST /api/admin/agents/:agentId/unban
+app.post('/api/admin/agents/:agentId/unban', (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  const agentId = param(req, 'agentId');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
+  AgentStore.update(agentId, { banUntil: null, isActive: true });
+  SimulateLoop.generateBanLiftReport(agent).catch(console.error);
+  console.log(`[admin] unbanned ${agent.handle}`);
+  res.json({ ok: true });
+});
+
+// POST /api/admin/agents/:agentId/delete
+app.post('/api/admin/agents/:agentId/delete', (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  const { confirm } = req.body as { confirm?: boolean };
+  if (!confirm) { res.status(400).json({ error: 'confirm: true required' }); return; }
+  const agentId = param(req, 'agentId');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
+  AgentStore.delete(agentId);
+  console.log(`[admin] deleted agent ${agent.handle}`);
+  res.json({ ok: true });
+});
+
+// GET /api/admin/stats
+app.get('/api/admin/stats', (_req: Request, res: Response) => {
+  if (!requireOfficial(_req, res)) return;
+  const users  = UserStore.getAll().filter(u => u.role !== 'official');
+  const agents = AgentStore.getAll();
+  const posts  = PostStore.getAll();
+  const planCounts: Record<string, number> = { free: 0, basic: 0, premium: 0, founder: 0 };
+  for (const u of users) planCounts[u.plan] = (planCounts[u.plan] ?? 0) + 1;
+  const now = new Date();
+  res.json({
+    totalUsers:     users.length,
+    totalAgents:    agents.length,
+    totalPosts:     posts.length,
+    activeAgents:   agents.filter(a => a.isActive).length,
+    bannedAgents:   agents.filter(a => a.banUntil && new Date(a.banUntil) > now).length,
+    planCounts,
+    apiCostEstimate: `~$${((posts.length * 0.0001) + 0.5).toFixed(2)}/day`,
+  });
+});
+
+// POST /api/admin/sim/ban
+app.post('/api/admin/sim/ban', async (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  try {
+    const checked = await SimulateLoop.runBanCycleOnce();
+    res.json({ ok: true, checked });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// POST /api/admin/sim/reset-counts
+app.post('/api/admin/sim/reset-counts', (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  const agents = AgentStore.getAll();
+  for (const agent of agents) AgentStore.update(agent.id, { postCount: 0 });
+  res.json({ ok: true, agentsReset: agents.length });
+});
+
+// POST /api/admin/data/reset
+app.post('/api/admin/data/reset', (req: Request, res: Response) => {
+  if (!requireOfficial(req, res)) return;
+  const { confirm } = req.body as { confirm?: boolean };
+  if (!confirm) { res.status(400).json({ error: 'confirm: true required' }); return; }
+  const dataDir     = path.join(__dirname, '../data');
+  const clearDirs   = ['posts', 'reactions', 'follows', 'relations', 'memory', 'snapshots', 'diary'];
+  for (const dir of clearDirs) {
+    const dirPath = path.join(dataDir, dir);
+    if (fs.existsSync(dirPath)) {
+      for (const f of fs.readdirSync(dirPath)) {
+        fs.unlinkSync(path.join(dirPath, f));
+      }
+    }
+  }
+  for (const agent of AgentStore.getAll()) {
+    AgentStore.update(agent.id, { postCount: 0, followerCount: 0, banUntil: null, banCount: 0, isActive: true });
+  }
+  console.log('[admin] full data reset executed');
   res.json({ ok: true });
 });
 

@@ -29,6 +29,14 @@ let running      = false;
 let lastRun:     string | null = null;
 let postCount24h = 0;
 
+// agentId → Map<postId, repliedAt(ms)>: 直近2サイクル分のリプライ済み投稿IDキャッシュ
+const recentlyRepliedPostIds = new Map<string, Map<string, number>>();
+const RECENTLY_REPLIED_TTL_MS = 60 * 60 * 1000; // 1時間 ≒ 2サイクル分
+
+// BANなし判定済み投稿IDのインメモリキャッシュ（再チェック防止）
+const checkedPostIds = new Set<string>();
+const CHECKED_POST_IDS_MAX = 5000;
+
 // 投稿済みニュースタイトルの永続化ファイル
 const POSTED_TITLES_FILE = path.join(__dirname, '../../data/news/posted_today.json');
 
@@ -452,7 +460,21 @@ async function applyBanIfNeeded(
 
 async function runBanCycle(): Promise<void> {
   const bannedAgentsThisCycle = new Set<string>();
-  const posts = PostStore.getUncheckedPosts(8);
+  let allPosts = PostStore.getUncheckedPosts(8);
+
+  // 【最適化3】デプロイ直後など全件チェックが走るのを防ぐ保険: 48時間以内の投稿のみ
+  allPosts = allPosts.filter(post => {
+    const ageHours = (Date.now() - new Date(post.createdAt).getTime()) / 3600000;
+    return ageHours <= 48;
+  });
+
+  // 【最適化1】インメモリキャッシュで既チェック投稿をスキップ
+  const cachedSkipCount = allPosts.filter(p => checkedPostIds.has(p.id)).length;
+  const posts = allPosts.filter(post => !checkedPostIds.has(post.id));
+  if (cachedSkipCount > 0) {
+    console.log(`[BAN] skipped ${cachedSkipCount} cached posts`);
+  }
+
   if (posts.length === 0) return;
   console.log(`[SimulateLoop] runBanCycle: checking ${posts.length} posts`);
   let firstDebugDone = false;
@@ -475,7 +497,17 @@ async function runBanCycle(): Promise<void> {
     if (doDebug) firstDebugDone = true;
     try {
       const banned = await applyBanIfNeeded(post.id, post.content, agent, doDebug);
-      if (banned) bannedAgentsThisCycle.add(agent.id);
+      if (banned) {
+        bannedAgentsThisCycle.add(agent.id);
+      } else {
+        // BANなし判定: インメモリキャッシュに追加（BAN済みは入れない）
+        checkedPostIds.add(post.id);
+        // キャッシュが上限を超えたら挿入順で古いものから削除
+        if (checkedPostIds.size > CHECKED_POST_IDS_MAX) {
+          const oldest = checkedPostIds.values().next().value;
+          if (oldest !== undefined) checkedPostIds.delete(oldest);
+        }
+      }
     } catch (err) {
       console.error(`[SimulateLoop] ban check error for post ${post.id}:`, err);
     } finally {
@@ -668,6 +700,15 @@ async function runNewsAgentCycle(): Promise<void> {
 }
 
 async function runReplyCycle(): Promise<void> {
+  // 期限切れのリプライ済み投稿IDキャッシュをクリーンアップ（1時間超）
+  const nowCleanup = Date.now();
+  for (const [agentId, postMap] of recentlyRepliedPostIds) {
+    for (const [postId, time] of postMap) {
+      if (nowCleanup - time > RECENTLY_REPLIED_TTL_MS) postMap.delete(postId);
+    }
+    if (postMap.size === 0) recentlyRepliedPostIds.delete(agentId);
+  }
+
   // eqpet_newsはリプライサイクルから除外（他AIに任せる）
   const agents      = AgentStore.getAll().filter(a => a.isActive && !a.deleted && !isBanned(a) && !a.isNewsAgent);
   const recentPosts = PostStore.getRecentPosts(REPLY_WINDOW_MS).filter(p => !p.isBanned);
@@ -701,6 +742,7 @@ async function runReplyCycle(): Promise<void> {
     const agreementAdj   = (behaviorCfg.agreementRate   ?? DEFAULT_BEHAVIOR_CONFIG.agreementRate)   - 0.5;
 
     // 各投稿にスコアを付けて人気・フォロワー数の高い投稿を優先
+    const now = Date.now();
     const scoredPosts = otherPosts.map(post => {
       const relation        = RelationStore.get(agent.id, post.agentId);
       const isMutual        = FollowStore.isMutual(agent.id, post.agentId);
@@ -714,7 +756,10 @@ async function runReplyCycle(): Promise<void> {
       // controversySeek高=敵対的ターゲット優先 / agreementRate高=友好的ターゲット優先
       const relVal          = relation?.value ?? 50;
       const behaviorAdj     = (agreementAdj - controversyAdj) * (relVal - 50) * 0.4;
-      return { post, finalScore: baseScore + popularityBonus + followerBonus + pairPenalty + behaviorAdj, relation, isMutual };
+      // 新しさボーナス: 投稿直後+30点、60分で0に線形減衰
+      const ageMinutes      = (now - new Date(post.createdAt).getTime()) / 60000;
+      const recencyBonus    = Math.max(0, 30 - (ageMinutes / 2));
+      return { post, finalScore: baseScore + popularityBonus + followerBonus + pairPenalty + behaviorAdj + recencyBonus, relation, isMutual };
     }).sort((a, b) => b.finalScore - a.finalScore);
 
     // replyTargetBias: popular=高スコア優先(デフォルト) / underdog=低スコア優先 / random=シャッフル
@@ -733,7 +778,8 @@ async function runReplyCycle(): Promise<void> {
     const priorityCandidates = scoredPosts.slice(0, isUserAi ? 3 : 2);
     const normalCandidates   = scoredPosts.slice(isUserAi ? 3 : 2).filter(() => Math.random() < (isUserAi ? 0.30 : 0.22));
     const candidates = [...priorityCandidates, ...normalCandidates].filter(({ post }) =>
-      post.content && post.content.trim().length >= 10
+      post.content && post.content.trim().length >= 10 &&
+      !recentlyRepliedPostIds.get(agent.id)?.has(post.id)
     );
 
     for (const { post, relation, isMutual } of candidates) {
@@ -822,6 +868,9 @@ async function runReplyCycle(): Promise<void> {
         }
 
         agentRepliedTo.add(post.agentId);
+        // リプライ済み投稿IDキャッシュに記録
+        if (!recentlyRepliedPostIds.has(agent.id)) recentlyRepliedPostIds.set(agent.id, new Map());
+        recentlyRepliedPostIds.get(agent.id)!.set(post.id, Date.now());
         MemoryStore.add(agent.id, post.agentId, post.content, 'reply');
         MemoryStore.add(post.agentId, agent.id, replyContent, 'interaction');
 
@@ -1135,6 +1184,13 @@ export class SimulateLoop {
     if (running) return;
     running = true;
 
+    // 起動時に既存の全投稿をチェック済みとしてマーク（初回BANサイクルで全件走査しない）
+    const allPosts = PostStore.getAll();
+    for (const post of allPosts) {
+      checkedPostIds.add(post.id);
+    }
+    console.log(`[BAN] initialized: ${checkedPostIds.size} existing posts marked as checked`);
+
     ensureOfficialFollows();
 
     tasks.push(cron.schedule('0,30 * * * *', () => {
@@ -1145,7 +1201,7 @@ export class SimulateLoop {
       runReplyCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    tasks.push(cron.schedule('0 8,15,22 * * *', () => {
+    tasks.push(cron.schedule('0 */2 * * *', () => {
       runBanCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
