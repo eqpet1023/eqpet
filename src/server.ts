@@ -745,6 +745,61 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
     .catch(console.error);
 });
 
+// PATCH /api/agents/:id/profile — プロフィール編集（全プラン）
+app.patch('/api/agents/:id/profile', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+
+  const agentId = param(req, 'id');
+  const agent   = AgentStore.getById(agentId);
+  if (!agent)                   { res.status(404).json({ error: 'Agent not found' }); return; }
+  if (agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' });  return; }
+
+  const { displayName, bio, icon, personality } = req.body as {
+    displayName?: string;
+    bio?:         string;
+    icon?:        string;
+    personality?: string[];
+  };
+
+  const patch: Partial<typeof agent> = {};
+
+  if (displayName !== undefined) {
+    const name = displayName.trim();
+    if (name.length < 1 || name.length > 30) {
+      res.status(400).json({ error: '表示名は1〜30文字にしてください' }); return;
+    }
+    patch.displayName = name;
+  }
+
+  if (bio !== undefined) {
+    if (bio.length > 160) {
+      res.status(400).json({ error: '自己紹介は160文字以内にしてください' }); return;
+    }
+    patch.bio = bio.trim();
+  }
+
+  if (icon !== undefined) {
+    const trimmed = icon.trim();
+    // 絵文字チェック: 1文字以上かつ30バイト以内（複合絵文字を許容）
+    if (trimmed.length === 0 || trimmed.length > 10) {
+      res.status(400).json({ error: '絵文字を1つ選択してください' }); return;
+    }
+    patch.avatarEmoji = trimmed;
+  }
+
+  if (personality !== undefined) {
+    if (!Array.isArray(personality)) {
+      res.status(400).json({ error: 'personality must be an array' }); return;
+    }
+    patch.personality = personality as any;
+  }
+
+  // handle は変更不可 — bodyに含まれていても無視
+  const updated = AgentStore.update(agentId, patch);
+  res.json(updated);
+});
+
 // ─── Stripe ──────────────────────────────────────────────────────────────────
 
 app.post('/api/stripe/checkout', async (req: Request, res: Response) => {
@@ -1026,9 +1081,12 @@ app.delete('/api/admin/users/:userId', (req: Request, res: Response) => {
   const userId = param(req, 'userId');
   const user   = UserStore.getById(userId);
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+  // agentIds と getByOwnerId の両方で孤立AIを含め確実に削除
+  const ownedAgents = AgentStore.getByOwnerId(userId).filter(a => a.type === 'user_ai');
+  for (const a of ownedAgents) AgentStore.delete(a.id);
   for (const agentId of user.agentIds ?? []) AgentStore.delete(agentId);
   UserStore.delete(userId);
-  console.log(`[admin] deleted user ${user.email}`);
+  console.log(`[admin] deleted user ${user.email} (${ownedAgents.length} agents removed)`);
   res.json({ ok: true });
 });
 
@@ -1039,18 +1097,23 @@ app.get('/api/admin/agents', (_req: Request, res: Response) => {
   res.json(agents.map(a => {
     const owner = a.ownerId ? UserStore.getById(a.ownerId) : null;
     return {
-      id:            a.id,
-      displayName:   a.displayName,
-      handle:        a.handle,
-      avatarEmoji:   a.avatarEmoji,
-      type:          a.type,
-      plan:          owner?.plan ?? null,
-      banCount:      a.banCount ?? 0,
-      banUntil:      a.banUntil ?? null,
-      followerCount: a.followerCount,
-      postCount:     a.postCount,
-      isActive:      a.isActive,
-      ownerId:       a.ownerId ?? null,
+      id:             a.id,
+      displayName:    a.displayName,
+      handle:         a.handle,
+      avatarEmoji:    a.avatarEmoji,
+      type:           a.type,
+      ownerPlan:      owner?.plan ?? null,
+      ownerUsername:  owner?.username ?? null,
+      ownerEmail:     owner?.email ?? null,
+      banCount:       a.banCount ?? 0,
+      banUntil:       a.banUntil ?? null,
+      isBanned:       !!(a.banUntil && new Date(a.banUntil) > new Date()),
+      banLevel:       a.banCount ?? 0,
+      banReason:      null,
+      followerCount:  a.followerCount,
+      postCount:      a.postCount,
+      isActive:       a.isActive,
+      ownerId:        a.ownerId ?? null,
     };
   }));
 });
@@ -1113,7 +1176,7 @@ app.get('/api/admin/stats', (_req: Request, res: Response) => {
     activeAgents:   agents.filter(a => a.isActive).length,
     bannedAgents:   agents.filter(a => a.banUntil && new Date(a.banUntil) > now).length,
     planCounts,
-    apiCostEstimate: `~$${((posts.length * 0.0001) + 0.5).toFixed(2)}/day`,
+    apiCostEstimate: (posts.length * 0.0001) + 0.5,
   });
 });
 
