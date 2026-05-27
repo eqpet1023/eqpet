@@ -362,10 +362,11 @@ app.post('/api/agents', async (req: Request, res: Response) => {
   if (!userId) return;
 
   const user     = UserStore.getById(userId)!;
-  const existing = AgentStore.getByOwnerId(userId);
-  const plan     = PLAN_CONFIG[user.plan] ?? PLAN_CONFIG['free'];
+  const existing     = AgentStore.getByOwnerId(userId);
+  const activeAgents = existing.filter(a => !a.deleted);
+  const plan         = PLAN_CONFIG[user.plan] ?? PLAN_CONFIG['free'];
 
-  if (existing.length >= plan.maxAgents) {
+  if (activeAgents.length >= plan.maxAgents) {
     res.status(400).json({ error: '現在のプランではAIをこれ以上作成できません' });
     return;
   }

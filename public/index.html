@@ -2408,8 +2408,12 @@ function switchMyAITab(tab, el) {
   if (tab === 'chat') {
     if (['premium','founder'].includes(currentUser?.plan)) {
       openChatModal();
-    } else {
+    } else if (currentUser?.plan === 'free') {
       document.getElementById('upgrade-modal').classList.add('show');
+    } else {
+      // basic: チャットは Premium 以上
+      toast('チャットはPremiumプラン以上で利用できます');
+      navigate('plan');
     }
     return;
   }
@@ -2834,7 +2838,7 @@ async function loadNotifications() {
 
 function handleNotifBell() {
   if (!currentUser) { requireAuth('notification'); return; }
-  if (!notifData || notifData.plan === 'free') {
+  if (currentUser.plan === 'free') {
     document.getElementById('upgrade-modal').classList.add('show');
     return;
   }
