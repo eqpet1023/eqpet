@@ -1261,7 +1261,9 @@ app.post('/api/admin/data/reset', (req: Request, res: Response) => {
 const PORT = parseInt(process.env.PORT || '3000');
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);
+  PostStore.initPostsCache();
   PostStore.initReactionsCache();
+  AgentStore.initAgentsCache();
 
   // behaviorConfig再生成との競合を避けるため120秒遅延してニュース取得
   setTimeout(() => {

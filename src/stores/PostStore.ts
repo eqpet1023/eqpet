@@ -6,6 +6,9 @@ import { Post, Reaction } from '../types';
 const POSTS_DIR     = path.join(__dirname, '../../data/posts');
 const REACTIONS_DIR = path.join(__dirname, '../../data/reactions');
 
+// インメモリキャッシュ: postId → Post
+const postsCache = new Map<string, Post>();
+
 // インメモリキャッシュ: postId → Reaction[]
 const reactionsCache = new Map<string, Reaction[]>();
 
@@ -26,34 +29,60 @@ function ensureDirs(): void {
   if (!fs.existsSync(REACTIONS_DIR)) fs.mkdirSync(REACTIONS_DIR, { recursive: true });
 }
 
+function savePostsForDateAsync(dateKey: string): void {
+  const posts = [...postsCache.values()].filter(p => p.createdAt.startsWith(dateKey));
+  ensureDirs();
+  fs.promises.writeFile(postsFilePath(dateKey), JSON.stringify(posts, null, 2)).catch(err =>
+    console.error(`[PostStore] posts write error for ${dateKey}:`, err),
+  );
+}
+
 function saveReactionsAsync(postId: string, reactions: Reaction[]): void {
   ensureDirs();
-  const data = JSON.stringify(reactions, null, 2);
-  fs.promises.writeFile(reactionsFilePath(postId), data).catch(err =>
+  fs.promises.writeFile(reactionsFilePath(postId), JSON.stringify(reactions, null, 2)).catch(err =>
     console.error(`[PostStore] reactions write error for ${postId}:`, err),
   );
 }
 
-function loadPostsForDate(dateKey: string): Post[] {
-  ensureDirs();
-  const p = postsFilePath(dateKey);
-  if (!fs.existsSync(p)) return [];
-  return JSON.parse(fs.readFileSync(p, 'utf-8'));
-}
-
-function savePostsForDate(dateKey: string, posts: Post[]): void {
-  ensureDirs();
-  fs.writeFileSync(postsFilePath(dateKey), JSON.stringify(posts, null, 2));
-}
-
+// キャッシュから全投稿を返す（ファイルアクセスなし）
 function loadAllPosts(): Post[] {
-  ensureDirs();
-  return fs.readdirSync(POSTS_DIR)
-    .filter(f => f.endsWith('.json'))
-    .flatMap(f => JSON.parse(fs.readFileSync(path.join(POSTS_DIR, f), 'utf-8')) as Post[]);
+  return [...postsCache.values()];
 }
 
 export class PostStore {
+  static initPostsCache(): void {
+    ensureDirs();
+    postsCache.clear();
+    const files = fs.readdirSync(POSTS_DIR).filter(f => f.endsWith('.json'));
+    for (const file of files) {
+      try {
+        const posts = JSON.parse(fs.readFileSync(path.join(POSTS_DIR, file), 'utf-8')) as Post[];
+        for (const post of posts) {
+          postsCache.set(post.id, post);
+        }
+      } catch {
+        // 壊れたファイルはスキップ
+      }
+    }
+    console.log(`[PostStore] postsCache loaded: ${postsCache.size} entries`);
+  }
+
+  static initReactionsCache(): void {
+    ensureDirs();
+    reactionsCache.clear();
+    const files = fs.readdirSync(REACTIONS_DIR).filter(f => f.endsWith('.json'));
+    for (const file of files) {
+      try {
+        const postId    = file.replace(/\.json$/, '');
+        const reactions = JSON.parse(fs.readFileSync(path.join(REACTIONS_DIR, file), 'utf-8')) as Reaction[];
+        reactionsCache.set(postId, reactions);
+      } catch {
+        // 壊れたファイルはスキップ
+      }
+    }
+    console.log(`[PostStore] reactionsCache loaded: ${reactionsCache.size} entries`);
+  }
+
   static create(
     agentId:         string,
     content:         string,
@@ -67,7 +96,6 @@ export class PostStore {
     isComebackPost?: boolean,
   ): Post {
     const dateKey = todayKey();
-    const posts   = loadPostsForDate(dateKey);
     const post: Post = {
       id:              uuidv4(),
       agentId,
@@ -86,8 +114,8 @@ export class PostStore {
       replyCount:      0,
       repostCount:     0,
     };
-    posts.push(post);
-    savePostsForDate(dateKey, posts);
+    postsCache.set(post.id, post);
+    savePostsForDateAsync(dateKey);
 
     if (parentId) {
       PostStore.incrementCount(parentId, 'replyCount');
@@ -97,7 +125,7 @@ export class PostStore {
   }
 
   static getById(id: string): Post | null {
-    return loadAllPosts().find(p => p.id === id) ?? null;
+    return postsCache.get(id) ?? null;
   }
 
   static getTimeline(limit = 20, before?: string): Post[] {
@@ -116,22 +144,6 @@ export class PostStore {
     return loadAllPosts()
       .filter(p => p.parentId === parentId)
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  }
-
-  static initReactionsCache(): void {
-    ensureDirs();
-    reactionsCache.clear();
-    const files = fs.readdirSync(REACTIONS_DIR).filter(f => f.endsWith('.json'));
-    for (const file of files) {
-      try {
-        const postId    = file.replace(/\.json$/, '');
-        const reactions = JSON.parse(fs.readFileSync(path.join(REACTIONS_DIR, file), 'utf-8')) as Reaction[];
-        reactionsCache.set(postId, reactions);
-      } catch {
-        // 壊れたファイルはスキップ
-      }
-    }
-    console.log(`[PostStore] reactionsCache loaded: ${reactionsCache.size} entries`);
   }
 
   static addReaction(postId: string, agentId: string, type: 'like' | 'repost'): Reaction | null {
@@ -175,25 +187,16 @@ export class PostStore {
   }
 
   static adjustCount(postId: string, field: 'likeCount' | 'replyCount' | 'repostCount', delta: number): void {
-    ensureDirs();
-    const all = fs.readdirSync(POSTS_DIR).filter(f => f.endsWith('.json'));
-    for (const file of all) {
-      const filePath = path.join(POSTS_DIR, file);
-      const posts: Post[] = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-      const idx = posts.findIndex(p => p.id === postId);
-      if (idx !== -1) {
-        posts[idx][field] = Math.max(0, posts[idx][field] + delta);
-        fs.writeFileSync(filePath, JSON.stringify(posts, null, 2));
-        return;
-      }
-    }
+    const post = postsCache.get(postId);
+    if (!post) return;
+    post[field] = Math.max(0, post[field] + delta);
+    savePostsForDateAsync(post.createdAt.slice(0, 10));
   }
 
   static addLike(postId: string, reactorId: string): { liked: boolean; likeCount: number } {
     const reactions = PostStore.getReactions(postId);
     if (reactions.some(r => r.agentId === reactorId && r.type === 'like')) {
-      const post = PostStore.getById(postId);
-      return { liked: true, likeCount: post?.likeCount ?? 0 };
+      return { liked: true, likeCount: postsCache.get(postId)?.likeCount ?? 0 };
     }
     const reaction: Reaction = {
       id: uuidv4(), postId, agentId: reactorId, type: 'like',
@@ -203,23 +206,20 @@ export class PostStore {
     reactionsCache.set(postId, reactions);
     saveReactionsAsync(postId, reactions);
     PostStore.adjustCount(postId, 'likeCount', 1);
-    const post = PostStore.getById(postId);
-    return { liked: true, likeCount: post?.likeCount ?? 0 };
+    return { liked: true, likeCount: postsCache.get(postId)?.likeCount ?? 0 };
   }
 
   static removeLike(postId: string, reactorId: string): { liked: boolean; likeCount: number } {
     const reactions = PostStore.getReactions(postId);
     const idx       = reactions.findIndex(r => r.agentId === reactorId && r.type === 'like');
     if (idx === -1) {
-      const post = PostStore.getById(postId);
-      return { liked: false, likeCount: post?.likeCount ?? 0 };
+      return { liked: false, likeCount: postsCache.get(postId)?.likeCount ?? 0 };
     }
     reactions.splice(idx, 1);
     reactionsCache.set(postId, reactions);
     saveReactionsAsync(postId, reactions);
     PostStore.adjustCount(postId, 'likeCount', -1);
-    const post = PostStore.getById(postId);
-    return { liked: false, likeCount: post?.likeCount ?? 0 };
+    return { liked: false, likeCount: postsCache.get(postId)?.likeCount ?? 0 };
   }
 
   static isLikedBy(postId: string, reactorId: string): boolean {
@@ -237,7 +237,6 @@ export class PostStore {
     const allPosts = loadAllPosts();
     const recent   = allPosts.filter(p => new Date(p.createdAt) >= cutoff && !p.isBanned);
 
-    // リプライしているユニークなagentIdのマップを構築
     const replyAgents = new Map<string, Set<string>>();
     for (const post of allPosts) {
       if (post.parentId) {
@@ -300,36 +299,20 @@ export class PostStore {
   }
 
   static markBanned(postId: string, banLevel: 1 | 2 | 3, banReason: string): void {
-    ensureDirs();
-    const all = fs.readdirSync(POSTS_DIR).filter(f => f.endsWith('.json'));
-    for (const file of all) {
-      const filePath = path.join(POSTS_DIR, file);
-      const posts: Post[] = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-      const idx = posts.findIndex(p => p.id === postId);
-      if (idx !== -1) {
-        posts[idx].isBanned   = true;
-        posts[idx].banLevel   = banLevel;
-        posts[idx].banReason  = banReason;
-        posts[idx].banChecked = true;
-        fs.writeFileSync(filePath, JSON.stringify(posts, null, 2));
-        return;
-      }
-    }
+    const post = postsCache.get(postId);
+    if (!post) return;
+    post.isBanned   = true;
+    post.banLevel   = banLevel;
+    post.banReason  = banReason;
+    post.banChecked = true;
+    savePostsForDateAsync(post.createdAt.slice(0, 10));
   }
 
   static markBanChecked(postId: string): void {
-    ensureDirs();
-    const all = fs.readdirSync(POSTS_DIR).filter(f => f.endsWith('.json'));
-    for (const file of all) {
-      const filePath = path.join(POSTS_DIR, file);
-      const posts: Post[] = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-      const idx = posts.findIndex(p => p.id === postId);
-      if (idx !== -1) {
-        posts[idx].banChecked = true;
-        fs.writeFileSync(filePath, JSON.stringify(posts, null, 2));
-        return;
-      }
-    }
+    const post = postsCache.get(postId);
+    if (!post) return;
+    post.banChecked = true;
+    savePostsForDateAsync(post.createdAt.slice(0, 10));
   }
 
   static getUncheckedPosts(hoursBack: number): Post[] {
