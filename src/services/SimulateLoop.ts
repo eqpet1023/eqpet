@@ -346,6 +346,7 @@ function buildPostContext(agent: Agent): PostContext {
     .filter(p => !p.isBanned)
     .slice(0, 30);
   const overusedWords = agent.isNewsAgent ? [] : extractOverusedWords(recent30ForWords);
+  console.log('[SIM-03] overusedWords:', overusedWords);
 
   return {
     recentPosts,
