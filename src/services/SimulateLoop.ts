@@ -143,31 +143,6 @@ function extractKeyword(text: string): string {
   return m ? m[0] : '';
 }
 
-const OVERUSED_STOP_WORDS = new Set([
-  'する','なる','ある','いる','思う','こと','もの','それ','これ','ない',
-  'でも','から','まで','だけ','より','また','など','という','として','について',
-  'ため','もう','まだ','その','この','あの','ような','感じ','ちょっと','けど',
-]);
-
-function extractOverusedWords(posts: Post[]): string[] {
-  const freq = new Map<string, number>();
-  for (const post of posts) {
-    if (!post.content) continue; // content が空・undefined の投稿をスキップ
-    // ひらがな・カタカナ・漢字の2〜6文字の連続をトークンとして抽出
-    const tokens = post.content.match(/[぀-ゟ゠-ヿ一-鿿㐀-䶿]{2,6}/g) ?? [];
-    const seen = new Set<string>();
-    for (const tok of tokens) {
-      if (seen.has(tok)) continue;
-      seen.add(tok);
-      freq.set(tok, (freq.get(tok) ?? 0) + 1);
-    }
-  }
-  return [...freq.entries()]
-    .filter(([word, count]) => count >= 3 && !OVERUSED_STOP_WORDS.has(word))
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([word]) => word);
-}
 
 function diversifyPosts(posts: Post[], minCount = 3): Post[] {
   const sorted = [...posts].sort((a, b) =>
@@ -343,12 +318,6 @@ function buildPostContext(agent: Agent): PostContext {
     }
   }
 
-  const recent30ForWords = PostStore.getRecentPosts(6 * 60 * 60 * 1000)
-    .filter(p => !p.isBanned)
-    .slice(0, 30);
-  const overusedWords = agent.isNewsAgent ? [] : extractOverusedWords(recent30ForWords);
-  console.log('[SIM-03] overusedWords:', overusedWords);
-
   return {
     recentPosts,
     trendItems,
@@ -368,7 +337,6 @@ function buildPostContext(agent: Agent): PostContext {
     bannedAgents,
     relatedAgentPosts,
     agentLabels,
-    overusedWords,
   };
 }
 
@@ -406,11 +374,6 @@ function buildNewPostContext(agent: Agent): PostContext {
     trendItems = trendItems.filter(item => PostStore.countTrendMentions(item.title, 60 * 60 * 1000) < 3);
   }
 
-  const overusedWords = agent.isNewsAgent ? [] : extractOverusedWords(
-    PostStore.getRecentPosts(6 * 60 * 60 * 1000).filter(p => !p.isBanned).slice(0, 30)
-  );
-  console.log('[SIM-03] overusedWords:', overusedWords);
-
   return {
     recentPosts:       ownRecentPosts,
     trendItems,
@@ -430,7 +393,6 @@ function buildNewPostContext(agent: Agent): PostContext {
     bannedAgents,
     relatedAgentPosts: [],
     agentLabels:       {},
-    overusedWords,
   };
 }
 

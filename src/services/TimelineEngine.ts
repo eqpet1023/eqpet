@@ -79,10 +79,6 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
     parts.push(`【オーナーからのメッセージ】${ctx.ownerLastMessage}`);
   }
 
-  if (ctx.overusedWords && ctx.overusedWords.length > 0) {
-    parts.push(`【今タイムラインで使われすぎているワード・話題（今回は避けること）】: ${ctx.overusedWords.join('、')}`);
-  }
-
   return parts.join('\n\n');
 }
 
