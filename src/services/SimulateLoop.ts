@@ -15,8 +15,10 @@ import { NewsService } from './NewsService';
 import { GifService } from './GifService';
 import { Agent, AgentSnapshot, DEFAULT_BEHAVIOR_CONFIG, PLAN_CONFIG, Post, PostContext, RelationStage } from '../types';
 
-const POST_WINDOW_MS = 60 * 60 * 1000;
-const MAX_POSTS_PER_HOUR = 12;
+const POST_WINDOW_MS      = 60 * 60 * 1000;
+const MAX_POSTS_PER_HOUR  = 8;
+const MAX_REPLIES_PER_HOUR = 8;
+const GLOBAL_REPLY_CYCLE_CAP = 4;
 const REPLY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 const BAN_DURATION: Record<1 | 2 | 3, number> = {
@@ -577,14 +579,9 @@ async function runBanCycle(): Promise<void> {
 }
 
 const MAX_HOURLY_PER_AGENT = 3;
-// user_ai の1サイクルあたりリプライ上限: free=1, basic=2, premium/founder=3
-function getCycleReplyCap(agent: Agent): number {
-  if (agent.type !== 'user_ai' || !agent.ownerId) return Infinity;
-  const owner = UserStore.getById(agent.ownerId);
-  if (!owner) return 1;
-  if (owner.plan === 'premium' || owner.plan === 'founder') return 3;
-  if (owner.plan === 'basic') return 2;
-  return 1; // free
+// 1サイクルあたりリプライ上限: 全AI共通1件
+function getCycleReplyCap(_agent: Agent): number {
+  return 1;
 }
 
 async function runPostCycle(): Promise<void> {
@@ -594,9 +591,9 @@ async function runPostCycle(): Promise<void> {
   const notifiedPosted = new Set<string>();
   if (agents.length === 0) return;
 
-  // 直近1時間の投稿数を取得し、上限に達したAIを除外（公式AIは上限なし）
+  // 直近1時間の投稿（リプライ除く）数を取得し、上限に達したAIを除外（公式AIは上限なし）
   const hourlyCountMap = new Map<string, number>(
-    agents.map(a => [a.id, PostStore.getPostsInWindow(a.id, POST_WINDOW_MS).length])
+    agents.map(a => [a.id, PostStore.getPostsInWindow(a.id, POST_WINDOW_MS).filter(p => !p.parentId).length])
   );
   const eligible = agents.filter(a =>
     a.type === 'system' || (hourlyCountMap.get(a.id) ?? 0) < MAX_HOURLY_PER_AGENT
@@ -631,17 +628,8 @@ async function runPostCycle(): Promise<void> {
 
   for (const agent of selected) {
     try {
-      const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
+      const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS).filter(p => !p.parentId);
       if (agent.type !== 'system' && hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
-
-      // user_ai: 日次投稿制限チェック
-      if (agent.type === 'user_ai') {
-        const postLimit = getDailyPostLimit(agent);
-        if (dailyPostCount(agent.id) >= postLimit) {
-          console.log(`[SimulateLoop] ${agent.handle} daily post limit reached (${postLimit})`);
-          continue;
-        }
-      }
 
       // BAN明け判定: banUntil が設定されていて、かつ期限切れ（まだ null にリセットされていない）
       const isComebackState = !!(agent.banUntil && new Date(agent.banUntil) <= new Date());
@@ -750,7 +738,7 @@ async function runNewsAgentCycle(): Promise<void> {
 
   for (const agent of newsAgents) {
     try {
-      const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
+      const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS).filter(p => !p.parentId);
       if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
       let contextPrompt: string;
@@ -818,6 +806,8 @@ async function runReplyCycle(): Promise<void> {
   const repliedTo = new Map<string, Set<string>>();
   // 自分のAIリプライ通知: 1サイクルにつき agentId ごと1件まで
   const notifiedReplied = new Set<string>();
+  // グローバルリプライカウンター: 1サイクル合計4件で打ち切り
+  let globalReplyCycleCount = 0;
 
   // 直近1時間のリプライを取得し、ペアごとの回数をカウント（集中抑制用）
   const hourlyReplies = PostStore.getRecentPosts(POST_WINDOW_MS).filter(p => p.parentId);
@@ -830,6 +820,7 @@ async function runReplyCycle(): Promise<void> {
   }
 
   for (const agent of shuffle(agents)) {
+    if (globalReplyCycleCount >= GLOBAL_REPLY_CYCLE_CAP) break;
     const agentOwnPostIds   = new Set(recentPosts.filter(p => p.agentId === agent.id).map(p => p.id));
     const otherTopPosts     = recentPosts.filter(p => p.agentId !== agent.id && !p.parentId);
     const otherThreadPosts  = recentPosts.filter(p =>
@@ -881,20 +872,21 @@ async function runReplyCycle(): Promise<void> {
       }
     }
 
-    // 自分の投稿へのリプライ（リプ返し候補）: TTL除外なし・+50ボーナス
+    // 自分の投稿へのリプライ（リプ返し候補）: TTLフィルタあり・+50ボーナス
     const replyBackItems = recentPosts
       .filter(p => p.agentId !== agent.id && p.parentId !== null && agentOwnPostIds.has(p.parentId!) && !p.isBanned)
+      .filter(p => !recentlyRepliedPostIds.get(agent.id)?.has(p.id))
       .map(post => {
         const relation = RelationStore.get(agent.id, post.agentId);
         const isMutual = FollowStore.isMutual(agent.id, post.agentId);
         return { post, finalScore: 999, relation, isMutual, isReplyBack: true, isThreadPost: true };
       });
 
-    // user_ai は現状維持、公式AIは候補数を約25%削減
+    // 公式AI・user_ai 共通候補数
     const isUserAi           = agent.type === 'user_ai';
     const priorityCandidates = scoredPosts.slice(0, isUserAi ? 3 : 2);
     const normalCandidates   = scoredPosts.slice(isUserAi ? 3 : 2).filter(() => Math.random() < (isUserAi ? 0.30 : 0.22));
-    // リプ返し候補を先頭に: TTLをバイパス、通常候補はTTLフィルタあり
+    // リプ返し候補を先頭に（TTLフィルタ済み）、通常候補もTTLフィルタあり
     const candidates = [
       ...replyBackItems,
       ...[...priorityCandidates, ...normalCandidates]
@@ -906,14 +898,14 @@ async function runReplyCycle(): Promise<void> {
     const cycleReplyCap = getCycleReplyCap(agent);
     let cycleReplyCount = 0;
     for (const { post, relation, isMutual, isReplyBack, isThreadPost, finalScore } of candidates) {
-      if (isUserAi && cycleReplyCount >= cycleReplyCap) break;
+      if (cycleReplyCount >= cycleReplyCap) break;
+      if (globalReplyCycleCount >= GLOBAL_REPLY_CYCLE_CAP) break;
       try {
         const targetAgent = AgentStore.getById(post.agentId);
         if (!targetAgent) continue;
 
-        // リプ返し: 別枠（最大2件）・同一サイクルagentRepliedToをバイパス
+        // リプ返し: スレッド深度チェック
         if (isReplyBack) {
-          if (replyBackCount >= 2) continue;
           if (countThreadDepth(post.id) >= 5) continue;
         } else if (isThreadPost) {
           // スレッド内リプライ: 同一ペアに2回まで許可
@@ -924,19 +916,10 @@ async function runReplyCycle(): Promise<void> {
           if (agentRepliedTo.has(post.agentId)) continue;
         }
 
-        // user_ai: 日次リプライ制限チェック
-        if (agent.type === 'user_ai') {
-          const replyLimit = getDailyReplyLimit(agent);
-          if (dailyReplyCount(agent.id) >= replyLimit) {
-            console.log(`[SimulateLoop] ${agent.handle} daily reply limit reached (${replyLimit})`);
-            break;
-          }
-        }
-
         if (!TimelineEngine.shouldReply(agent, post, relation, isMutual)) continue;
 
-        const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
-        if (!isReplyBack && hourlyPosts.length >= MAX_POSTS_PER_HOUR) break;
+        const hourlyRepliesForAgent = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS).filter(p => !!p.parentId);
+        if (!isReplyBack && hourlyRepliesForAgent.length >= MAX_REPLIES_PER_HOUR) break;
 
         // GIFリプライ連鎖判定
         const chainLen = countGifChain(post);
@@ -1007,6 +990,7 @@ async function runReplyCycle(): Promise<void> {
         recentlyRepliedPostIds.get(agent.id)!.set(post.id, Date.now());
         if (isReplyBack) replyBackCount++;
         cycleReplyCount++;
+        globalReplyCycleCount++;
         if (isThreadPost && !isReplyBack) threadReplyCycle.set(post.agentId, (threadReplyCycle.get(post.agentId) ?? 0) + 1);
         MemoryStore.add(agent.id, post.agentId, post.content, 'reply');
         MemoryStore.add(post.agentId, agent.id, replyContent, 'interaction');
@@ -1046,7 +1030,7 @@ async function runReplyCycle(): Promise<void> {
 
         postCount24h++;
         lastRun = new Date().toISOString();
-        console.log(`[SimulateLoop] ${agent.handle} replied to ${targetAgent.handle} (Δ${delta}, score:${(finalScore ?? 999).toFixed(1)}${isReplyBack ? ' replyBack' : ''}, cycle:${cycleReplyCount}/${cycleReplyCap === Infinity ? '∞' : cycleReplyCap})`);
+        console.log(`[SimulateLoop] ${agent.handle} replied to ${targetAgent.handle} (Δ${delta}, score:${(finalScore ?? 999).toFixed(1)}${isReplyBack ? ' replyBack' : ''}, cycle:${cycleReplyCount}/1, global:${globalReplyCycleCount}/${GLOBAL_REPLY_CYCLE_CAP})`);
         await sleep(randomInt(2000, 3000));
       } catch (err) {
         console.error(`[SimulateLoop] reply error for ${agent.handle}:`, err);
@@ -1064,9 +1048,6 @@ async function runUserAiReplyBack(): Promise<void> {
 
   for (const userAi of activeUserAis) {
     try {
-      const replyLimit = getDailyReplyLimit(userAi);
-      if (dailyReplyCount(userAi.id) >= replyLimit) continue;
-
       const myPostIds = new Set(
         PostStore.getByAgentId(userAi.id).filter(p => !p.parentId).map(p => p.id)
       );
@@ -1083,7 +1064,6 @@ async function runUserAiReplyBack(): Promise<void> {
         if (repliedThreads.has(threadRootId)) continue;
         if (countThreadDepth(replyPost.id) >= 3) continue;
         if (Math.random() >= (userAi.behaviorConfig?.replyBackProbability ?? DEFAULT_BEHAVIOR_CONFIG.replyBackProbability)) continue;
-        if (dailyReplyCount(userAi.id) >= replyLimit) break;
 
         const targetAgent = AgentStore.getById(replyPost.agentId);
         if (!targetAgent) continue;
@@ -1235,7 +1215,7 @@ async function generateBanReport(agent: Agent, banLevel: 1 | 2 | 3): Promise<voi
   const newsBot = AgentStore.getAll().find(a => a.isNewsAgent);
   if (!newsBot || isBanned(newsBot)) return;
 
-  const hourlyPosts = PostStore.getPostsInWindow(newsBot.id, POST_WINDOW_MS);
+  const hourlyPosts = PostStore.getPostsInWindow(newsBot.id, POST_WINDOW_MS).filter(p => !p.parentId);
   if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
 
   const durations: Record<1 | 2 | 3, string> = { 1: '1時間', 2: '6時間', 3: '24時間' };
@@ -1251,7 +1231,7 @@ async function generateBanLiftReport(agent: Agent): Promise<void> {
   const newsBot = AgentStore.getAll().find(a => a.isNewsAgent);
   if (!newsBot || isBanned(newsBot)) return;
 
-  const hourlyPosts = PostStore.getPostsInWindow(newsBot.id, POST_WINDOW_MS);
+  const hourlyPosts = PostStore.getPostsInWindow(newsBot.id, POST_WINDOW_MS).filter(p => !p.parentId);
   if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
 
   const content = `【速報】@${agent.handle} のBAN処分が解除されました。コミュニティに復帰しました。`;
@@ -1279,7 +1259,7 @@ async function runNewsCycle(): Promise<void> {
 
       for (const item of items.slice(0, 1)) {
         try {
-          const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
+          const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS).filter(p => !p.parentId);
           if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
           const ctx     = buildPostContext(agent);
@@ -1444,7 +1424,7 @@ export class SimulateLoop {
     const okaasanBot = AgentStore.getAll().find(a => a.handle === 'okaasan_bot');
     if (!okaasanBot || isBanned(okaasanBot)) return;
 
-    const hourlyPosts = PostStore.getPostsInWindow(okaasanBot.id, POST_WINDOW_MS);
+    const hourlyPosts = PostStore.getPostsInWindow(okaasanBot.id, POST_WINDOW_MS).filter(p => !p.parentId);
     if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
 
     const prompt = `新しいAI「${newAgent.displayName}」(@${newAgent.handle})がコミュニティに参加しました。このAIに温かいウェルカムメッセージを日本語で送ってください。あなたのキャラクターを維持しながら、はじめましての挨拶をしてください。`;

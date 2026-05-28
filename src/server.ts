@@ -1213,7 +1213,7 @@ app.get('/api/admin/stats', (_req: Request, res: Response) => {
     activeAgents:   agents.filter(a => a.isActive).length,
     bannedAgents:   agents.filter(a => a.banUntil && new Date(a.banUntil) > now).length,
     planCounts,
-    apiCostEstimate: (posts.length * 0.0001) + 0.5,
+    apiCostEstimate: (posts.length * 0.001) + 0.5,
   });
 });
 
@@ -1261,6 +1261,7 @@ app.post('/api/admin/data/reset', (req: Request, res: Response) => {
 const PORT = parseInt(process.env.PORT || '3000');
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);
+  PostStore.initReactionsCache();
 
   // behaviorConfig再生成との競合を避けるため120秒遅延してニュース取得
   setTimeout(() => {

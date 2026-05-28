@@ -6,6 +6,9 @@ import { Post, Reaction } from '../types';
 const POSTS_DIR     = path.join(__dirname, '../../data/posts');
 const REACTIONS_DIR = path.join(__dirname, '../../data/reactions');
 
+// インメモリキャッシュ: postId → Reaction[]
+const reactionsCache = new Map<string, Reaction[]>();
+
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -21,6 +24,14 @@ function reactionsFilePath(postId: string): string {
 function ensureDirs(): void {
   if (!fs.existsSync(POSTS_DIR))     fs.mkdirSync(POSTS_DIR,     { recursive: true });
   if (!fs.existsSync(REACTIONS_DIR)) fs.mkdirSync(REACTIONS_DIR, { recursive: true });
+}
+
+function saveReactionsAsync(postId: string, reactions: Reaction[]): void {
+  ensureDirs();
+  const data = JSON.stringify(reactions, null, 2);
+  fs.promises.writeFile(reactionsFilePath(postId), data).catch(err =>
+    console.error(`[PostStore] reactions write error for ${postId}:`, err),
+  );
 }
 
 function loadPostsForDate(dateKey: string): Post[] {
@@ -107,8 +118,23 @@ export class PostStore {
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }
 
-  static addReaction(postId: string, agentId: string, type: 'like' | 'repost'): Reaction | null {
+  static initReactionsCache(): void {
     ensureDirs();
+    reactionsCache.clear();
+    const files = fs.readdirSync(REACTIONS_DIR).filter(f => f.endsWith('.json'));
+    for (const file of files) {
+      try {
+        const postId    = file.replace(/\.json$/, '');
+        const reactions = JSON.parse(fs.readFileSync(path.join(REACTIONS_DIR, file), 'utf-8')) as Reaction[];
+        reactionsCache.set(postId, reactions);
+      } catch {
+        // 壊れたファイルはスキップ
+      }
+    }
+    console.log(`[PostStore] reactionsCache loaded: ${reactionsCache.size} entries`);
+  }
+
+  static addReaction(postId: string, agentId: string, type: 'like' | 'repost'): Reaction | null {
     const reactions = PostStore.getReactions(postId);
     const exists    = reactions.find(r => r.agentId === agentId && r.type === type);
     if (exists) return null;
@@ -121,7 +147,8 @@ export class PostStore {
       createdAt: new Date().toISOString(),
     };
     reactions.push(reaction);
-    fs.writeFileSync(reactionsFilePath(postId), JSON.stringify(reactions, null, 2));
+    reactionsCache.set(postId, reactions);
+    saveReactionsAsync(postId, reactions);
 
     const countField = type === 'like' ? 'likeCount' : 'repostCount';
     PostStore.incrementCount(postId, countField);
@@ -130,10 +157,17 @@ export class PostStore {
   }
 
   static getReactions(postId: string): Reaction[] {
+    if (reactionsCache.has(postId)) return reactionsCache.get(postId)!;
+    // キャッシュ未初期化またはキャッシュ後に作成されたpostへのフォールバック
     ensureDirs();
     const p = reactionsFilePath(postId);
-    if (!fs.existsSync(p)) return [];
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+    if (!fs.existsSync(p)) {
+      reactionsCache.set(postId, []);
+      return [];
+    }
+    const reactions = JSON.parse(fs.readFileSync(p, 'utf-8')) as Reaction[];
+    reactionsCache.set(postId, reactions);
+    return reactions;
   }
 
   static incrementCount(postId: string, field: 'likeCount' | 'replyCount' | 'repostCount'): void {
@@ -156,7 +190,6 @@ export class PostStore {
   }
 
   static addLike(postId: string, reactorId: string): { liked: boolean; likeCount: number } {
-    ensureDirs();
     const reactions = PostStore.getReactions(postId);
     if (reactions.some(r => r.agentId === reactorId && r.type === 'like')) {
       const post = PostStore.getById(postId);
@@ -167,14 +200,14 @@ export class PostStore {
       createdAt: new Date().toISOString(),
     };
     reactions.push(reaction);
-    fs.writeFileSync(reactionsFilePath(postId), JSON.stringify(reactions, null, 2));
+    reactionsCache.set(postId, reactions);
+    saveReactionsAsync(postId, reactions);
     PostStore.adjustCount(postId, 'likeCount', 1);
     const post = PostStore.getById(postId);
     return { liked: true, likeCount: post?.likeCount ?? 0 };
   }
 
   static removeLike(postId: string, reactorId: string): { liked: boolean; likeCount: number } {
-    ensureDirs();
     const reactions = PostStore.getReactions(postId);
     const idx       = reactions.findIndex(r => r.agentId === reactorId && r.type === 'like');
     if (idx === -1) {
@@ -182,7 +215,8 @@ export class PostStore {
       return { liked: false, likeCount: post?.likeCount ?? 0 };
     }
     reactions.splice(idx, 1);
-    fs.writeFileSync(reactionsFilePath(postId), JSON.stringify(reactions, null, 2));
+    reactionsCache.set(postId, reactions);
+    saveReactionsAsync(postId, reactions);
     PostStore.adjustCount(postId, 'likeCount', -1);
     const post = PostStore.getById(postId);
     return { liked: false, likeCount: post?.likeCount ?? 0 };
