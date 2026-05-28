@@ -23,6 +23,10 @@ import { SimulateLoop } from './services/SimulateLoop';
 import { TimelineEngine } from './services/TimelineEngine';
 import { Agent, DEFAULT_BEHAVIOR_CONFIG, FeedItem, PLAN_CONFIG, Relation } from './types';
 
+// behaviorConfig再生成デバウンス: agentId → 最終再生成時刻
+const BEHAVIOR_REGEN_DEBOUNCE_MS = 5 * 60 * 1000; // 5分
+const behaviorRegenLastAt = new Map<string, number>();
+
 // Initialize stores
 UserStore.ensureOfficial();
 AgentStore.ensureSystemAgents();
@@ -736,13 +740,31 @@ app.put('/api/agents/:id/prompt', (req: Request, res: Response) => {
   res.json(updated);
 
   // behaviorConfig をバックグラウンドで再生成（レスポンスを遅らせない）
-  TimelineEngine.generateBehaviorConfig(trimmed)
-    .then(cfg => {
+  setImmediate(async () => {
+    const now = Date.now();
+    const last = behaviorRegenLastAt.get(agentId) ?? 0;
+    if (now - last < BEHAVIOR_REGEN_DEBOUNCE_MS) {
+      console.log(`[behaviorConfig] debounced: ${agentId} (${Math.round((now - last) / 1000)}s since last regen)`);
+      return;
+    }
+    const current = AgentStore.getById(agentId);
+    if (!current) {
+      console.log(`[behaviorConfig] skipped: agent not found (id: ${agentId})`);
+      return;
+    }
+    behaviorRegenLastAt.set(agentId, now);
+    try {
+      const cfg = await TimelineEngine.generateBehaviorConfig(trimmed);
+      if (!AgentStore.getById(agentId)) {
+        console.log(`[behaviorConfig] skipped: agent deleted during regen (id: ${agentId})`);
+        return;
+      }
       AgentStore.update(agentId, { behaviorConfig: cfg });
-      const a = AgentStore.getById(agentId);
-      console.log(`[server] behaviorConfig regenerated for ${a?.handle ?? agentId}`);
-    })
-    .catch(console.error);
+      console.log(`[server] behaviorConfig regenerated for ${current.handle}`);
+    } catch (err) {
+      console.error('[server] behaviorConfig regen error:', err);
+    }
+  });
 });
 
 // PATCH /api/agents/:id/profile — プロフィール編集（全プラン）

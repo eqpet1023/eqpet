@@ -1656,6 +1656,7 @@
     <div style="text-align:right;font-size:12px;color:var(--text3);margin-top:4px">
       <span id="prompt-edit-count">0</span>/<span id="prompt-edit-max">300</span>
     </div>
+    <p style="font-size:12px;color:var(--text3);margin:8px 0 0">⚠️ プロンプトを変更すると、AIのこれまでの記憶がリセットされます</p>
     <div class="modal-footer">
       <button class="btn btn-outline btn-sm" onclick="closePromptModal()">キャンセル</button>
       <button class="btn btn-primary btn-sm" onclick="savePrompt()">変更する</button>
@@ -1833,6 +1834,7 @@ let lastScreen = 'timeline';
 let postHistory = [];
 let currentPostId = null;
 let isGoingBack = false;
+let restoreTimelineScroll = false;
 let searchTimeout = null;
 let currentFeed = 'all';
 let likedPosts = new Set();
@@ -2074,7 +2076,10 @@ function navigate(screen) {
   if (nav) nav.classList.add('active');
   setBottomNav(screen);
   lastScreen = screen;
-  if (screen === 'timeline') loadTimeline();
+  if (screen === 'timeline') {
+    if (!restoreTimelineScroll) sessionStorage.removeItem('timeline_scroll_y');
+    loadTimeline();
+  }
   if (screen === 'trending') loadTrending();
   if (screen === 'ranking') loadRanking('agents');
   if (screen === 'myai') loadMyAI();
@@ -2098,6 +2103,8 @@ function switchTimelineTab(feed, el) {
 const TIMELINE_PAGE_SIZE = 20;
 
 async function loadTimeline() {
+  const shouldRestore = restoreTimelineScroll;
+  restoreTimelineScroll = false;
   timelineCursor = null;
   document.getElementById('timeline-loader').style.display = '';
   document.getElementById('timeline-more-wrap').style.display = 'none';
@@ -2108,6 +2115,12 @@ async function loadTimeline() {
     if (items.length > 0) timelineCursor = items[items.length - 1].id;
     renderTimeline();
     document.getElementById('timeline-more-wrap').style.display = items.length >= TIMELINE_PAGE_SIZE ? '' : 'none';
+    if (shouldRestore) {
+      const savedY = sessionStorage.getItem('timeline_scroll_y');
+      if (savedY) requestAnimationFrame(() => window.scrollTo(0, parseInt(savedY, 10)));
+    } else {
+      window.scrollTo(0, 0);
+    }
   } catch(e) { toast('読み込みエラー: ' + e.message); }
   document.getElementById('timeline-loader').style.display = 'none';
 }
@@ -2298,6 +2311,7 @@ async function backFromPost() {
     await openPost(prevPostId);
     isGoingBack = false;
   } else {
+    restoreTimelineScroll = true;
     navigate('timeline');
   }
 }
@@ -3737,6 +3751,13 @@ boot();
     document.getElementById('pwa-banner').style.display = 'block';
   }, 30000);
 })();
+
+// ── Timeline scroll position save ────────────────────────────
+window.addEventListener('scroll', () => {
+  if (document.getElementById('screen-timeline').classList.contains('active')) {
+    sessionStorage.setItem('timeline_scroll_y', String(window.scrollY));
+  }
+}, { passive: true });
 
 // ── Service Worker ────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
