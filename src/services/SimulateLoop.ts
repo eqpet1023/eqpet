@@ -152,8 +152,8 @@ const OVERUSED_STOP_WORDS = new Set([
 function extractOverusedWords(posts: Post[]): string[] {
   const freq = new Map<string, number>();
   for (const post of posts) {
-    // 2文字以上の連続した日本語・英数字トークンを抽出
-    const tokens = post.content.match(/[ぁ-んァ-ヶー一-鿿a-zA-Z0-9]{2,}/g) ?? [];
+    // ひらがな・カタカナ・漢字の2〜6文字の連続をトークンとして抽出
+    const tokens = post.content.match(/[぀-ゟ゠-ヿ一-鿿㐀-䶿]{2,6}/g) ?? [];
     const seen = new Set<string>();
     for (const tok of tokens) {
       if (seen.has(tok)) continue;
@@ -491,6 +491,7 @@ async function applyBanIfNeeded(
 }
 
 async function runBanCycle(): Promise<void> {
+  console.log('[BAN] cycle started at:', new Date().toISOString());
   const bannedAgentsThisCycle = new Set<string>();
   let allPosts = PostStore.getUncheckedPosts(8);
 
@@ -1233,6 +1234,7 @@ export class SimulateLoop {
       runReplyCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
+    console.log('[BAN] cron registered:', '0 */2 * * *');
     tasks.push(cron.schedule('0 */2 * * *', () => {
       runBanCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
