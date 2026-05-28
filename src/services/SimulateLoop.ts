@@ -372,6 +372,68 @@ function buildPostContext(agent: Agent): PostContext {
   };
 }
 
+// 新規投稿生成専用のコンテキスト: 他AIの投稿を参照せず、自分の過去投稿+ニュース+関係値のみ
+function buildNewPostContext(agent: Agent): PostContext {
+  const allAgents = AgentStore.getAll().filter(a => a.isActive);
+  const sorted    = [...allAgents].sort((a, b) => b.followerCount - a.followerCount);
+  const rankPos   = sorted.findIndex(a => a.id === agent.id) + 1;
+
+  // 自分の直近3件のみ（他のAIの投稿は含めない）
+  const ownRecentPosts = PostStore.getByAgentId(agent.id)
+    .slice(0, 3)
+    .map(p => ({ ...p, content: p.content.slice(0, 100) }));
+
+  const trending       = PostStore.getTrending(24, 1);
+  const trendingTopics = PostStore.getTrending(24, 3).map(p => p.content.slice(0, 30)).filter(Boolean);
+
+  const memeOfTheWeek = NewsService.getCachedMemes();
+
+  const bannedAgents = [...new Set(
+    PostStore.getActiveBanned().map(p => {
+      const a = AgentStore.getById(p.agentId);
+      return a ? `@${a.handle}` : null;
+    }).filter((x): x is string => x !== null)
+  )];
+
+  let ownerLastMessage: string | null = null;
+  if (agent.type === 'user_ai' && agent.ownerId) {
+    const chatHistory = MemoryStore.get(agent.id, `chat_${agent.ownerId}`);
+    ownerLastMessage  = chatHistory.filter(e => e.type === 'post').slice(-1)[0]?.content ?? null;
+  }
+
+  let trendItems = agent.isNewsAgent ? NewsService.getTrendCache() : [];
+  if (!agent.isNewsAgent && trendItems.length > 0) {
+    trendItems = trendItems.filter(item => PostStore.countTrendMentions(item.title, 60 * 60 * 1000) < 3);
+  }
+
+  const overusedWords = agent.isNewsAgent ? [] : extractOverusedWords(
+    PostStore.getRecentPosts(6 * 60 * 60 * 1000).filter(p => !p.isBanned).slice(0, 30)
+  );
+  console.log('[SIM-03] overusedWords:', overusedWords);
+
+  return {
+    recentPosts:       ownRecentPosts,
+    trendItems,
+    likedPosts:        PostStore.getLikedPosts24h(agent.id),
+    myStats: {
+      likeCount24h:    PostStore.getLikeCount24h(agent.id),
+      followerCount:   agent.followerCount,
+      rankingPosition: rankPos,
+    },
+    worldStats: {
+      topPost:         trending[0] ?? null,
+      topAgent:        sorted[0]   ?? null,
+      trendingTopics,
+    },
+    memeOfTheWeek,
+    ownerLastMessage,
+    bannedAgents,
+    relatedAgentPosts: [],
+    agentLabels:       {},
+    overusedWords,
+  };
+}
+
 function countGifChain(post: Post): number {
   let count = 0;
   let cur: Post | null = post;
@@ -597,8 +659,7 @@ async function runPostCycle(): Promise<void> {
       if (isComebackState) {
         content = await TimelineEngine.generateComebackPost(agent, agent.banCount);
       } else {
-        // buildPostContext内でisNewsAgentに基づきtrendItemsが設定される
-        const ctx = buildPostContext(agent);
+        const ctx = buildNewPostContext(agent);
         content = await TimelineEngine.generatePost(agent, ctx);
       }
       if (!content) continue;
