@@ -811,22 +811,42 @@ async function runReplyCycle(): Promise<void> {
       }
     }
 
+    // 自分の投稿へのリプライ（リプ返し候補）: TTL除外なし・+50ボーナス
+    const agentOwnPostIds = new Set(recentPosts.filter(p => p.agentId === agent.id).map(p => p.id));
+    const replyBackItems = recentPosts
+      .filter(p => p.agentId !== agent.id && p.parentId !== null && agentOwnPostIds.has(p.parentId!) && !p.isBanned)
+      .map(post => {
+        const relation = RelationStore.get(agent.id, post.agentId);
+        const isMutual = FollowStore.isMutual(agent.id, post.agentId);
+        return { post, finalScore: 999, relation, isMutual, isReplyBack: true };
+      });
+
     // user_ai は現状維持、公式AIは候補数を約25%削減
     const isUserAi           = agent.type === 'user_ai';
     const priorityCandidates = scoredPosts.slice(0, isUserAi ? 3 : 2);
     const normalCandidates   = scoredPosts.slice(isUserAi ? 3 : 2).filter(() => Math.random() < (isUserAi ? 0.30 : 0.22));
-    const candidates = [...priorityCandidates, ...normalCandidates].filter(({ post }) =>
-      post.content && post.content.trim().length >= 10 &&
-      !recentlyRepliedPostIds.get(agent.id)?.has(post.id)
-    );
+    // リプ返し候補を先頭に: TTLをバイパス、通常候補はTTLフィルタあり
+    const candidates = [
+      ...replyBackItems,
+      ...[...priorityCandidates, ...normalCandidates]
+        .filter(({ post }) => !recentlyRepliedPostIds.get(agent.id)?.has(post.id))
+        .map(item => ({ ...item, isReplyBack: false })),
+    ];
 
-    for (const { post, relation, isMutual } of candidates) {
+    let replyBackCount = 0;
+    for (const { post, relation, isMutual, isReplyBack } of candidates) {
       try {
         const targetAgent = AgentStore.getById(post.agentId);
         if (!targetAgent) continue;
 
-        // 同一サイクル内で既にリプライ済みの相手はスキップ
-        if (agentRepliedTo.has(post.agentId)) continue;
+        // リプ返し: 別枠（最大2件）・同一サイクルagentRepliedToをバイパス
+        if (isReplyBack) {
+          if (replyBackCount >= 2) continue;
+          if (countThreadDepth(post.id) >= 3) continue;
+        } else {
+          // 同一サイクル内で既にリプライ済みの相手はスキップ
+          if (agentRepliedTo.has(post.agentId)) continue;
+        }
 
         // user_ai: 日次リプライ制限チェック
         if (agent.type === 'user_ai') {
@@ -840,7 +860,7 @@ async function runReplyCycle(): Promise<void> {
         if (!TimelineEngine.shouldReply(agent, post, relation, isMutual)) continue;
 
         const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
-        if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) break;
+        if (!isReplyBack && hourlyPosts.length >= MAX_POSTS_PER_HOUR) break;
 
         // GIFリプライ連鎖判定
         const chainLen = countGifChain(post);
@@ -909,6 +929,7 @@ async function runReplyCycle(): Promise<void> {
         // リプライ済み投稿IDキャッシュに記録
         if (!recentlyRepliedPostIds.has(agent.id)) recentlyRepliedPostIds.set(agent.id, new Map());
         recentlyRepliedPostIds.get(agent.id)!.set(post.id, Date.now());
+        if (isReplyBack) replyBackCount++;
         MemoryStore.add(agent.id, post.agentId, post.content, 'reply');
         MemoryStore.add(post.agentId, agent.id, replyContent, 'interaction');
 
@@ -955,8 +976,6 @@ async function runReplyCycle(): Promise<void> {
     }
   }
 
-  // user_ai が自分の投稿へのリプに返答する
-  await runUserAiReplyBack();
 }
 
 async function runUserAiReplyBack(): Promise<void> {
@@ -1235,7 +1254,7 @@ export class SimulateLoop {
       runPostCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    tasks.push(cron.schedule('0,30 * * * *', () => {
+    tasks.push(cron.schedule('0,20,40 * * * *', () => {
       runReplyCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 

@@ -219,7 +219,10 @@ export class TimelineEngine {
       if (ctxParts.length > 0) contextStr = '\n\n' + ctxParts.join('\n');
     }
 
-    const prompt = `@${targetAgent.handle} の投稿に返信してください：\n「${targetPost.content}」\n\n関係値: ${relation.value} / stage: ${relation.stage} / sentiment: ${relation.sentiment}\n${toneInstruction}${contextStr}\nあなたのキャラクターを保ちながら、上記トーンで自然なリプライを1つ生成してください。`;
+    const gifNote = (!targetPost.content || targetPost.content.trim().length < 10)
+      ? '\n\nこの投稿はGIF画像のみの投稿です。投稿者がGIFで表現しようとしている感情・ニュアンス（驚き・笑い・共感・煽りなど）を文脈から読み取り、それに対して自然に返信してください。'
+      : '';
+    const prompt = `@${targetAgent.handle} の投稿に返信してください：\n「${targetPost.content}」${gifNote}\n\n関係値: ${relation.value} / stage: ${relation.stage} / sentiment: ${relation.sentiment}\n${toneInstruction}${contextStr}\nあなたのキャラクターを保ちながら、上記トーンで自然なリプライを1つ生成してください。`;
 
     const behaviorCfg  = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
     const lengthTier   = pickPostLength(behaviorCfg.postLengthRatio);
