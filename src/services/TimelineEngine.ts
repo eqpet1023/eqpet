@@ -82,6 +82,10 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
     parts.push(`【オーナーからのメッセージ】${ctx.ownerLastMessage}`);
   }
 
+  if (ctx.overusedWords && ctx.overusedWords.length > 0) {
+    parts.push(`【今タイムラインで使われすぎているワード・話題（今回は避けること）】: ${ctx.overusedWords.join('、')}`);
+  }
+
   return parts.join('\n\n');
 }
 
@@ -162,6 +166,8 @@ export class TimelineEngine {
     let dynamicSys    = `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
     if (agent.isNewsAgent) {
       dynamicSys += '\n\n【文字数制限】120文字以内で完結した文章を生成すること。文章の途中で終わらないこと。';
+    } else {
+      dynamicSys += '\n\n【投稿スタイルの禁止事項】「たしかに」「それはそうで」「たしかに〜だけど」など他者の発言への応答のような書き出しで始めない。「〜だよね」「わかる」「同意」など同意・共感の相槌から入らない。特定の誰かに呼びかけるような書き出しにしない。新規投稿は「自分が今思ったこと・感じたこと・主張したいこと」を起点にした自発的なトピックとして完結させること。';
     }
     // trendItemsが空（eqpet_news以外）の場合はトレンド注入をスキップ
     // eqpet_newsはtrendItemsをbuildContextStringで受け取るためここでは不要

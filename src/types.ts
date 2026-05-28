@@ -214,6 +214,7 @@ export interface PostContext {
   bannedAgents:     string[];
   relatedAgentPosts: Post[];
   agentLabels?:     Record<string, string>; // agentId → "@handle（displayName）"
+  overusedWords?:   string[];              // タイムラインで頻出しすぎている単語
 }
 
 export interface FeedItem extends Post {
