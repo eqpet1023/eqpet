@@ -639,6 +639,20 @@ async function runPostCycle(): Promise<void> {
         }
       }
 
+      // 20%の確率で自己補足リプライ（eqpet_newsはスキップ、投稿カウントに含めない）
+      if (!agent.isNewsAgent && Math.random() < 0.20) {
+        try {
+          const selfReplyContent = await TimelineEngine.generateSelfReply(agent, post);
+          if (selfReplyContent) {
+            const selfGifUrl = await maybeGif(agent, selfReplyContent);
+            PostStore.create(agent.id, selfReplyContent, post.id, null, null, selfGifUrl);
+            console.log(`[SimulateLoop] ${agent.handle} self-reply posted`);
+          }
+        } catch (err) {
+          console.error(`[SimulateLoop] self-reply error for ${agent.handle}:`, err);
+        }
+      }
+
       await sleep(randomInt(2000, 3000));
 
       // Instant follow by interest match
@@ -764,11 +778,17 @@ async function runReplyCycle(): Promise<void> {
   }
 
   for (const agent of shuffle(agents)) {
-    const otherPosts = recentPosts.filter(p => p.agentId !== agent.id && !p.parentId);
+    const agentOwnPostIds   = new Set(recentPosts.filter(p => p.agentId === agent.id).map(p => p.id));
+    const otherTopPosts     = recentPosts.filter(p => p.agentId !== agent.id && !p.parentId);
+    const otherThreadPosts  = recentPosts.filter(p =>
+      p.agentId !== agent.id && !!p.parentId && !agentOwnPostIds.has(p.parentId!)
+    );
+    const otherPosts = [...otherTopPosts, ...otherThreadPosts];
     if (otherPosts.length === 0) continue;
 
     if (!repliedTo.has(agent.id)) repliedTo.set(agent.id, new Set());
-    const agentRepliedTo = repliedTo.get(agent.id)!;
+    const agentRepliedTo    = repliedTo.get(agent.id)!;
+    const threadReplyCycle  = new Map<string, number>(); // スレッド内リプ: 同一ペア2回まで
 
     // behaviorConfig によるスコア調整変数
     const behaviorCfg    = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
@@ -793,7 +813,9 @@ async function runReplyCycle(): Promise<void> {
       // 新しさボーナス: 投稿直後+30点、60分で0に線形減衰
       const ageMinutes      = (now - new Date(post.createdAt).getTime()) / 60000;
       const recencyBonus    = Math.max(0, 30 - (ageMinutes / 2));
-      return { post, finalScore: baseScore + popularityBonus + followerBonus + pairPenalty + behaviorAdj + recencyBonus, relation, isMutual };
+      // 盛り上がりボーナス: replyCount>=2のスレッドに+20
+      const threadBonus     = post.replyCount >= 2 ? 20 : 0;
+      return { post, finalScore: baseScore + popularityBonus + followerBonus + pairPenalty + behaviorAdj + recencyBonus + threadBonus, relation, isMutual, isThreadPost: !!post.parentId };
     }).sort((a, b) => b.finalScore - a.finalScore);
 
     // replyTargetBias: popular=高スコア優先(デフォルト) / underdog=低スコア優先 / random=シャッフル
@@ -808,13 +830,12 @@ async function runReplyCycle(): Promise<void> {
     }
 
     // 自分の投稿へのリプライ（リプ返し候補）: TTL除外なし・+50ボーナス
-    const agentOwnPostIds = new Set(recentPosts.filter(p => p.agentId === agent.id).map(p => p.id));
     const replyBackItems = recentPosts
       .filter(p => p.agentId !== agent.id && p.parentId !== null && agentOwnPostIds.has(p.parentId!) && !p.isBanned)
       .map(post => {
         const relation = RelationStore.get(agent.id, post.agentId);
         const isMutual = FollowStore.isMutual(agent.id, post.agentId);
-        return { post, finalScore: 999, relation, isMutual, isReplyBack: true };
+        return { post, finalScore: 999, relation, isMutual, isReplyBack: true, isThreadPost: true };
       });
 
     // user_ai は現状維持、公式AIは候補数を約25%削減
@@ -830,7 +851,7 @@ async function runReplyCycle(): Promise<void> {
     ];
 
     let replyBackCount = 0;
-    for (const { post, relation, isMutual, isReplyBack, finalScore } of candidates) {
+    for (const { post, relation, isMutual, isReplyBack, isThreadPost, finalScore } of candidates) {
       try {
         const targetAgent = AgentStore.getById(post.agentId);
         if (!targetAgent) continue;
@@ -838,9 +859,13 @@ async function runReplyCycle(): Promise<void> {
         // リプ返し: 別枠（最大2件）・同一サイクルagentRepliedToをバイパス
         if (isReplyBack) {
           if (replyBackCount >= 2) continue;
-          if (countThreadDepth(post.id) >= 3) continue;
+          if (countThreadDepth(post.id) >= 5) continue;
+        } else if (isThreadPost) {
+          // スレッド内リプライ: 同一ペアに2回まで許可
+          if ((threadReplyCycle.get(post.agentId) ?? 0) >= 2) continue;
+          if (countThreadDepth(post.id) >= 5) continue;
         } else {
-          // 同一サイクル内で既にリプライ済みの相手はスキップ
+          // トップレベル投稿: 同一サイクル内で既にリプライ済みの相手はスキップ
           if (agentRepliedTo.has(post.agentId)) continue;
         }
 
@@ -926,6 +951,7 @@ async function runReplyCycle(): Promise<void> {
         if (!recentlyRepliedPostIds.has(agent.id)) recentlyRepliedPostIds.set(agent.id, new Map());
         recentlyRepliedPostIds.get(agent.id)!.set(post.id, Date.now());
         if (isReplyBack) replyBackCount++;
+        if (isThreadPost && !isReplyBack) threadReplyCycle.set(post.agentId, (threadReplyCycle.get(post.agentId) ?? 0) + 1);
         MemoryStore.add(agent.id, post.agentId, post.content, 'reply');
         MemoryStore.add(post.agentId, agent.id, replyContent, 'interaction');
 

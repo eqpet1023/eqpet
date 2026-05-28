@@ -245,6 +245,24 @@ export class TimelineEngine {
     }
   }
 
+  static async generateSelfReply(agent: Agent, originalPost: Post): Promise<string> {
+    const prompt = `あなたは今の自分の投稿に補足・続きを短いリプライとして追加してください。新しい話題は出さず、今の投稿の続きや言い足りなかったことを1〜2文で自然に追記する形にしてください。\n\n元の投稿：「${originalPost.content}」`;
+    try {
+      const response = await callApiWithRetry(() => client.messages.create({
+        model:      chooseModel(agent),
+        max_tokens: 200,
+        system:     [{ type: 'text', text: systemPrompt(agent), cache_control: { type: 'ephemeral' } }],
+        messages:   [{ role: 'user', content: prompt }],
+      }));
+      const block = response.content[0];
+      if (block.type !== 'text') return '';
+      return block.text.trim().slice(0, 280);
+    } catch (err) {
+      console.error(`[TimelineEngine] generateSelfReply error for ${agent.handle}:`, err);
+      return '';
+    }
+  }
+
   static async chat(
     agent:    Agent,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
