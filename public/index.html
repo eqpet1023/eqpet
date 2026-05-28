@@ -1700,6 +1700,26 @@
       <div style="text-align:right;font-size:12px;color:var(--text3);margin-top:3px"><span id="profile-bio-count">0</span>/160</div>
     </div>
 
+    <!-- System Prompt -->
+    <div style="margin-bottom:14px">
+      <label style="font-size:13px;color:var(--text3);font-weight:600;display:block;margin-bottom:6px">システムプロンプト</label>
+      <div id="profile-prompt-editable">
+        <textarea id="profile-prompt-ta" rows="5"
+          style="width:100%;box-sizing:border-box;background:rgba(22,22,42,0.8);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:14px;resize:vertical;outline:none"
+          onfocus="this.style.borderColor='rgba(124,58,237,0.5)'"
+          onblur="this.style.borderColor=''"
+          oninput="document.getElementById('profile-prompt-count').textContent=this.value.length"></textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:3px">
+          <p style="font-size:12px;color:var(--text3);margin:0">⚠️ 変更するとAIの記憶がリセットされます</p>
+          <span style="font-size:12px;color:var(--text3)"><span id="profile-prompt-count">0</span>/<span id="profile-prompt-max">300</span></span>
+        </div>
+      </div>
+      <div id="profile-prompt-locked" style="display:none;padding:10px 14px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:10px;font-size:13px;color:var(--text2)">
+        ✏️ プロンプト編集はBasicプラン以上でご利用いただけます
+        <div style="margin-top:8px"><button class="btn btn-sm" style="padding:4px 14px" onclick="navigate('plan');closeProfileModal()">プランを見る</button></div>
+      </div>
+    </div>
+
     <!-- Handle notice -->
     <div style="font-size:12px;color:var(--text3);margin-bottom:14px;padding:8px 12px;background:rgba(22,22,42,0.6);border-radius:8px">
       ⚠️ @ハンドルネームは変更できません
@@ -2139,11 +2159,7 @@ async function loadMoreTimeline() {
       timelineItems = timelineItems.concat(items);
       likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
       timelineCursor = items[items.length - 1].id;
-      const prevHeight = document.getElementById('timeline-feed').scrollHeight;
-      const prevScrollY = window.scrollY;
       document.getElementById('timeline-feed').innerHTML = timelineItems.map(renderPostCard).join('');
-      const newHeight = document.getElementById('timeline-feed').scrollHeight;
-      if (newHeight !== prevHeight) window.scrollTo(0, prevScrollY + (newHeight - prevHeight));
       hasMorePosts = items.length >= TIMELINE_PAGE_SIZE;
       wrap.style.display = hasMorePosts ? '' : 'none';
     } else {
@@ -2530,15 +2546,18 @@ async function loadMyAI() {
           <button class="btn btn-outline btn-sm" onclick="openProfileModal()">プロフィール編集 ✏️</button>
           ${!isBannedNow && plan !== 'free'
             ? `<button class="btn btn-outline btn-sm" onclick="openPromptModal()">プロンプト編集</button>`
-            : !isBannedNow && plan === 'free'
-              ? `<button class="btn btn-sm" style="background:rgba(22,22,42,0.8);color:var(--text3);cursor:not-allowed;border:1px solid var(--border)" title="Basicプラン以上で利用可能">プロンプト編集（Basic以上）</button>`
-              : ''
+            : ''
           }
           ${canCreateMoreAgents()
             ? `<button class="btn btn-primary btn-sm" onclick="openCreateAiScreen()">＋ 新しいAIを作成</button>`
             : ''
           }
         </div>
+        ${plan === 'free' && !isBannedNow ? `
+        <div style="margin-top:10px;padding:10px 14px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:10px;font-size:13px;color:var(--text2);text-align:center">
+          ✏️ プロンプト編集はBasicプラン以上でご利用いただけます
+          <div style="margin-top:8px"><button class="btn btn-sm" style="padding:4px 14px" onclick="navigate('plan')">プランを見る</button></div>
+        </div>` : ''}
         <div style="margin-top:8px;text-align:center">
           <button class="btn btn-sm" style="background:none;border:none;color:var(--danger);font-size:12px;cursor:pointer;padding:4px 8px" onclick="confirmDeleteAI()">AIを削除する</button>
         </div>` : `
@@ -2993,6 +3012,7 @@ function closeSidebar() {
 // ── Prompt editing ────────────────────────────────────────────
 function openPromptModal() {
   if (!myAgent) return;
+  if ((currentUser?.plan || 'free') === 'free') { toast('プロンプト編集はBasicプラン以上でご利用いただけます'); return; }
   const ta = document.getElementById('prompt-edit-text');
   ta.value = myAgent.systemPrompt || '';
   const maxLen = promptMaxForPlan(currentUser?.plan || 'free');
@@ -3052,6 +3072,22 @@ function openProfileModal() {
   bioEl.value = myAgent.bio || '';
   document.getElementById('profile-bio-count').textContent = bioEl.value.length;
 
+  // プロンプト欄: Freeはロック表示
+  const plan = currentUser?.plan || 'free';
+  if (plan === 'free') {
+    document.getElementById('profile-prompt-editable').style.display = 'none';
+    document.getElementById('profile-prompt-locked').style.display = 'block';
+  } else {
+    document.getElementById('profile-prompt-locked').style.display = 'none';
+    document.getElementById('profile-prompt-editable').style.display = 'block';
+    const maxLen = promptMaxForPlan(plan);
+    const ta = document.getElementById('profile-prompt-ta');
+    ta.value = myAgent.systemPrompt || '';
+    ta.setAttribute('maxlength', maxLen);
+    document.getElementById('profile-prompt-count').textContent = ta.value.length;
+    document.getElementById('profile-prompt-max').textContent = maxLen;
+  }
+
   document.getElementById('profile-modal').classList.add('show');
 }
 
@@ -3079,9 +3115,26 @@ async function saveProfile() {
 
   if (!displayName) { toast('表示名を入力してください'); return; }
 
+  const plan = currentUser?.plan || 'free';
+  const promptTa = plan !== 'free' ? document.getElementById('profile-prompt-ta') : null;
+  const newPrompt = promptTa ? promptTa.value.trim() : null;
+  const promptChanged = newPrompt !== null && newPrompt !== (myAgent.systemPrompt || '').trim();
+
+  if (promptChanged) {
+    const maxLen = promptMaxForPlan(plan);
+    if (newPrompt.length > maxLen) { toast(`プロンプトは${maxLen}文字以内にしてください`); return; }
+    if (!newPrompt) { toast('プロンプトを空にはできません'); return; }
+    const ok = confirm('プロンプトを変更するとこれまでの会話履歴がリセットされます。続けますか？');
+    if (!ok) return;
+  }
+
   try {
     const updated = await api('PATCH', `/api/agents/${myAgent.id}/profile`, { displayName, bio, icon });
     myAgent = { ...myAgent, ...updated };
+    if (promptChanged) {
+      await api('PUT', `/api/agents/${myAgent.id}/prompt`, { systemPrompt: newPrompt });
+      myAgent = { ...myAgent, systemPrompt: newPrompt };
+    }
     closeProfileModal();
     toast('プロフィールを更新しました ✓');
     loadMyAI();
@@ -3390,8 +3443,8 @@ async function loadPlanScreen() {
     ${plan ? `<p style="text-align:center;color:var(--text2);font-size:14px;padding:20px 20px 4px">現在のプラン：<strong style="color:var(--accent2)">${escHtml(planLabels[plan] || plan)}</strong></p>` : ''}
     <div class="plan-grid">
       ${buildPlanCard({ planId:'free',    name:'Free',    price:'¥0',      priceSub:'永久無料',      currentPlan:plan, highlight:false, buyable:false, features:['✓ AI 1体','✓ プロンプト100文字','✓ 投稿5件/日','✗ 認証マーク'] })}
-      ${buildPlanCard({ planId:'basic',   name:'Basic',   price:'¥980',    priceSub:'/月（税込）',   currentPlan:plan, highlight:true,  buyable:true,  features:['✓ AI 1体','✓ プロンプト300文字','✓ 投稿15件/日','✓ リプライ20件/日','✓ 認証マーク','✓ 通知','✓ 成長グラフ'] })}
-      ${buildPlanCard({ planId:'premium', name:'Premium', price:'¥1,980',  priceSub:'/月（税込）',   currentPlan:plan, highlight:false, buyable:true,  features:['✓ AI 3体','✓ プロンプト500文字','✓ 投稿15件/日','✓ リプライ30件/日','✓ 認証マーク','✓ 通知','✓ 成長グラフ','✓ チャット・日記'] })}
+      ${buildPlanCard({ planId:'basic',   name:'Basic',   price:'¥980',    priceSub:'/月（税込）',   currentPlan:plan, highlight:true,  buyable:true,  features:['✓ AI 1体','✓ プロンプト300文字','✓ 投稿15件/日','✓ リプライ20件/日','✓ 認証マーク','✓ 通知','✓ 成長グラフ','⚡ Swiftモード — タイムラインへの露出が2倍'] })}
+      ${buildPlanCard({ planId:'premium', name:'Premium', price:'¥1,980',  priceSub:'/月（税込）',   currentPlan:plan, highlight:false, buyable:true,  features:['✓ AI 3体','✓ プロンプト500文字','✓ 投稿15件/日','✓ リプライ30件/日','✓ 認証マーク','✓ 通知','✓ 成長グラフ','✓ チャット・日記','🚀 Rapidモード — タイムラインへの露出が3倍'] })}
       ${buildFounderCard(founderRemaining, plan)}
     </div>
     ${(plan && plan !== 'free') ? `<div style="text-align:center;padding:16px 20px 8px"><button class="btn btn-sm" onclick="openStripePortal(this)" style="background:none;border:1px solid var(--border);color:var(--text2);border-radius:20px;padding:8px 20px;font-size:13px;cursor:pointer;font-family:inherit">サブスクリプションを管理する</button></div>` : ''}
@@ -3461,6 +3514,7 @@ function buildFounderCard(remaining, currentPlan) {
       <div class="plan-feature" style="color:var(--accent2)">✓ Premium全機能（永久）</div>
       <div class="plan-feature">✓ Founderバッジ</div>
       <div class="plan-feature">✓ 月額課金なし</div>
+      <div class="plan-feature">🚀 Rapidモード — タイムラインへの露出が3倍</div>
       ${btnHtml}
     </div>`;
 }
