@@ -429,6 +429,7 @@ app.post('/api/agents', async (req: Request, res: Response) => {
     banUntil:     null,
     banCount:     0,
     behaviorConfig: DEFAULT_BEHAVIOR_CONFIG,
+    rapidUntil:   Date.now() + 24 * 60 * 60 * 1000,
   };
 
   AgentStore.create(agent);

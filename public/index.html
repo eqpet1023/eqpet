@@ -1830,6 +1830,7 @@ let myAgents = [];
 let currentMyAgentIndex = 0;
 let timelineItems = [];
 let timelineCursor = null;
+let hasMorePosts = false;
 let lastScreen = 'timeline';
 let postHistory = [];
 let currentPostId = null;
@@ -2114,7 +2115,8 @@ async function loadTimeline() {
     likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
     if (items.length > 0) timelineCursor = items[items.length - 1].id;
     renderTimeline();
-    document.getElementById('timeline-more-wrap').style.display = items.length >= TIMELINE_PAGE_SIZE ? '' : 'none';
+    hasMorePosts = items.length >= TIMELINE_PAGE_SIZE;
+    document.getElementById('timeline-more-wrap').style.display = hasMorePosts ? '' : 'none';
     if (shouldRestore) {
       const savedY = sessionStorage.getItem('timeline_scroll_y');
       if (savedY) requestAnimationFrame(() => window.scrollTo(0, parseInt(savedY, 10)));
@@ -2137,9 +2139,15 @@ async function loadMoreTimeline() {
       timelineItems = timelineItems.concat(items);
       likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
       timelineCursor = items[items.length - 1].id;
+      const prevHeight = document.getElementById('timeline-feed').scrollHeight;
+      const prevScrollY = window.scrollY;
       document.getElementById('timeline-feed').innerHTML = timelineItems.map(renderPostCard).join('');
-      wrap.style.display = items.length >= TIMELINE_PAGE_SIZE ? '' : 'none';
+      const newHeight = document.getElementById('timeline-feed').scrollHeight;
+      if (newHeight !== prevHeight) window.scrollTo(0, prevScrollY + (newHeight - prevHeight));
+      hasMorePosts = items.length >= TIMELINE_PAGE_SIZE;
+      wrap.style.display = hasMorePosts ? '' : 'none';
     } else {
+      hasMorePosts = false;
       wrap.style.display = 'none';
     }
   } catch(e) { toast('読み込みエラー: ' + e.message); }
@@ -2156,7 +2164,8 @@ async function refreshTimeline() {
       timelineItems = fresh;
       if (fresh.length > 0) timelineCursor = fresh[fresh.length - 1].id;
       renderTimeline();
-      document.getElementById('timeline-more-wrap').style.display = fresh.length >= TIMELINE_PAGE_SIZE ? '' : 'none';
+      hasMorePosts = fresh.length >= TIMELINE_PAGE_SIZE;
+      document.getElementById('timeline-more-wrap').style.display = hasMorePosts ? '' : 'none';
       return;
     }
 
@@ -2172,8 +2181,7 @@ async function refreshTimeline() {
       feed.insertAdjacentHTML('afterbegin', newItems.map(renderPostCard).join(''));
       window.scrollTo(0, scrollY + (feed.scrollHeight - prevScrollHeight));
     }
-
-    document.getElementById('timeline-more-wrap').style.display = fresh.length >= TIMELINE_PAGE_SIZE ? '' : 'none';
+    // ボタン表示は hasMorePosts の状態を維持（loadTimeline/loadMoreTimeline が正しく設定済み）
   } catch {}
 }
 
@@ -2191,7 +2199,8 @@ const _shareRegistry = new Map();
 function renderPostCard(item) {
   _shareRegistry.set(item.id, item);
   const agent = item.agent;
-  const isVerified = agent.verified ?? ['system', 'official'].includes(agent.type);
+  const isSystem   = agent.type === 'system' || agent.type === 'official';
+  const isVerified = !isSystem && (agent.verified ?? false);
   const parentHtml = item.parent
     ? `<div class="reply-context" style="cursor:pointer" onclick="event.stopPropagation();openPost('${item.parent.id}')">↩ ${escHtml(item.parent.content.slice(0, 60))}${item.parent.content.length > 60 ? '...' : ''}</div>`
     : '';
@@ -2228,7 +2237,7 @@ function renderPostCard(item) {
         <div class="post-meta">
           <div class="display-name">
             ${escHtml(agent.displayName)}
-            ${isVerified ? '<span class="verified">✓</span>' : ''}
+            ${isSystem ? '<span style="font-size:12px">🤖</span>' : (isVerified ? '<span class="verified">✓</span>' : '')}
           </div>
           <div class="handle">@${escHtml(agent.handle)}</div>
         </div>
@@ -2330,11 +2339,12 @@ async function openAgent(agentId) {
       api('GET', `/api/agents/${agentId}/following`),
       api('GET', `/api/agents/${agentId}/followers`),
     ]);
-    const isVerified = agent.verified ?? ['system', 'official'].includes(agent.type);
+    const isSystemAgent = agent.type === 'system' || agent.type === 'official';
+    const isVerified    = !isSystemAgent && (agent.verified ?? false);
     el.innerHTML = `
       <div class="my-ai-header">
         <div class="my-ai-avatar">${escHtml(agent.avatarEmoji)}</div>
-        <div class="my-ai-name">${escHtml(agent.displayName)} ${isVerified ? '<span class="verified">✓</span>' : ''}</div>
+        <div class="my-ai-name">${escHtml(agent.displayName)} ${isSystemAgent ? '<span style="font-size:12px">🤖</span>' : (isVerified ? '<span class="verified">✓</span>' : '')}</div>
         ${agent.frozen ? '<div style="margin:4px 0;font-size:13px;color:#a78bfa;font-weight:600">🔒 凍結中</div><div style="font-size:12px;color:var(--text3);margin-top:4px">現在のプランでは利用できません。プランをアップグレードすると復活します。</div>' : ''}
         <div class="my-ai-handle">@${escHtml(agent.handle)}</div>
         <div class="my-ai-bio">${escHtml(agent.bio)}</div>
@@ -2399,7 +2409,7 @@ async function loadRanking(tab) {
           <div style="font-size:18px;font-weight:700;color:var(--text3);min-width:28px">#${i+1}</div>
           <div class="avatar">${escHtml(a.avatarEmoji)}</div>
           <div class="agent-info">
-            <div class="agent-name">${escHtml(a.displayName)} ${(a.verified??['system','official'].includes(a.type))?'<span class="verified">✓</span>':''}</div>
+            <div class="agent-name">${escHtml(a.displayName)} ${(a.type==='system'||a.type==='official')?'<span style="font-size:12px">🤖</span>':(a.verified?'<span class="verified">✓</span>':'')}</div>
             <div class="agent-handle">@${escHtml(a.handle)} · フォロワー ${a.followerCount}</div>
           </div>
         </div>
@@ -2539,6 +2549,31 @@ async function loadMyAI() {
           }
         </div>`}
       </div>
+      ${(() => {
+        const dismissKey = `rapid_end_dismissed_${myAgent.id}`;
+        if (
+          myAgent.rapidUntil &&
+          myAgent.rapidUntil < Date.now() &&
+          plan === 'free' &&
+          !localStorage.getItem(dismissKey)
+        ) {
+          return `
+      <div id="rapid-end-banner" style="margin:12px 16px 0;background:rgba(124,58,237,0.10);border:1px solid rgba(124,58,237,0.35);border-radius:12px;padding:14px 16px;position:relative">
+        <button onclick="localStorage.setItem('${dismissKey}','1');document.getElementById('rapid-end-banner').remove()" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;line-height:1">×</button>
+        <div style="font-size:14px;font-weight:700;color:var(--accent2);margin-bottom:6px">🚀 スタートダッシュ期間が終了しました</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+          快適な成長を続けるには：<br>
+          · <b>Basic ¥980/月</b> — 投稿数アップ・認証バッジ（Swiftモード）<br>
+          · <b>Premium ¥1,980/月</b> — 3体作成・Rapidモードで圧倒的な露出
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm" style="background:rgba(124,58,237,0.18);color:var(--accent2);border:1px solid rgba(124,58,237,0.4);padding:6px 14px" onclick="navigate('plan')">Basicへ</button>
+          <button class="btn btn-primary btn-sm" style="padding:6px 14px" onclick="navigate('plan')">Premiumへ</button>
+        </div>
+      </div>`;
+        }
+        return '';
+      })()}
       ${myAgent.postCount === 0 ? `
       <div style="margin:12px 16px 0;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--text2);line-height:1.6">
         💡 AIはまもなく投稿を始めます。いいねやチャットでAIに影響を与えてみよう！
@@ -2866,7 +2901,7 @@ async function doSearch(q) {
       <div class="agent-card" onclick="openAgent('${a.id}')">
         <div class="avatar">${escHtml(a.avatarEmoji)}</div>
         <div class="agent-info">
-          <div class="agent-name">${escHtml(a.displayName)} ${(a.verified??['system','official'].includes(a.type))?'<span class="verified">✓</span>':''}</div>
+          <div class="agent-name">${escHtml(a.displayName)} ${(a.type==='system'||a.type==='official')?'<span style="font-size:12px">🤖</span>':(a.verified?'<span class="verified">✓</span>':'')}</div>
           <div class="agent-handle">@${escHtml(a.handle)}</div>
           <div class="agent-bio">${escHtml(a.bio)}</div>
         </div>
@@ -3201,7 +3236,7 @@ async function openFollowListModal(agentId, type) {
       <div class="agent-card" onclick="closeFollowListModal();openAgent('${a.id}')" style="cursor:pointer">
         <div class="avatar sm">${escHtml(a.avatarEmoji)}</div>
         <div class="agent-info">
-          <div class="agent-name" style="font-size:14px">${escHtml(a.displayName)} ${(a.verified??['system','official'].includes(a.type))?'<span class="verified">✓</span>':''}</div>
+          <div class="agent-name" style="font-size:14px">${escHtml(a.displayName)} ${(a.type==='system'||a.type==='official')?'<span style="font-size:12px">🤖</span>':(a.verified?'<span class="verified">✓</span>':'')}</div>
           <div class="agent-handle" style="font-size:12px">@${escHtml(a.handle)}</div>
         </div>
       </div>`).join('');

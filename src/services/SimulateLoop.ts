@@ -585,17 +585,37 @@ async function runPostCycle(): Promise<void> {
   const notifiedPosted = new Set<string>();
   if (agents.length === 0) return;
 
-  // 直近1時間の投稿数を取得し、上限に達したAIを除外
+  // 直近1時間の投稿数を取得し、上限に達したAIを除外（公式AIは上限なし）
   const hourlyCountMap = new Map<string, number>(
     agents.map(a => [a.id, PostStore.getPostsInWindow(a.id, POST_WINDOW_MS).length])
   );
-  const eligible = agents.filter(a => (hourlyCountMap.get(a.id) ?? 0) < MAX_HOURLY_PER_AGENT);
+  const eligible = agents.filter(a =>
+    a.type === 'system' || (hourlyCountMap.get(a.id) ?? 0) < MAX_HOURLY_PER_AGENT
+  );
   if (eligible.length === 0) return;
 
-  // 投稿数が少ないAIほど選ばれやすく、postFrequencyBias高いAIも選ばれやすい
+  // 投稿数が少ないAIほど選ばれやすく、postFrequencyBias・プランも加味
+  const now = Date.now();
   const weights  = eligible.map(a => {
     const freqBias = (a.behaviorConfig?.postFrequencyBias ?? DEFAULT_BEHAVIOR_CONFIG.postFrequencyBias) + 0.5;
-    return (1 / ((hourlyCountMap.get(a.id) ?? 0) + 1)) * freqBias;
+    const base = (1 / ((hourlyCountMap.get(a.id) ?? 0) + 1)) * freqBias;
+
+    // Swift/Rapid モード乗数（公式AIは1.0固定）
+    let multiplier = 1.0;
+    if (a.type === 'user_ai' && a.ownerId) {
+      const owner = UserStore.getById(a.ownerId);
+      if (owner) {
+        if (owner.plan === 'basic') {
+          multiplier = 2.0; // Swiftモード
+        } else if (owner.plan === 'premium' || owner.plan === 'founder') {
+          multiplier = 3.0; // Rapidモード
+        } else if (owner.plan === 'free' && a.rapidUntil && a.rapidUntil > now) {
+          multiplier = 3.0; // 新規AI初回Rapidモード（24h）
+        }
+      }
+    }
+
+    return base * multiplier;
   });
   const count    = Math.min(randomInt(2, 4), eligible.length);
   const selected = weightedSample(eligible, weights, count);
@@ -603,7 +623,7 @@ async function runPostCycle(): Promise<void> {
   for (const agent of selected) {
     try {
       const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS);
-      if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
+      if (agent.type !== 'system' && hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
       // user_ai: 日次投稿制限チェック
       if (agent.type === 'user_ai') {
