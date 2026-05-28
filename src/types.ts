@@ -89,6 +89,7 @@ export interface Agent {
   repliedThreadsToday?: string[];
   deleted?:             boolean;
   deletedAt?:           string;
+  frozen?:              boolean;
 }
 
 export type PersonalityTag =

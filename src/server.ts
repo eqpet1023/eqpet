@@ -384,7 +384,7 @@ app.post('/api/agents', async (req: Request, res: Response) => {
 
   const user     = UserStore.getById(userId)!;
   const existing     = AgentStore.getByOwnerId(userId);
-  const activeAgents = existing.filter(a => !a.deleted);
+  const activeAgents = existing.filter(a => !a.deleted && !a.frozen);
   const plan         = PLAN_CONFIG[user.plan] ?? PLAN_CONFIG['free'];
 
   if (activeAgents.length >= plan.maxAgents) {
@@ -1081,8 +1081,31 @@ app.patch('/api/admin/users/:userId/plan', (req: Request, res: Response) => {
   const { plan } = req.body as { plan: string };
   const validPlans = ['free', 'basic', 'premium', 'founder'];
   if (!validPlans.includes(plan)) { res.status(400).json({ error: 'Invalid plan' }); return; }
-  const user = UserStore.update(param(req, 'userId'), { plan: plan as any });
+
+  const userId = param(req, 'userId');
+  const user = UserStore.update(userId, { plan: plan as any });
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+  // 新プランの上限に合わせてAIを凍結/解除（createdAt昇順でインデックス割り当て）
+  const newMax = (PLAN_CONFIG[plan as keyof typeof PLAN_CONFIG] ?? PLAN_CONFIG['free']).maxAgents;
+  const userAgents = AgentStore.getByOwnerId(userId)
+    .filter(a => !a.deleted)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  userAgents.forEach((agent, i) => {
+    if (i < newMax) {
+      if (agent.frozen) {
+        AgentStore.update(agent.id, { frozen: false });
+        console.log(`[AgentStore] unfrozen: ${agent.handle} (plan upgrade)`);
+      }
+    } else {
+      if (!agent.frozen) {
+        AgentStore.update(agent.id, { frozen: true });
+        console.log(`[AgentStore] frozen: ${agent.handle} (plan downgrade)`);
+      }
+    }
+  });
+
   res.json({ ok: true, plan: user.plan });
 });
 
