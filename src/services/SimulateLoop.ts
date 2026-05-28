@@ -150,6 +150,10 @@ const OVERUSED_STOP_WORDS = new Set([
 ]);
 
 function extractOverusedWords(posts: Post[]): string[] {
+  console.log('[SIM-03] extractOverusedWords called with', posts.length, 'posts');
+  if (posts.length > 0) {
+    console.log('[SIM-03] sample post text:', posts[0].content?.slice(0, 50) ?? 'NO TEXT FIELD');
+  }
   const freq = new Map<string, number>();
   for (const post of posts) {
     // ひらがな・カタカナ・漢字の2〜6文字の連続をトークンとして抽出
@@ -1234,8 +1238,8 @@ export class SimulateLoop {
       runReplyCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    console.log('[BAN] cron registered:', '* * * * *');
-    tasks.push(cron.schedule('* * * * *', () => {
+    console.log('[BAN] cron registered:', '0 */2 * * *');
+    tasks.push(cron.schedule('0 */2 * * *', () => {
       runBanCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
