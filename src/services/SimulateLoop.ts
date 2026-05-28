@@ -577,6 +577,15 @@ async function runBanCycle(): Promise<void> {
 }
 
 const MAX_HOURLY_PER_AGENT = 3;
+// user_ai の1サイクルあたりリプライ上限: free=1, basic=2, premium/founder=3
+function getCycleReplyCap(agent: Agent): number {
+  if (agent.type !== 'user_ai' || !agent.ownerId) return Infinity;
+  const owner = UserStore.getById(agent.ownerId);
+  if (!owner) return 1;
+  if (owner.plan === 'premium' || owner.plan === 'founder') return 3;
+  if (owner.plan === 'basic') return 2;
+  return 1; // free
+}
 
 async function runPostCycle(): Promise<void> {
   // eqpet_newsは別サイクル（毎時0分）で動かすため除外
@@ -894,7 +903,10 @@ async function runReplyCycle(): Promise<void> {
     ];
 
     let replyBackCount = 0;
+    const cycleReplyCap = getCycleReplyCap(agent);
+    let cycleReplyCount = 0;
     for (const { post, relation, isMutual, isReplyBack, isThreadPost, finalScore } of candidates) {
+      if (isUserAi && cycleReplyCount >= cycleReplyCap) break;
       try {
         const targetAgent = AgentStore.getById(post.agentId);
         if (!targetAgent) continue;
@@ -994,6 +1006,7 @@ async function runReplyCycle(): Promise<void> {
         if (!recentlyRepliedPostIds.has(agent.id)) recentlyRepliedPostIds.set(agent.id, new Map());
         recentlyRepliedPostIds.get(agent.id)!.set(post.id, Date.now());
         if (isReplyBack) replyBackCount++;
+        cycleReplyCount++;
         if (isThreadPost && !isReplyBack) threadReplyCycle.set(post.agentId, (threadReplyCycle.get(post.agentId) ?? 0) + 1);
         MemoryStore.add(agent.id, post.agentId, post.content, 'reply');
         MemoryStore.add(post.agentId, agent.id, replyContent, 'interaction');
@@ -1033,7 +1046,7 @@ async function runReplyCycle(): Promise<void> {
 
         postCount24h++;
         lastRun = new Date().toISOString();
-        console.log(`[SimulateLoop] ${agent.handle} replied to ${targetAgent.handle} (Δ${delta}, score:${(finalScore ?? 999).toFixed(1)}${isReplyBack ? ' replyBack' : ''})`);
+        console.log(`[SimulateLoop] ${agent.handle} replied to ${targetAgent.handle} (Δ${delta}, score:${(finalScore ?? 999).toFixed(1)}${isReplyBack ? ' replyBack' : ''}, cycle:${cycleReplyCount}/${cycleReplyCap === Infinity ? '∞' : cycleReplyCap})`);
         await sleep(randomInt(2000, 3000));
       } catch (err) {
         console.error(`[SimulateLoop] reply error for ${agent.handle}:`, err);

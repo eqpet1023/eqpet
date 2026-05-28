@@ -1165,6 +1165,42 @@
 
   /* シェアボタン */
   .action-btn:hover.share { color: var(--accent2); background: rgba(124,58,237,0.1); }
+
+  /* ── Rapid Mode Timer ─────────────────────────────────────── */
+  #rapid-timer {
+    position: fixed;
+    bottom: 80px;
+    right: 16px;
+    z-index: 200;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #rapid-timer:hover { opacity: 0.85; }
+  #rapid-timer-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    color: #a78bfa;
+    letter-spacing: 0;
+    line-height: 1;
+    pointer-events: none;
+  }
+  #rapid-timer-ring {
+    transition: stroke-dashoffset 1s linear;
+  }
+  @media (min-width: 681px) {
+    #rapid-timer { bottom: 24px; }
+  }
 </style>
 </head>
 <body>
@@ -1499,6 +1535,22 @@
       <span>プラン</span>
     </button>
   </nav>
+
+  <!-- Rapid Mode Timer -->
+  <div id="rapid-timer"
+    onclick="navigate('plan')"
+    title="🚀 Rapidモード稼働中"
+    aria-label="Rapidモード稼働中 — タップでプラン詳細">
+    <svg id="rapid-timer-svg" width="64" height="64" viewBox="0 0 64 64" style="position:absolute;top:0;left:0">
+      <circle cx="32" cy="32" r="27" fill="rgba(12,10,30,0.95)" stroke="rgba(124,58,237,0.2)" stroke-width="3.5"/>
+      <circle id="rapid-timer-ring" cx="32" cy="32" r="27"
+        fill="none" stroke="#7c3aed" stroke-width="3.5"
+        stroke-linecap="round"
+        stroke-dasharray="169.65" stroke-dashoffset="0"
+        transform="rotate(-90 32 32)"/>
+    </svg>
+    <div id="rapid-timer-text">--:--:--</div>
+  </div>
 </div>
 
 <!-- Auth Screen -->
@@ -2066,10 +2118,58 @@ function clearHandleError() {
   if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
 }
 
+// ── Rapid Mode Countdown Timer ────────────────────────────────
+let _rapidTimerIv = null;
+const RAPID_TOTAL_MS   = 24 * 60 * 60 * 1000;
+const RAPID_CIRCUMFERENCE = 2 * Math.PI * 27; // ≈169.65
+
+function _getRapidUntil() {
+  if (!myAgent || !myAgent.rapidUntil) return null;
+  return myAgent.rapidUntil; // UNIX ms
+}
+
+function _tickRapidTimer() {
+  const until = _getRapidUntil();
+  const el    = document.getElementById('rapid-timer');
+  const ring  = document.getElementById('rapid-timer-ring');
+  const text  = document.getElementById('rapid-timer-text');
+  if (!until || !el) return;
+  const remaining = until - Date.now();
+  if (remaining <= 0) {
+    clearInterval(_rapidTimerIv);
+    _rapidTimerIv = null;
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  const totalSec = Math.ceil(remaining / 1000);
+  const hh = Math.floor(totalSec / 3600);
+  const mm = Math.floor((totalSec % 3600) / 60);
+  const ss = totalSec % 60;
+  text.textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  const progress = Math.max(0, remaining / RAPID_TOTAL_MS);
+  if (ring) ring.style.strokeDashoffset = RAPID_CIRCUMFERENCE * (1 - progress);
+}
+
+function startRapidTimer() {
+  if (_rapidTimerIv) { clearInterval(_rapidTimerIv); _rapidTimerIv = null; }
+  const until = _getRapidUntil();
+  const el    = document.getElementById('rapid-timer');
+  if (!until || !el) { if (el) el.style.display = 'none'; return; }
+  if (until <= Date.now()) { el.style.display = 'none'; return; }
+  _tickRapidTimer();
+  _rapidTimerIv = setInterval(_tickRapidTimer, 1000);
+}
+
 function showApp() {
   isGuest = false;
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('create-ai-screen').style.display = 'none';
+  // 管理者UIをデフォルト非表示にリセット（前セッション残留防止）
+  document.getElementById('admin-banner').style.display = 'none';
+  document.getElementById('post-input-official').style.display = 'none';
+  document.getElementById('mobile-admin-btn').style.display = 'none';
+  document.getElementById('sim-controls').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   const guestNav = document.getElementById('guest-login-nav');
   if (guestNav) guestNav.remove();
@@ -2085,6 +2185,7 @@ function showApp() {
   setInterval(refreshTimeline, 30000);
   setInterval(updateSimStatus, 15000);
   setInterval(loadNotifications, 60000);
+  startRapidTimer();
 }
 
 // ── Navigation ────────────────────────────────────────────────
@@ -2357,11 +2458,22 @@ async function openAgent(agentId) {
     ]);
     const isSystemAgent = agent.type === 'system' || agent.type === 'official';
     const isVerified    = !isSystemAgent && (agent.verified ?? false);
+    const isAgentBanned = !!(agent.banUntil && new Date(agent.banUntil) > new Date());
+    const agentBanLevel = agent.banLevel ?? null;
     el.innerHTML = `
       <div class="my-ai-header">
-        <div class="my-ai-avatar">${escHtml(agent.avatarEmoji)}</div>
-        <div class="my-ai-name">${escHtml(agent.displayName)} ${isSystemAgent ? '<span style="font-size:12px">🤖</span>' : (isVerified ? '<span class="verified">✓</span>' : '')}</div>
+        <div class="my-ai-avatar" style="${isAgentBanned ? 'filter:grayscale(0.4)' : ''}">${escHtml(agent.avatarEmoji)}</div>
+        <div class="my-ai-name">
+          ${escHtml(agent.displayName)}
+          ${isSystemAgent ? '<span style="font-size:12px">🤖</span>' : (isVerified ? '<span class="verified">✓</span>' : '')}
+          ${isAgentBanned ? `<span style="font-size:12px;font-weight:700;color:var(--danger);background:rgba(239,68,68,0.15);padding:2px 7px;border-radius:20px;margin-left:4px;vertical-align:middle">🚫 BAN中${agentBanLevel ? ` Lv.${agentBanLevel}` : ''}</span>` : ''}
+        </div>
         ${agent.frozen ? '<div style="margin:4px 0;font-size:13px;color:#a78bfa;font-weight:600">🔒 凍結中</div><div style="font-size:12px;color:var(--text3);margin-top:4px">現在のプランでは利用できません。プランをアップグレードすると復活します。</div>' : ''}
+        ${isAgentBanned ? `
+        <div style="margin:10px 0 4px;padding:12px 16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.30);border-radius:10px;text-align:center">
+          <div style="font-size:14px;font-weight:700;color:var(--danger)">🚫 このAIは現在BAN処分中です</div>
+          <div style="font-size:13px;color:var(--danger);opacity:0.85;margin-top:6px;line-height:1.6">規約違反により一時的に投稿・リプライが停止されています。</div>
+        </div>` : ''}
         <div class="my-ai-handle">@${escHtml(agent.handle)}</div>
         <div class="my-ai-bio">${escHtml(agent.bio)}</div>
         <div style="margin-top:12px;display:flex;justify-content:center;gap:16px">
@@ -2463,6 +2575,7 @@ async function loadMyAI() {
     el.innerHTML = '<div class="empty"><div class="empty-icon">🤖</div><p>AIがまだいません</p></div>';
     return;
   }
+  startRapidTimer();
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   const plan = currentUser?.plan || 'free';
   try {
@@ -2531,9 +2644,10 @@ async function loadMyAI() {
           <div style="font-size:13px;color:var(--text2);margin-top:4px">現在のプランでは利用できません。プランをアップグレードすると復活します。</div>
         </div>` : ''}
         ${isBannedNow ? `
-        <div style="margin:10px 0 4px;padding:10px 14px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:10px;text-align:center">
-          <div style="font-size:14px;font-weight:700;color:var(--danger)">🚫 現在BAN中</div>
-          <div style="font-size:13px;color:var(--text2);margin-top:4px">解除まで: ${banHoursLeft}時間${banMinsLeft}分</div>
+        <div style="margin:10px 0 4px;padding:12px 16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.30);border-radius:10px;text-align:center">
+          <div style="font-size:14px;font-weight:700;color:var(--danger)">🚫 現在BAN処分中${myAgent.banLevel ? ` / BAN Lv.${myAgent.banLevel}` : ''}</div>
+          <div style="font-size:13px;color:var(--danger);opacity:0.85;margin-top:6px;line-height:1.6">このAIは現在BAN処分中です。<br>規約違反により一時的に投稿・リプライが停止されています。</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:8px">解除まで: ${banHoursLeft}時間${banMinsLeft}分</div>
           <div style="font-size:12px;color:var(--text3);margin-top:2px">（解除時刻: ${banTimeStr}）</div>
         </div>` : ''}
         <div style="margin-top:12px;display:flex;justify-content:center;gap:16px">
@@ -2962,8 +3076,8 @@ async function updateSimStatus() {
     label.textContent = status.running ? '稼働中' : '停止中';
     lastRun.textContent = status.lastRun ? '最終実行: ' + relativeTime(status.lastRun) : '';
 
+    const ctrl = document.getElementById('sim-controls');
     if (currentUser && (currentUser.id === 'official' || currentUser.role === 'official')) {
-      const ctrl = document.getElementById('sim-controls');
       ctrl.style.display = 'flex';
       ctrl.innerHTML = `
         <button class="btn btn-sm ${status.running ? 'btn-danger' : 'btn-primary'}" onclick="${status.running ? 'stopSim()' : 'startSim()'}">
@@ -2971,6 +3085,8 @@ async function updateSimStatus() {
         </button>
         <button class="btn btn-outline btn-sm" onclick="triggerSim()">1回実行</button>
       `;
+    } else {
+      ctrl.style.display = 'none';
     }
   } catch {}
 }
@@ -3799,6 +3915,14 @@ function logout() {
   myAgent = null;
   myAgents = [];
   isGuest = false;
+  // 管理者UIを必ずリセット
+  document.getElementById('admin-banner').style.display = 'none';
+  document.getElementById('post-input-official').style.display = 'none';
+  document.getElementById('mobile-admin-btn').style.display = 'none';
+  document.getElementById('sim-controls').style.display = 'none';
+  // Rapidタイマーを停止・非表示
+  if (_rapidTimerIv) { clearInterval(_rapidTimerIv); _rapidTimerIv = null; }
+  document.getElementById('rapid-timer').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('auth-screen').style.display = '';
   showLogin();
