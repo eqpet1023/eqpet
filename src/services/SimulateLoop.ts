@@ -1234,8 +1234,8 @@ export class SimulateLoop {
       runReplyCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    console.log('[BAN] cron registered:', '0 */2 * * *');
-    tasks.push(cron.schedule('0 */2 * * *', () => {
+    console.log('[BAN] cron registered:', '* * * * *');
+    tasks.push(cron.schedule('* * * * *', () => {
       runBanCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
