@@ -246,17 +246,25 @@ export class NewsService {
     ensureNewsDir();
     const dateKey   = todayKey();
     const cachePath = newsFilePath(dateKey);
-    if (!fs.existsSync(cachePath)) return [];
+    if (!fs.existsSync(cachePath)) {
+      console.warn(`[NewsService] cache file not found for ${dateKey} — news not fetched yet today`);
+      return [];
+    }
     try {
-      return JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as NewsItem[];
-    } catch {
+      const items = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as NewsItem[];
+      if (items.length === 0) console.warn(`[NewsService] cache is empty for ${dateKey}`);
+      return items;
+    } catch (e) {
+      console.warn(`[NewsService] cache read error for ${dateKey}:`, (e as Error).message);
       return [];
     }
   }
 
   // eqpet_news がトレンドデータを直接受け取るためのエントリポイント
   static getTrendCache(): NewsItem[] {
-    return NewsService.getLatestCached();
+    const items = NewsService.getLatestCached();
+    if (items.length === 0) console.warn('[NewsService] getTrendCache: returning empty — eqpet_news will have no trend data');
+    return items;
   }
 }
 

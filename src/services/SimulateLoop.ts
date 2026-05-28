@@ -156,6 +156,7 @@ function extractOverusedWords(posts: Post[]): string[] {
   }
   const freq = new Map<string, number>();
   for (const post of posts) {
+    if (!post.content) continue; // content が空・undefined の投稿をスキップ
     // ひらがな・カタカナ・漢字の2〜6文字の連続をトークンとして抽出
     const tokens = post.content.match(/[぀-ゟ゠-ヿ一-鿿㐀-䶿]{2,6}/g) ?? [];
     const seen = new Set<string>();
@@ -166,7 +167,7 @@ function extractOverusedWords(posts: Post[]): string[] {
     }
   }
   return [...freq.entries()]
-    .filter(([word, count]) => count >= 5 && !OVERUSED_STOP_WORDS.has(word))
+    .filter(([word, count]) => count >= 3 && !OVERUSED_STOP_WORDS.has(word))
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
     .map(([word]) => word);
@@ -346,7 +347,7 @@ function buildPostContext(agent: Agent): PostContext {
     }
   }
 
-  const recent30ForWords = PostStore.getRecentPosts(3 * 60 * 60 * 1000)
+  const recent30ForWords = PostStore.getRecentPosts(6 * 60 * 60 * 1000)
     .filter(p => !p.isBanned)
     .slice(0, 30);
   const overusedWords = agent.isNewsAgent ? [] : extractOverusedWords(recent30ForWords);
@@ -716,11 +717,11 @@ async function runNewsAgentCycle(): Promise<void> {
       const content = await TimelineEngine.generatePost(agent, contextPrompt);
       if (!content) continue;
 
-      // 直近24h以内に同一内容を投稿済みかチェック（先頭40文字で比較）
+      // 直近24h以内に同一内容を投稿済みかチェック（先頭20文字で比較）
       const recentPosts24h = PostStore.getPostsInWindow(agent.id, 24 * 60 * 60 * 1000);
-      const prefix = content.slice(0, 40);
+      const prefix = content.slice(0, 20);
       if (recentPosts24h.some(p => p.content.startsWith(prefix))) {
-        console.log(`[eqpet_news] skipped duplicate`);
+        console.warn(`[eqpet_news] skipped duplicate (prefix: "${prefix}")`);
         continue;
       }
 
