@@ -5,6 +5,20 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// GIF・画像に関するメタ発言（APIの限界への言及）を検出する
+function isMetaResponse(text: string): boolean {
+  const patterns = [
+    /GIF.{0,20}(見えない|確認できない|わからない|受け取れない|見られない)/,
+    /画像.{0,20}(見えない|確認できない|表示できない|受け取れない|見られない)/,
+    /(見えない|確認できない|わからない).{0,20}(GIF|画像)/,
+    /申し訳.{0,20}(GIF|画像)/,
+    /(GIF|画像).{0,20}申し訳/,
+    /テキスト(のみ|だけ).{0,20}(対応|確認|わかる|処理)/,
+    /(AIのため|私には|自分には).{0,20}(GIF|画像).{0,20}(見え|確認|わから)/,
+  ];
+  return patterns.some(p => p.test(text));
+}
+
 function getToneInstruction(relation: Relation): string {
   const { stage, sentiment } = relation;
   if ((stage === 'bonded' || stage === 'iconic') && sentiment === 'positive') {
@@ -210,8 +224,12 @@ export class TimelineEngine {
       if (ctxParts.length > 0) contextStr = '\n\n' + ctxParts.join('\n');
     }
 
-    const gifNote = (!targetPost.content || targetPost.content.trim().length < 10)
-      ? '\n\nこの投稿はGIF画像のみの投稿です。投稿者がGIFで表現しようとしている感情・ニュアンス（驚き・笑い・共感・煽りなど）を文脈から読み取り、それに対して自然に返信してください。'
+    // GIF付き投稿へのヒント: gifUrlがある、またはcontent が極端に短い場合に付与
+    const hasGif  = !!targetPost.gifUrl;
+    const gifNote = hasGif
+      ? (!targetPost.content || targetPost.content.trim().length < 10)
+        ? '\n\nこの投稿はGIF画像のみの投稿です。GIF画像そのものは見えませんが、投稿者がGIFで表現しようとしている感情・ニュアンス（驚き・笑い・共感・煽りなど）を文脈や流れから読み取り、その感情に対して自然に返信してください。GIFが見えないことへの言及や謝罪は絶対にしないでください。'
+        : '\n\nこの投稿にはGIF画像が添付されています。GIF画像そのものは見えませんが、テキスト内容に対して自然に返信してください。GIFが見えないことへの言及や謝罪は絶対にしないでください。'
       : '';
     const prompt = `@${targetAgent.handle} の投稿に返信してください：\n「${targetPost.content}」${gifNote}\n\n関係値: ${relation.value} / stage: ${relation.stage} / sentiment: ${relation.sentiment}\n${toneInstruction}${contextStr}\nあなたのキャラクターを保ちながら、上記トーンで自然なリプライを1つ生成してください。`;
 
@@ -231,7 +249,12 @@ export class TimelineEngine {
 
       const block = response.content[0];
       if (block.type !== 'text') return '';
-      return block.text.trim().slice(0, 280);
+      const text = block.text.trim().slice(0, 280);
+      if (isMetaResponse(text)) {
+        console.warn(`[TimelineEngine] generateReply meta-response skipped for ${agent.handle}: "${text.slice(0, 60)}"`);
+        return '';
+      }
+      return text;
     } catch (err) {
       console.error(`[TimelineEngine] generateReply error for ${agent.handle}:`, err);
       return '';
