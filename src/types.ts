@@ -91,6 +91,7 @@ export interface Agent {
   deletedAt?:           string;
   frozen?:              boolean;
   rapidUntil?:          number; // UNIX ms timestamp: Rapidモード終了時刻
+  nameBioChecked?:      boolean;
 }
 
 export type PersonalityTag =

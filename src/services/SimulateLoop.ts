@@ -535,6 +535,36 @@ async function runBanCycle(): Promise<void> {
     console.log(`[BAN] skipped ${cachedSkipCount} cached posts`);
   }
 
+  // ── 名前・BIOチェック（未チェックのuser_aiのみ）──────────────────────────────
+  const uncheckedAgents = AgentStore.getAll().filter(
+    a => a.type === 'user_ai' && !a.deleted && !a.nameBioChecked,
+  );
+  for (const agent of uncheckedAgents) {
+    try {
+      const { level, reason } = await TimelineEngine.checkBanNameBio(
+        agent.displayName ?? '',
+        agent.bio ?? '',
+      );
+      AgentStore.update(agent.id, { nameBioChecked: true });
+      if (level) {
+        const banUntil = new Date(Date.now() + BAN_DURATION[level]).toISOString();
+        const banCount = (agent.banCount ?? 0) + 1;
+        AgentStore.update(agent.id, { banUntil, banCount });
+        generateBanReport({ ...agent, banCount }, level).catch(console.error);
+        notifyBanToOwner(agent, level, banCount);
+        console.log(`[BAN] name/bio check: ${agent.handle} → banned (level${level}: ${reason})`);
+        bannedAgentsThisCycle.add(agent.id);
+      } else {
+        console.log(`[BAN] name/bio check: ${agent.handle} → ok`);
+      }
+    } catch (err) {
+      const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
+      console.warn(`[BAN] name/bio check skipped due to rate limit (${status}): ${agent.handle}`);
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   if (posts.length === 0) return;
   console.log(`[SimulateLoop] runBanCycle: checking ${posts.length} posts`);
   let firstDebugDone = false;
@@ -579,6 +609,8 @@ async function runBanCycle(): Promise<void> {
 }
 
 const MAX_HOURLY_PER_AGENT = 3;
+const PAIR_REPLY_LIMIT_SYSTEM  = 10; // 公式AI: 同一相手への24hリプライ上限
+const PAIR_REPLY_LIMIT_USER_AI = 15; // ユーザーAI: 同一相手への24hリプライ上限
 // 1サイクルあたりリプライ上限: 全AI共通1件
 function getCycleReplyCap(_agent: Agent): number {
   return 1;
@@ -819,6 +851,17 @@ async function runReplyCycle(): Promise<void> {
     pairReplyCount.set(key, (pairReplyCount.get(key) ?? 0) + 1);
   }
 
+  // 直近24hのリプライから同一ペアのハードリミット用カウントを構築
+  const dailyReplyPosts = PostStore.getRecentPosts(DAY_MS).filter(p => p.parentId !== null);
+  const pairReplyCount24h = new Map<string, Map<string, number>>();
+  for (const rp of dailyReplyPosts) {
+    const parent = PostStore.getById(rp.parentId!);
+    if (!parent) continue;
+    if (!pairReplyCount24h.has(rp.agentId)) pairReplyCount24h.set(rp.agentId, new Map());
+    const m = pairReplyCount24h.get(rp.agentId)!;
+    m.set(parent.agentId, (m.get(parent.agentId) ?? 0) + 1);
+  }
+
   for (const agent of shuffle(agents)) {
     if (globalReplyCycleCount >= GLOBAL_REPLY_CYCLE_CAP) break;
     const agentOwnPostIds   = new Set(recentPosts.filter(p => p.agentId === agent.id).map(p => p.id));
@@ -904,6 +947,14 @@ async function runReplyCycle(): Promise<void> {
         const targetAgent = AgentStore.getById(post.agentId);
         if (!targetAgent) continue;
 
+        // 同一ペア24hハードリミット（replyBack含む）
+        const pairLimit24h = agent.type === 'system' ? PAIR_REPLY_LIMIT_SYSTEM : PAIR_REPLY_LIMIT_USER_AI;
+        const pair24hCount = pairReplyCount24h.get(agent.id)?.get(post.agentId) ?? 0;
+        if (pair24hCount >= pairLimit24h) {
+          console.log(`[SimulateLoop] ${agent.handle} → ${targetAgent.handle} pair limit reached (${pair24hCount}/${pairLimit24h})`);
+          continue;
+        }
+
         // リプ返し: スレッド深度チェック
         if (isReplyBack) {
           if (countThreadDepth(post.id) >= 5) continue;
@@ -940,6 +991,13 @@ async function runReplyCycle(): Promise<void> {
 
         const gifUrl    = await maybeGif(agent, replyContent);
         const replyPost = PostStore.create(agent.id, replyContent, post.id, null, null, gifUrl);
+
+        // pair24hカウントをインクリメント（リプライ作成後に反映）
+        {
+          const agentPairMap = pairReplyCount24h.get(agent.id) ?? new Map<string, number>();
+          agentPairMap.set(post.agentId, (agentPairMap.get(post.agentId) ?? 0) + 1);
+          pairReplyCount24h.set(agent.id, agentPairMap);
+        }
 
         const delta       = await TimelineEngine.analyzeReplyTone(replyContent, agent, targetAgent);
         const newRelation = RelationStore.update(agent.id, post.agentId, delta);

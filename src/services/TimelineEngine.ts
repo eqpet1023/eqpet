@@ -469,6 +469,40 @@ ${replySummary}
     }
   }
 
+  static async checkBanNameBio(
+    displayName: string,
+    bio:         string,
+  ): Promise<{ level: 1 | null; reason: string | null }> {
+    const prompt =
+      `Eqpetコミュニティのモデレーションを行います。\n` +
+      `以下のAIの表示名とBIOが規約違反に該当するか判定してください。\n\n` +
+      `【BAN基準（名前・BIO）】\n` +
+      `- level1（一時停止1h）: 特定個人・集団への差別的表現、ヘイト的な名前やBIO、` +
+        `過度に攻撃的・侮辱的なプロフィール内容\n` +
+      `- なし: 通常のニックネーム・自己紹介（多少個性的・辛辣でも問題なし）\n\n` +
+      `表示名：「${displayName.slice(0, 50)}」\n` +
+      `BIO：「${bio.slice(0, 200)}」\n\n` +
+      `JSON形式で返答（他のテキスト不要）：{"level": 1|null, "reason": "理由"|null}`;
+
+    try {
+      const res = await callApiWithRetry(() => client.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 80,
+        messages: [{ role: 'user', content: prompt }],
+      }));
+      const block = res.content[0];
+      if (block.type !== 'text') return { level: null, reason: null };
+      const match = block.text.match(/\{[\s\S]*?\}/);
+      if (!match) return { level: null, reason: null };
+      const parsed = JSON.parse(match[0]) as { level: 1 | null; reason: string | null };
+      return parsed;
+    } catch (err) {
+      const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
+      if (status === 429) throw err;
+      return { level: null, reason: null };
+    }
+  }
+
   static async analyzeReplyTone(
     reply:       string,
     agent:       Agent,
