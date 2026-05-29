@@ -13,10 +13,7 @@ const TRENDS_DIR = path.join(__dirname, '../../data/trends');
 const NEWS_QUERIES = [
   '日本 話題 ニュース 今日',
   '新作アニメ 話題 今季',
-  '音楽 新曲 リリース 今週 日本',
-  'ゲーム 新作 話題 今週',
   'スポーツ 試合結果 話題 今日 日本',
-  '芸能 エンタメ 話題 今週 日本',
 ];
 
 // ASCII・ひらがな・カタカナ・CJK統合漢字・半角全角のみ許可。それ以外の文字（ハングル等）を含む場合は除外
@@ -134,6 +131,57 @@ JSON形式のみで返してください（説明文・前置き不要）：
   }
 }
 
+async function fetchXTrends(): Promise<NewsItem[]> {
+  try {
+    const res = await fetch('https://trends24.in/japan/', {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; eqpet-bot/1.0)' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      console.warn(`[NewsService] XTrends fetch failed: HTTP ${res.status}`);
+      return [];
+    }
+    const html = await res.text();
+
+    // 最初の<ol>ブロック（最新スナップショット）を抽出
+    const olMatch = html.match(/<ol[^>]*>([\s\S]*?)<\/ol>/);
+    if (!olMatch) {
+      console.warn('[NewsService] XTrends: <ol> not found in page');
+      return [];
+    }
+    const olContent = olMatch[1];
+
+    // <a href="...">からq=パラメータを抽出してデコード
+    const aRegex = /<a\s[^>]*href="([^"]*)"[^>]*>/g;
+    const items: NewsItem[] = [];
+    const fetchedAt = new Date().toISOString();
+    let m: RegExpExecArray | null;
+
+    while ((m = aRegex.exec(olContent)) !== null && items.length < 20) {
+      const href = m[1];
+      const qMatch = href.match(/[?&]q=([^&]*)/);
+      if (!qMatch) continue;
+
+      const word = decodeURIComponent(qMatch[1]).trim();
+      if (!word) continue;
+
+      items.push({
+        title:     word,
+        url:       `https://twitter.com/search?q=${encodeURIComponent(word)}`,
+        summary:   `Xトレンド: ${word}`,
+        category:  'Xトレンド',
+        fetchedAt,
+      });
+    }
+
+    console.log(`[NewsService] XTrends fetched: ${items.length} items`);
+    return items;
+  } catch (err: unknown) {
+    console.warn('[NewsService] XTrends error:', (err as Error).message ?? err);
+    return [];
+  }
+}
+
 export class NewsService {
   static async fetchAndCache(): Promise<NewsItem[]> {
     return NewsService.fetchLatestNews();
@@ -155,6 +203,26 @@ export class NewsService {
     try {
       const fetchedQueries = loadFetchedQueries();
       const allItems: NewsItem[] = [];
+
+      // Xトレンドを先頭に取得してキャッシュへ追記
+      if (!fetchedQueries.has('__xtrends__')) {
+        const xTrends = await fetchXTrends();
+        saveFetchedQuery('__xtrends__');
+        if (xTrends.length > 0) {
+          allItems.push(...xTrends);
+          const existingCached = fs.existsSync(cachePath)
+            ? (JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as NewsItem[])
+            : [];
+          const mergedSeen = new Set<string>(existingCached.map(i => i.title));
+          const newItems   = xTrends.filter(i => !mergedSeen.has(i.title));
+          if (newItems.length > 0) {
+            fs.writeFileSync(cachePath, JSON.stringify([...existingCached, ...newItems], null, 2));
+          }
+        }
+      } else {
+        console.log('[NewsService] XTrends already fetched today — skipped');
+      }
+
       for (const query of NEWS_QUERIES) {
         if (fetchedQueries.has(query)) {
           console.log(`[NewsService] "${query}" already fetched today — skipped`);
