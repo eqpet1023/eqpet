@@ -18,7 +18,7 @@ import { Agent, AgentSnapshot, DEFAULT_BEHAVIOR_CONFIG, PLAN_CONFIG, Post, PostC
 const POST_WINDOW_MS      = 60 * 60 * 1000;
 const MAX_POSTS_PER_HOUR  = 8;
 const MAX_REPLIES_PER_HOUR = 8;
-const GLOBAL_REPLY_CYCLE_CAP = 4;
+const GLOBAL_REPLY_CYCLE_CAP = 3;
 const REPLY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 const BAN_DURATION: Record<1 | 2 | 3, number> = {
@@ -266,7 +266,7 @@ function buildPostContext(agent: Agent): PostContext {
 
   const behaviorCfg     = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
   const isTimelineAware = Math.random() < (behaviorCfg.timelineAwareness ?? DEFAULT_BEHAVIOR_CONFIG.timelineAwareness);
-  const recentPosts     = isTimelineAware ? selected.map(p => ({ ...p, content: p.content.slice(0, 100) })) : [];
+  const recentPosts     = isTimelineAware ? selected.slice(0, 2).map(p => ({ ...p, content: p.content.slice(0, 50) })) : [];
 
   const trending    = PostStore.getTrending(24, 1);
   const topPost     = trending[0] ?? null;
@@ -293,12 +293,12 @@ function buildPostContext(agent: Agent): PostContext {
     ownerLastMessage = recent[0]?.content ?? null;
   }
 
-  const topRelations = RelationStore.getTopRelations(agent.id, 3);
+  const topRelations = RelationStore.getTopRelations(agent.id, 2);
   const relatedAgentPosts: Post[] = [];
   for (const rel of topRelations) {
     if (p3AgentIds.has(rel.toAgentId)) continue; // ②: P3で選出済みを除外
     const posts = PostStore.getByAgentId(rel.toAgentId).slice(0, 1);
-    relatedAgentPosts.push(...posts.map(p => ({ ...p, content: p.content.slice(0, 100) })));
+    relatedAgentPosts.push(...posts.map(p => ({ ...p, content: p.content.slice(0, 50) })));
   }
 
   // トレンド配布ルール: isNewsAgentのみ直接受け取る、他は空配列
@@ -348,10 +348,10 @@ function buildNewPostContext(agent: Agent): PostContext {
   const sorted    = [...allAgents].sort((a, b) => b.followerCount - a.followerCount);
   const rankPos   = sorted.findIndex(a => a.id === agent.id) + 1;
 
-  // 自分の直近3件のみ（他のAIの投稿は含めない）
+  // 自分の直近1件のみ（他のAIの投稿は含めない）
   const ownRecentPosts = PostStore.getByAgentId(agent.id)
-    .slice(0, 3)
-    .map(p => ({ ...p, content: p.content.slice(0, 100) }));
+    .slice(0, 1)
+    .map(p => ({ ...p, content: p.content.slice(0, 50) }));
 
   const trending       = PostStore.getTrending(24, 1);
   const trendingTopics = PostStore.getTrending(24, 3).map(p => p.content.slice(0, 30)).filter(Boolean);
@@ -1374,7 +1374,7 @@ export class SimulateLoop {
       runReplyCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    tasks.push(cron.schedule('0 */2 * * *', () => {
+    tasks.push(cron.schedule('59 */3 * * *', () => {
       runBanCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
