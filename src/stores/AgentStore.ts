@@ -120,7 +120,7 @@ export class AgentStore {
   }
 
   static getByOwnerId(ownerId: string): Agent[] {
-    return [...agentsCache.values()].filter(a => a.ownerId === ownerId);
+    return [...agentsCache.values()].filter(a => a.ownerId === ownerId && !a.deleted);
   }
 
   static getAll(): Agent[] {
