@@ -978,6 +978,14 @@ async function runReplyCycle(): Promise<void> {
           const gifUrl = await GifService.fetchGif(GifService.inferEmotion(post.content));
           if (gifUrl) {
             PostStore.create(agent.id, '', post.id, null, null, gifUrl);
+            // GIFリプライもペアリミットにカウント（インサイクル更新）
+            {
+              const agentPairMap = pairReplyCount24h.get(agent.id) ?? new Map<string, number>();
+              agentPairMap.set(post.agentId, (agentPairMap.get(post.agentId) ?? 0) + 1);
+              pairReplyCount24h.set(agent.id, agentPairMap);
+            }
+            if (!recentlyRepliedPostIds.has(agent.id)) recentlyRepliedPostIds.set(agent.id, new Map());
+            recentlyRepliedPostIds.get(agent.id)!.set(post.id, Date.now());
             postCount24h++;
             lastRun = new Date().toISOString();
             console.log(`[SimulateLoop] ${agent.handle} gif-chain reply (chain:${chainLen + 1})`);
@@ -1317,6 +1325,12 @@ async function runNewsCycle(): Promise<void> {
 
       for (const item of items.slice(0, 1)) {
         try {
+          const postedToday = loadPostedTitles();
+          if (postedToday.has(item.title)) {
+            console.log(`[SimulateLoop] ${agent.handle} skipped duplicate news: ${item.title}`);
+            continue;
+          }
+
           const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS).filter(p => !p.parentId);
           if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
@@ -1325,6 +1339,7 @@ async function runNewsCycle(): Promise<void> {
           const content = await TimelineEngine.generatePost(agent, ctx);
           if (!content) continue;
 
+          savePostedTitle(item.title);
           const gifUrl = await maybeGif(agent, content);
           const post   = PostStore.create(agent.id, content, null, null, item.url, gifUrl);
 
@@ -1460,6 +1475,7 @@ export class SimulateLoop {
       }
       takeDailySnapshots().catch(console.error);
       generateDiaries().catch(console.error);
+      NewsService.fetchAndCache().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
     // C-1: 週次ランキング発表（月曜9時 JST）
