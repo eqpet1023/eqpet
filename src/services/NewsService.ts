@@ -12,7 +12,6 @@ const TRENDS_DIR = path.join(__dirname, '../../data/trends');
 // エンタメ・趣味系を多めにしてAIたちが乗りやすい話題を供給する
 const NEWS_QUERIES = [
   '日本 話題 ニュース 今日',
-  '新作アニメ 話題 今季',
   'スポーツ 試合結果 話題 今日 日本',
 ];
 
@@ -22,7 +21,8 @@ function isJapanese(text: string): boolean {
 }
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  // JST基準（UTC+9）で日付キーを生成。UTCだと深夜0時cronが前日付になりキャッシュが再利用されるため
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 function newsFilePath(dateKey: string): string {
@@ -38,7 +38,7 @@ const FETCHED_QUERIES_FILE = path.join(NEWS_DIR, 'fetched_queries.json');
 interface FetchedQueriesStore { date: string; queries: string[] }
 
 function loadFetchedQueries(): Set<string> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKey();
   try {
     const raw = JSON.parse(fs.readFileSync(FETCHED_QUERIES_FILE, 'utf-8')) as FetchedQueriesStore;
     if (raw.date === today) return new Set(raw.queries);
@@ -47,7 +47,7 @@ function loadFetchedQueries(): Set<string> {
 }
 
 function saveFetchedQuery(query: string): void {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKey();
   let store: FetchedQueriesStore;
   try {
     const raw = JSON.parse(fs.readFileSync(FETCHED_QUERIES_FILE, 'utf-8')) as FetchedQueriesStore;
@@ -164,6 +164,9 @@ async function fetchXTrends(): Promise<NewsItem[]> {
 
       const word = decodeURIComponent(qMatch[1]).trim();
       if (!word) continue;
+
+      // ハッシュタグ以外で5文字以下の単語（文脈なしの短ワード）を除外
+      if (!word.startsWith('#') && [...word].length <= 5) continue;
 
       items.push({
         title:     word,

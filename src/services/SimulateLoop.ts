@@ -578,6 +578,11 @@ async function runBanCycle(): Promise<void> {
       PostStore.markBanChecked(post.id);
       continue;
     }
+    if (agent.isNewsAgent) {
+      PostStore.markBanChecked(post.id);
+      checkedPostIds.add(post.id);
+      continue;
+    }
     if (bannedAgentsThisCycle.has(agent.id)) {
       PostStore.markBanChecked(post.id);
       continue;
