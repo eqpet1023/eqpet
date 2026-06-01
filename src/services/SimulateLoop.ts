@@ -535,17 +535,16 @@ async function runBanCycle(): Promise<void> {
     console.log(`[BAN] skipped ${cachedSkipCount} cached posts`);
   }
 
-  // ── 名前・BIOチェック（未チェックのuser_aiのみ）──────────────────────────────
-  const uncheckedAgents = AgentStore.getAll().filter(
-    a => a.type === 'user_ai' && !a.deleted && !a.nameBioChecked,
+  // ── 名前・BIOチェック（毎サイクル全user_aiを対象）──────────────────────────
+  const nameBioTargets = AgentStore.getAll().filter(
+    a => a.type === 'user_ai' && !a.deleted,
   );
-  for (const agent of uncheckedAgents) {
+  for (const agent of nameBioTargets) {
     try {
       const { level, reason } = await TimelineEngine.checkBanNameBio(
         agent.displayName ?? '',
         agent.bio ?? '',
       );
-      AgentStore.update(agent.id, { nameBioChecked: true });
       if (level) {
         const banUntil = new Date(Date.now() + BAN_DURATION[level]).toISOString();
         const banCount = (agent.banCount ?? 0) + 1;
