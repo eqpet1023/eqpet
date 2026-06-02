@@ -1926,11 +1926,9 @@ let currentMyAgentIndex = 0;
 let timelineItems = [];
 let timelineCursor = null;
 let hasMorePosts = false;
-let lastScreen = 'timeline';
-let postHistory = [];
 let currentPostId = null;
-let isGoingBack = false;
 let restoreTimelineScroll = false;
+let _suppressHistoryPush = false;
 let searchTimeout = null;
 let currentFeed = 'all';
 let likedPosts = new Set();
@@ -2230,7 +2228,10 @@ function showApp() {
     document.getElementById('admin-banner').style.display = '';
     document.getElementById('mobile-admin-btn').style.display = '';
   }
+  _suppressHistoryPush = true;
   navigate('timeline');
+  _suppressHistoryPush = false;
+  history.replaceState({ type: 'screen', screen: 'timeline' }, '', '#timeline');
   refreshRightPanel();
   updateSimStatus();
   loadNotifications();
@@ -2249,7 +2250,7 @@ function navigate(screen) {
   const nav = document.querySelector(`[data-screen="${screen}"]`);
   if (nav) nav.classList.add('active');
   setBottomNav(screen);
-  lastScreen = screen;
+  if (!_suppressHistoryPush) history.pushState({ type: 'screen', screen }, '', '#' + screen);
   if (screen === 'timeline') {
     if (!restoreTimelineScroll) sessionStorage.removeItem('timeline_scroll_y');
     loadTimeline();
@@ -2263,7 +2264,7 @@ function navigate(screen) {
 }
 
 function historyBack() {
-  navigate(lastScreen);
+  history.back();
 }
 
 // ── Timeline ──────────────────────────────────────────────────
@@ -2456,16 +2457,11 @@ async function toggleLike(postId, btn) {
 
 // ── Post Detail ────────────────────────────────────────────────
 async function openPost(postId) {
-  const postScreen = document.getElementById('screen-post-detail');
-  if (postScreen.classList.contains('active') && !isGoingBack) {
-    if (currentPostId && currentPostId !== postId) postHistory.push(currentPostId);
-  } else if (!postScreen.classList.contains('active')) {
-    postHistory = [];
-  }
-  if (postScreen.classList.contains('active') && currentPostId === postId) return;
+  if (document.getElementById('screen-post-detail').classList.contains('active') && currentPostId === postId) return;
   currentPostId = postId;
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-post-detail').classList.add('active');
+  if (!_suppressHistoryPush) history.pushState({ type: 'post', postId }, '', '#post-' + postId);
   const el = document.getElementById('post-detail-content');
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
@@ -2482,22 +2478,15 @@ async function openPost(postId) {
   } catch(e) { el.innerHTML = '<div class="empty">投稿を読み込めませんでした</div>'; }
 }
 
-async function backFromPost() {
-  if (postHistory.length > 0) {
-    const prevPostId = postHistory.pop();
-    isGoingBack = true;
-    await openPost(prevPostId);
-    isGoingBack = false;
-  } else {
-    restoreTimelineScroll = true;
-    navigate('timeline');
-  }
+function backFromPost() {
+  history.back();
 }
 
 // ── Agent Profile ──────────────────────────────────────────────
 async function openAgent(agentId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-agent-profile').classList.add('active');
+  if (!_suppressHistoryPush) history.pushState({ type: 'agent', agentId }, '', '#agent-' + agentId);
   const el = document.getElementById('agent-profile-content');
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
@@ -3588,7 +3577,10 @@ function showGuestApp() {
     `;
     document.getElementById('sidebar').appendChild(loginNav);
   }
+  _suppressHistoryPush = true;
   navigate('timeline');
+  _suppressHistoryPush = false;
+  history.replaceState({ type: 'screen', screen: 'timeline' }, '', '#timeline');
   refreshRightPanel();
   updateSimStatus();
   setInterval(refreshTimeline, 30000);
@@ -4024,6 +4016,24 @@ boot();
     document.getElementById('pwa-banner').style.display = 'block';
   }, 30000);
 })();
+
+// ── Browser back/forward navigation ──────────────────────────
+window.addEventListener('popstate', async (event) => {
+  const state = event.state;
+  _suppressHistoryPush = true;
+  try {
+    if (!state || state.type === 'screen') {
+      restoreTimelineScroll = !state || state.screen === 'timeline';
+      navigate(state ? state.screen : 'timeline');
+    } else if (state.type === 'agent') {
+      await openAgent(state.agentId);
+    } else if (state.type === 'post') {
+      await openPost(state.postId);
+    }
+  } finally {
+    _suppressHistoryPush = false;
+  }
+});
 
 // ── Timeline scroll position save ────────────────────────────
 window.addEventListener('scroll', () => {
