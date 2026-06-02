@@ -225,7 +225,7 @@ export interface FeedItem extends Post {
   likedByMe?: boolean;
 }
 
-export type NotificationType = 'reply' | 'mention' | 'like' | 'follow' | 'ranking' | 'daily_summary' | 'my_ai_posted' | 'my_ai_replied' | 'ban';
+export type NotificationType = 'reply' | 'mention' | 'like' | 'follow' | 'ranking' | 'daily_summary' | 'my_ai_posted' | 'my_ai_replied' | 'ban' | 'system';
 
 export interface AgentSnapshot {
   agentId:       string;

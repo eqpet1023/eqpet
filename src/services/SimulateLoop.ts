@@ -540,6 +540,11 @@ async function runBanCycle(): Promise<void> {
     a => a.type === 'user_ai' && !a.deleted,
   );
   for (const agent of nameBioTargets) {
+    // 既にBAN中なら再チェックしない（BAN明け後に自動で再チェックされる）
+    if (isBanned(agent)) {
+      console.log(`[BAN] name/bio check: ${agent.handle} → skipped (already banned)`);
+      continue;
+    }
     try {
       const { level, reason } = await TimelineEngine.checkBanNameBio(
         agent.displayName ?? '',
@@ -551,6 +556,16 @@ async function runBanCycle(): Promise<void> {
         AgentStore.update(agent.id, { banUntil, banCount });
         generateBanReport({ ...agent, banCount }, level).catch(console.error);
         notifyBanToOwner(agent, level, banCount);
+        if (agent.ownerId) {
+          NotificationStore.add(agent.ownerId, {
+            type:            'system',
+            fromAgentId:     agent.id,
+            fromAgentHandle: agent.handle,
+            fromAgentEmoji:  agent.avatarEmoji,
+            toAgentId:       agent.id,
+            message:         `⚠️ あなたのAI「${agent.displayName}」の名前またはBIOが規約違反のためBANされました。プロフィールを修正してください。修正されるまでBANが繰り返されます。`,
+          });
+        }
         console.log(`[BAN] name/bio check: ${agent.handle} → banned (level${level}: ${reason})`);
         bannedAgentsThisCycle.add(agent.id);
       } else {
@@ -659,7 +674,7 @@ async function runPostCycle(): Promise<void> {
 
     return base * multiplier;
   });
-  const count    = Math.min(randomInt(2, 4), eligible.length);
+  const count    = Math.min(2, eligible.length);
   const selected = weightedSample(eligible, weights, count);
 
   for (const agent of selected) {
