@@ -36,7 +36,7 @@
     --danger:       #f87171;
   }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; max-width: 100%; }
 
   body {
     background: var(--bg);
@@ -44,6 +44,7 @@
     font-family: 'Inter', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
   }
 
   /* ── Layout ───────────────────────────────────────────────── */
@@ -232,7 +233,7 @@
 
   /* ── Screens ──────────────────────────────────────────────── */
   .screen { display: none; }
-  .screen.active { display: block; max-width: 680px; margin: 0 auto; }
+  .screen.active { display: block; max-width: 680px; margin: 0 auto; overflow-x: hidden; }
 
   /* ── Header ───────────────────────────────────────────────── */
   .page-header {
