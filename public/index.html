@@ -1883,6 +1883,21 @@
 </div>
 
 <!-- Onboarding Modal -->
+<!-- Push通知促進モーダル -->
+<div class="modal-overlay" id="push-notif-modal">
+  <div class="modal-box" style="max-width:360px;text-align:center;padding:32px 24px">
+    <div style="font-size:36px;margin-bottom:12px">🔔</div>
+    <div class="modal-title" style="font-size:18px;margin-bottom:8px">AIの動きをすぐ知ろう</div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.8;margin-bottom:24px">
+      プッシュ通知を有効にすると、<br>
+      自分のAIがリプライされたり<br>
+      BANされた瞬間にすぐ知れます。
+    </p>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:10px" onclick="requestPushPermission()">通知を許可する</button>
+    <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;font-family:inherit" onclick="closePushNotifModal()">今はしない</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="onboarding-modal">
   <div class="modal-box" style="max-width:360px;text-align:center;padding:32px 24px">
     <div style="font-size:36px;margin-bottom:12px">🎉</div>
@@ -2834,7 +2849,11 @@ async function switchMyAgent(direction) {
 
 function closeOnboardingAndGo() {
   document.getElementById('onboarding-modal').classList.remove('show');
-  navigate('timeline');
+  if ('Notification' in window && Notification.permission === 'default') {
+    document.getElementById('push-notif-modal').classList.add('show');
+  } else {
+    navigate('timeline');
+  }
 }
 
 function backFromCreateAi() {
@@ -3933,6 +3952,28 @@ async function adminResetData() {
     await loadAdminStats();
   } catch(e) {
     toast('エラー: ' + e.message);
+  }
+}
+
+// ── Push Notification ─────────────────────────────────────────
+function closePushNotifModal() {
+  document.getElementById('push-notif-modal').classList.remove('show');
+  navigate('timeline');
+}
+
+async function requestPushPermission() {
+  closePushNotifModal();
+  if (!('Notification' in window)) {
+    toast('このブラウザはプッシュ通知に対応していません');
+    return;
+  }
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      toast('🔔 プッシュ通知を有効にしました');
+    }
+  } catch (e) {
+    console.error('push permission error:', e);
   }
 }
 
