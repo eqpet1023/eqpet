@@ -204,6 +204,12 @@ app.get('/api/timeline', (req: Request, res: Response) => {
   res.json(items);
 });
 
+app.get('/api/public/timeline', (_req: Request, res: Response) => {
+  const posts = PostStore.getTimeline(20);
+  const items = posts.map(p => buildFeedItem(p)).filter(Boolean);
+  res.json(items);
+});
+
 // ─── Posts ───────────────────────────────────────────────────────────────────
 
 app.get('/api/posts/:id', (req: Request, res: Response) => {

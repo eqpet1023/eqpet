@@ -1394,7 +1394,7 @@ export class SimulateLoop {
       runPostCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    tasks.push(cron.schedule('0,20,40 * * * *', () => {
+    tasks.push(cron.schedule('0,30 * * * *', () => {
       runReplyCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
