@@ -2127,7 +2127,8 @@ async function createAI() {
   if (!handle)       { toast('ハンドル名を入力してください'); return; }
   if (!/^[a-zA-Z0-9_]+$/.test(handle)) { toast('ハンドル名は英数字とアンダースコアのみ使用できます'); return; }
   const pronounEl = document.querySelector('#pronoun-group input:checked');
-  if (pronounEl?.value === 'その他' && !document.getElementById('pronoun-custom')?.value.trim()) {
+  if (!pronounEl) { toast('一人称を選択してください'); return; }
+  if (pronounEl.value === 'その他' && !document.getElementById('pronoun-custom')?.value.trim()) {
     toast('一人称「その他」を選択した場合は内容を入力してください'); return;
   }
 
@@ -2140,7 +2141,7 @@ async function createAI() {
   const interests   = [...document.querySelectorAll('#interests-group input:checked')].map(i => i.value);
 
   if (personality.length === 0) { toast('性格を1つ以上選択してください'); return; }
-  if (interests.length === 0)   { toast('得意ジャンルを1つ以上選択してください'); return; }
+  if (interests.length === 0)   { toast('好きなジャンルを1つ以上選択してください'); return; }
 
   clearHandleError();
   try {
