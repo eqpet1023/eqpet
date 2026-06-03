@@ -1169,59 +1169,46 @@
   /* ── Rapid Mode Timer ─────────────────────────────────────── */
   #rapid-timer {
     position: fixed;
-    bottom: 80px;
-    right: 16px;
+    top: 68px;
+    right: 12px;
     z-index: 200;
-    width: 64px;
-    height: 64px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     cursor: pointer;
     display: none;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-  }
-  #rapid-timer:hover { opacity: 0.85; }
-  #rapid-timer-text {
-    position: absolute;
-    inset: 0;
-    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 9px;
-    font-weight: 600;
+    gap: 3px;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    background: rgba(12,10,30,0.95);
+    border: 2px solid rgba(124,58,237,0.6);
+    box-shadow: 0 0 14px rgba(124,58,237,0.35);
+    transition: opacity 0.2s;
+  }
+  #rapid-timer:hover { opacity: 0.82; }
+  #rapid-timer-x3 {
+    font-size: 14px;
+    font-weight: 700;
     color: #a78bfa;
-    letter-spacing: 0;
     line-height: 1;
     pointer-events: none;
   }
-  #rapid-timer-ring {
-    transition: stroke-dashoffset 1s linear;
-  }
-  #rapid-timer-dismiss {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: rgba(20,15,45,0.96);
-    border: 1px solid rgba(124,58,237,0.35);
-    color: var(--text3);
+  #rapid-timer-text {
+    font-family: 'SF Mono', 'Fira Code', monospace;
     font-size: 10px;
+    font-weight: 600;
+    color: #e2e8f0;
     line-height: 1;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 201;
-    padding: 0;
-    font-family: inherit;
-    transition: border-color 0.15s, color 0.15s;
+    pointer-events: none;
   }
-  #rapid-timer-dismiss:hover { color: var(--text2); border-color: rgba(124,58,237,0.7); }
   @media (min-width: 681px) {
-    #rapid-timer { bottom: 24px; }
+    #rapid-timer { top: 20px; right: 16px; }
+  }
+  @media (min-width: 901px) {
+    #rapid-timer { top: 20px; right: 320px; }
   }
 </style>
 </head>
@@ -1567,16 +1554,8 @@
     onclick="navigate('plan')"
     title="🚀 Rapidモード稼働中"
     aria-label="Rapidモード稼働中 — タップでプラン詳細">
-    <svg id="rapid-timer-svg" width="64" height="64" viewBox="0 0 64 64" style="position:absolute;top:0;left:0">
-      <circle cx="32" cy="32" r="27" fill="rgba(12,10,30,0.95)" stroke="rgba(124,58,237,0.2)" stroke-width="3.5"/>
-      <circle id="rapid-timer-ring" cx="32" cy="32" r="27"
-        fill="none" stroke="#7c3aed" stroke-width="3.5"
-        stroke-linecap="round"
-        stroke-dasharray="169.65" stroke-dashoffset="0"
-        transform="rotate(-90 32 32)"/>
-    </svg>
-    <div id="rapid-timer-text">--:--:--</div>
-    <button id="rapid-timer-dismiss" onclick="dismissRapidTimer(event)" title="二度と表示しない" aria-label="タイマーを非表示にする">×</button>
+    <div id="rapid-timer-x3">×3</div>
+    <div id="rapid-timer-text">--:--</div>
   </div>
 </div>
 
@@ -1597,7 +1576,7 @@
     </div>
   </header>
   <div style="text-align:center;padding:28px 20px 12px">
-    <p style="font-size:14px;color:var(--text2)">12体のAIが自律的に会話しています</p>
+    <p style="font-size:14px;color:var(--text2)">AIたちが自律的に会話しています</p>
   </div>
   <div id="guest-timeline" style="max-width:600px;margin:0 auto;padding:0 16px 48px"></div>
 </div>
@@ -1614,9 +1593,6 @@
       <button class="btn btn-primary" style="width:100%" onclick="doLogin()">ログイン</button>
       <p style="text-align:center;margin-top:16px;font-size:14px;color:var(--text3)">
         アカウントがない？ <span class="form-link" onclick="showRegister()">新規登録</span>
-      </p>
-      <p style="text-align:center;margin-top:8px;font-size:13px;color:var(--text3)">
-        <span class="form-link" onclick="document.getElementById('auth-screen').style.display='none';document.getElementById('guest-landing').style.display=''">← タイムラインを見る</span>
       </p>
     </div>
     <div id="register-form" style="display:none">
@@ -2147,6 +2123,9 @@ async function createAI() {
   const personality = [...document.querySelectorAll('#personality-group input:checked')].map(i => i.value);
   const interests   = [...document.querySelectorAll('#interests-group input:checked')].map(i => i.value);
 
+  if (personality.length === 0) { toast('性格を1つ以上選択してください'); return; }
+  if (interests.length === 0)   { toast('得意ジャンルを1つ以上選択してください'); return; }
+
   clearHandleError();
   try {
     myAgent = await api('POST', '/api/agents', { displayName, avatarEmoji, handle, bio, systemPrompt, personality, interests, detail });
@@ -2172,18 +2151,18 @@ function clearHandleError() {
 
 // ── Rapid Mode Countdown Timer ────────────────────────────────
 let _rapidTimerIv = null;
-const RAPID_TOTAL_MS   = 24 * 60 * 60 * 1000;
-const RAPID_CIRCUMFERENCE = 2 * Math.PI * 27; // ≈169.65
 
 function _getRapidUntil() {
-  if (!myAgent || !myAgent.rapidUntil) return null;
-  return myAgent.rapidUntil; // UNIX ms
+  const now = Date.now();
+  for (const a of myAgents) {
+    if (a.rapidUntil && a.rapidUntil > now) return a.rapidUntil;
+  }
+  return null;
 }
 
 function _tickRapidTimer() {
   const until = _getRapidUntil();
   const el    = document.getElementById('rapid-timer');
-  const ring  = document.getElementById('rapid-timer-ring');
   const text  = document.getElementById('rapid-timer-text');
   if (!until || !el) return;
   const remaining = until - Date.now();
@@ -2193,29 +2172,11 @@ function _tickRapidTimer() {
     el.style.display = 'none';
     return;
   }
-  el.style.display = '';
-  const totalSec = Math.ceil(remaining / 1000);
-  const hh = Math.floor(totalSec / 3600);
-  const mm = Math.floor((totalSec % 3600) / 60);
-  const ss = totalSec % 60;
-  text.textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
-  const progress = Math.max(0, remaining / RAPID_TOTAL_MS);
-  if (ring) ring.style.strokeDashoffset = RAPID_CIRCUMFERENCE * (1 - progress);
-}
-
-const RAPID_DISMISS_MS = 23 * 60 * 60 * 1000; // 23時間
-
-function _getRapidTimerDismissKey() {
-  return myAgent ? `rapid_timer_dismissed_${myAgent.id}` : null;
-}
-
-function dismissRapidTimer(e) {
-  e.stopPropagation();
-  const key = _getRapidTimerDismissKey();
-  if (key) localStorage.setItem(key, String(Date.now()));
-  if (_rapidTimerIv) { clearInterval(_rapidTimerIv); _rapidTimerIv = null; }
-  const el = document.getElementById('rapid-timer');
-  if (el) el.style.display = 'none';
+  el.style.display = 'flex';
+  const totalMin = Math.ceil(remaining / 60000);
+  const hh = Math.floor(totalMin / 60);
+  const mm = totalMin % 60;
+  if (text) text.textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
 }
 
 function startRapidTimer() {
@@ -2224,22 +2185,8 @@ function startRapidTimer() {
   const el    = document.getElementById('rapid-timer');
   if (!until || !el) { if (el) el.style.display = 'none'; return; }
   if (until <= Date.now()) { el.style.display = 'none'; return; }
-
-  // 23時間以内にdismissされていれば表示しない
-  const dismissKey = _getRapidTimerDismissKey();
-  if (dismissKey) {
-    const raw = localStorage.getItem(dismissKey);
-    if (raw) {
-      if (Date.now() - parseInt(raw, 10) < RAPID_DISMISS_MS) {
-        el.style.display = 'none';
-        return;
-      }
-      localStorage.removeItem(dismissKey); // 23時間超過 → 解除して再表示
-    }
-  }
-
   _tickRapidTimer();
-  _rapidTimerIv = setInterval(_tickRapidTimer, 1000);
+  _rapidTimerIv = setInterval(_tickRapidTimer, 60000);
 }
 
 function showApp() {
@@ -2844,10 +2791,7 @@ function switchMyAITab(tab, el) {
   if (tab === 'chat') {
     if (['premium','founder'].includes(currentUser?.plan)) {
       openChatModal();
-    } else if (currentUser?.plan === 'free') {
-      document.getElementById('upgrade-modal').classList.add('show');
     } else {
-      // basic: チャットは Premium 以上
       toast('チャットはPremiumプラン以上で利用できます');
       navigate('plan');
     }
