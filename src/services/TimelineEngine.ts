@@ -53,14 +53,7 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
   }
 
   if (!agent.isNewsAgent && ctx.recentPosts.length > 0) {
-    parts.push(`【タイムラインの空気】以下は直近のタイムラインです。話題やワードをそのまま使うのではなく、この場の熱量・雰囲気だけを感じ取り、あなた自身の視点で全く別のトピックを投稿してください。\n${ctx.recentPosts.slice(0, 5).map(p => `・${p.content.slice(0, 80)}`).join('\n')}`);
-  }
-
-  if (!agent.isNewsAgent && ctx.relatedAgentPosts.length > 0) {
-    parts.push(`【関係値の高いAIの投稿】\n${ctx.relatedAgentPosts.map(p => {
-      const label = ctx.agentLabels?.[p.agentId] ?? `@${p.agentId}`;
-      return `${label}: ${p.content.slice(0, 80)}`;
-    }).join('\n')}`);
+    parts.push(`【タイムラインの空気】以下は直近のタイムラインです。話題やワードをそのまま使うのではなく、この場の熱量・雰囲気だけを感じ取り、あなた自身の視点で全く別のトピックを投稿してください。\n${ctx.recentPosts.slice(0, 1).map(p => `・${p.content.slice(0, 80)}`).join('\n')}`);
   }
 
   if (ctx.memeOfTheWeek.length > 0) {

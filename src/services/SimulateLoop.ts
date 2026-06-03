@@ -205,7 +205,6 @@ function buildPostContext(agent: Agent): PostContext {
   }
 
   // P3: engaged+ relation agents' latest post (max 1)
-  const p3AgentIds = new Set<string>(); // ②: relatedAgentPostsとの重複排除用
   if (selected.length < 5) {
     const engagedStages: RelationStage[] = ['engaged', 'bonded', 'iconic'];
     for (const rel of RelationStore.getTopRelations(agent.id, 5)) {
@@ -213,7 +212,6 @@ function buildPostContext(agent: Agent): PostContext {
       if (!engagedStages.includes(rel.stage)) continue;
       const latest = PostStore.getByAgentId(rel.toAgentId)[0];
       if (latest && !latest.isBanned && addPost(latest)) {
-        p3AgentIds.add(rel.toAgentId); // ②
         break;
       }
     }
@@ -266,7 +264,7 @@ function buildPostContext(agent: Agent): PostContext {
 
   const behaviorCfg     = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
   const isTimelineAware = Math.random() < (behaviorCfg.timelineAwareness ?? DEFAULT_BEHAVIOR_CONFIG.timelineAwareness);
-  const recentPosts     = isTimelineAware ? selected.slice(0, 2).map(p => ({ ...p, content: p.content.slice(0, 50) })) : [];
+  const recentPosts     = isTimelineAware ? selected.slice(0, 1).map(p => ({ ...p, content: p.content.slice(0, 50) })) : [];
 
   const trending    = PostStore.getTrending(24, 1);
   const topPost     = trending[0] ?? null;
@@ -288,17 +286,9 @@ function buildPostContext(agent: Agent): PostContext {
 
   let ownerLastMessage: string | null = null;
   if (agent.type === 'user_ai' && agent.ownerId) {
-    const chatHistory = MemoryStore.get(agent.id, `chat_${agent.ownerId}`);
+    const chatHistory = MemoryStore.get(agent.id, `chat_${agent.ownerId}`).slice(-5);
     const recent = chatHistory.filter(e => e.type === 'post').slice(-1);
     ownerLastMessage = recent[0]?.content ?? null;
-  }
-
-  const topRelations = RelationStore.getTopRelations(agent.id, 2);
-  const relatedAgentPosts: Post[] = [];
-  for (const rel of topRelations) {
-    if (p3AgentIds.has(rel.toAgentId)) continue; // ②: P3で選出済みを除外
-    const posts = PostStore.getByAgentId(rel.toAgentId).slice(0, 1);
-    relatedAgentPosts.push(...posts.map(p => ({ ...p, content: p.content.slice(0, 50) })));
   }
 
   // トレンド配布ルール: isNewsAgentのみ直接受け取る、他は空配列
@@ -313,7 +303,7 @@ function buildPostContext(agent: Agent): PostContext {
 
   // agentId → "@handle（displayName）" のラベルマップを構築
   const agentLabels: Record<string, string> = {};
-  for (const post of [...selected, ...relatedAgentPosts]) {
+  for (const post of selected) {
     if (!agentLabels[post.agentId]) {
       const a = AgentStore.getById(post.agentId);
       if (a) agentLabels[post.agentId] = `@${a.handle}（${a.displayName}）`;
@@ -337,7 +327,7 @@ function buildPostContext(agent: Agent): PostContext {
     memeOfTheWeek,
     ownerLastMessage,
     bannedAgents,
-    relatedAgentPosts,
+    relatedAgentPosts: [],
     agentLabels,
   };
 }
@@ -1400,7 +1390,7 @@ export class SimulateLoop {
 
     ensureOfficialFollows();
 
-    tasks.push(cron.schedule('0,30 * * * *', () => {
+    tasks.push(cron.schedule('0 * * * *', () => {
       runPostCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
@@ -1408,7 +1398,7 @@ export class SimulateLoop {
       runReplyCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    tasks.push(cron.schedule('59 */3 * * *', () => {
+    tasks.push(cron.schedule('59 */6 * * *', () => {
       runBanCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
