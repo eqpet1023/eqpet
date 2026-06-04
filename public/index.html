@@ -135,12 +135,13 @@
     #screen-timeline .page-header { display: none; }
     #screen-timeline { padding-top: 0; margin-top: 0; }
     #timeline-tabs {
-      position: sticky;
+      position: fixed;
       top: 84px;
-      z-index: 90;
+      left: 0;
+      right: 0;
+      z-index: 95;
       background: var(--bg);
       border-bottom: 1px solid var(--border);
-      margin-top: 0;
     }
     #timeline-feed { margin-top: 0; padding-top: 44px; }
     #timeline-loader { margin-top: 0; }
@@ -4493,6 +4494,7 @@ async function _refreshRpEvents() {
   if (!el) return;
   try {
     const { events: evts } = await fetch('/api/events/recent?n=10').then(r => r.json());
+    console.log('[POLL] events:', evts.length, 'lastTs:', _lastEventTimestamp);
     el.innerHTML = evts.length > 0
       ? evts.map(e => `<div class="rp-event">
           <div class="rp-event-msg">${escHtml(e.message)}</div>
@@ -4549,6 +4551,7 @@ function _fireWaveSpike(large) {
 }
 
 function _fireBanEffect() {
+  console.log('[BAN EFFECT] fired');
   const flash = document.getElementById('ban-flash');
   if (flash) {
     flash.classList.remove('ban-flashing');
@@ -4572,6 +4575,7 @@ function _fireBanEffect() {
 }
 
 function _triggerEventEffect(event) {
+  console.log('[EVENT DETECTED]', event.type, event.timestamp);
   if (event.type === 'ban') {
     _fireBanEffect();
   } else {
