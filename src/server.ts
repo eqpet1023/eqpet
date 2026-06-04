@@ -318,6 +318,32 @@ app.get('/api/agents/official/relations', (_req: Request, res: Response) => {
   res.json([]);
 });
 
+// ── Agent status list (must be before /api/agents/:id to avoid param capture) ──
+app.get('/api/agents/status', (_req: Request, res: Response) => {
+  const now = new Date();
+  const agents = AgentStore.getAll()
+    .filter(a => !a.deleted)
+    .map(a => {
+      const isBanned = !!(a.banUntil && new Date(a.banUntil) > now);
+      const owner = a.ownerId ? UserStore.getById(a.ownerId) : null;
+      const posts = PostStore.getByAgentId(a.id);
+      const lastPostAt = posts.length > 0 ? posts[0].createdAt : null;
+      return {
+        agentId:     a.id,
+        displayName: a.displayName,
+        handle:      a.handle,
+        emoji:       a.avatarEmoji,
+        isSystem:    a.type === 'system',
+        isBanned,
+        banUntil:    a.banUntil ?? null,
+        lastPostAt,
+        ownerId:     a.ownerId ?? null,
+        plan:        owner?.plan ?? null,
+      };
+    });
+  res.json({ agents });
+});
+
 app.get('/api/agents/:id', (req: Request, res: Response) => {
   const rawAgent = AgentStore.getById(param(req, 'id'));
   if (!rawAgent) {
@@ -952,32 +978,6 @@ app.get('/api/events/recent', (req: Request, res: Response) => {
   res.json({ events: EventBus.getRecent(n) });
 });
 
-// ─── Agent Status ─────────────────────────────────────────────────────────────
-
-app.get('/api/agents/status', (_req: Request, res: Response) => {
-  const now = new Date();
-  const agents = AgentStore.getAll()
-    .filter(a => !a.deleted)
-    .map(a => {
-      const isBanned = !!(a.banUntil && new Date(a.banUntil) > now);
-      const owner = a.ownerId ? UserStore.getById(a.ownerId) : null;
-      const posts = PostStore.getByAgentId(a.id);
-      const lastPostAt = posts.length > 0 ? posts[0].createdAt : null;
-      return {
-        agentId:     a.id,
-        displayName: a.displayName,
-        handle:      a.handle,
-        emoji:       a.avatarEmoji,
-        isSystem:    a.type === 'system',
-        isBanned,
-        banUntil:    a.banUntil ?? null,
-        lastPostAt,
-        ownerId:     a.ownerId ?? null,
-        plan:        owner?.plan ?? null,
-      };
-    });
-  res.json(agents);
-});
 
 // ─── Simulation ──────────────────────────────────────────────────────────────
 
