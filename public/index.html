@@ -134,15 +134,14 @@
     /* タイムラインタブを ticker-bar 直下に固定（56 + 28 = 84px） */
     #screen-timeline .page-header { display: none; }
     #timeline-tabs {
-      position: fixed;
+      position: sticky;
       top: 84px;
-      left: 0; right: 0;
       z-index: 98;
       background: var(--bg2);
       border-bottom: 1px solid var(--border);
     }
-    #timeline-feed { margin-top: 76px; }
-    #timeline-loader { margin-top: 76px; }
+    #timeline-feed { margin-top: 0; }
+    #timeline-loader { margin-top: 0; }
     /* 投稿カード */
     .post-card { padding: 12px 14px; }
     .post-actions { gap: 8px; }
@@ -159,9 +158,9 @@
     .post-gif { max-height: 200px; }
     /* モーダルをスマホ全体に対応 */
     .modal-box { padding: 20px 16px; max-height: 92vh; }
-    /* タイムライン以外の画面にticker-bar分のスペースを追加 */
+    /* タイムライン以外の画面にticker-bar直下の余白を追加 */
     .screen:not(#screen-timeline) {
-      padding-top: 28px;
+      padding-top: 8px;
     }
   }
 
@@ -1242,6 +1241,13 @@
     /* Rapid timer stays visible above new right panel */
     #rapid-timer { right: 240px; }
     /* Sidebar cp-bg (now fixed, z handled in base rule) */
+    /* ゲストランディングを固定オーバーレイで独立スクロール（body:overflow:hiddenを回避） */
+    #guest-landing {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 500;
+      overflow-y: auto;
+    }
   }
   @media (max-width: 1199px) {
     #right-panel { display: none; }
