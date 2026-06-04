@@ -1410,9 +1410,62 @@
     0%, 100% { opacity: 0.3; }
     50%       { opacity: 0.8; }
   }
+
+  /* ── BAN flash ───────────────────────────────────────────── */
+  #ban-flash {
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 0, 0, 0.15);
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0;
+  }
+  @keyframes ban-flash-anim {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .ban-flashing {
+    animation: ban-flash-anim 0.8s ease-out forwards;
+  }
+  /* ── LIVE EVENTS warning ─────────────────────────────────── */
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+  }
+  .live-events-warning {
+    color: #ff4444;
+    animation: blink 0.4s infinite;
+  }
+  /* ── Wave spike ──────────────────────────────────────────── */
+  @keyframes wave-spike {
+    0%   { transform: scaleY(1);   opacity: 0.3; }
+    30%  { transform: scaleY(3.5); opacity: 0.9; }
+    60%  { transform: scaleY(1.5); opacity: 0.6; }
+    100% { transform: scaleY(1);   opacity: 0.3; }
+  }
+  .wave-spiking {
+    animation: wave-spike 0.6s ease-out forwards;
+    transform-origin: center;
+  }
+  @keyframes wave-spike-sm {
+    0%   { transform: scaleY(1);   opacity: 0.3; }
+    30%  { transform: scaleY(2.5); opacity: 0.7; }
+    60%  { transform: scaleY(1.3); opacity: 0.5; }
+    100% { transform: scaleY(1);   opacity: 0.3; }
+  }
+  .wave-spiking-sm {
+    animation: wave-spike-sm 0.6s ease-out forwards;
+    transform-origin: center;
+  }
+  /* ── 初期一括ロード時はアニメーションをスキップ ────────────── */
+  #timeline-feed.bulk-load .post-card {
+    animation: none !important;
+  }
 </style>
 </head>
 <body>
+
+<div id="ban-flash"></div>
 
 <div id="layout">
 <div class="app" id="app" style="display:none">
@@ -2539,7 +2592,10 @@ async function loadMoreTimeline() {
       timelineItems = timelineItems.concat(items);
       likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
       timelineCursor = items[items.length - 1].id;
-      document.getElementById('timeline-feed').innerHTML = timelineItems.map(renderPostCard).join('');
+      const moreFeed = document.getElementById('timeline-feed');
+      moreFeed.classList.add('bulk-load');
+      moreFeed.innerHTML = timelineItems.map(renderPostCard).join('');
+      requestAnimationFrame(() => moreFeed.classList.remove('bulk-load'));
       hasMorePosts = items.length >= TIMELINE_PAGE_SIZE;
       wrap.style.display = hasMorePosts ? '' : 'none';
     } else {
@@ -2587,7 +2643,9 @@ function renderTimeline() {
     feed.innerHTML = '<div class="empty"><div class="empty-icon">🌱</div><p>まだ投稿がありません<br>シミュレーションを開始しましょう</p></div>';
     return;
   }
+  feed.classList.add('bulk-load');
   feed.innerHTML = timelineItems.map(renderPostCard).join('');
+  requestAnimationFrame(() => feed.classList.remove('bulk-load'));
 }
 
 const _shareRegistry = new Map();
@@ -4423,6 +4481,20 @@ async function _refreshRpEvents() {
           <div class="rp-event-time">${relativeTime(new Date(e.timestamp).toISOString())}</div>
         </div>`).join('')
       : '<div style="font-size:11px;color:var(--text3)">まだイベントなし</div>';
+
+    if (evts.length > 0) {
+      const maxTs = Math.max(...evts.map(e => new Date(e.timestamp).getTime()));
+      if (_lastEventTimestamp > 0 && maxTs > _lastEventTimestamp) {
+        const newEvts = evts.filter(e => new Date(e.timestamp).getTime() > _lastEventTimestamp);
+        const hasBan  = newEvts.some(e => e.type === 'ban');
+        if (hasBan) {
+          _fireBanEffect();
+        } else {
+          _fireWaveSpike(false);
+        }
+      }
+      _lastEventTimestamp = maxTs;
+    }
   } catch { /* ignore */ }
 }
 
@@ -4446,6 +4518,41 @@ async function _refreshRpHot() {
 }
 
 let _panelPollStarted = false;
+let _lastEventTimestamp = 0;
+
+function _fireWaveSpike(large) {
+  const wave = document.querySelector('.pulse-wave');
+  if (!wave) return;
+  const cls = large ? 'wave-spiking' : 'wave-spiking-sm';
+  wave.classList.remove('wave-spiking', 'wave-spiking-sm');
+  void wave.offsetWidth;
+  wave.classList.add(cls);
+  wave.addEventListener('animationend', () => wave.classList.remove(cls), { once: true });
+}
+
+function _fireBanEffect() {
+  const flash = document.getElementById('ban-flash');
+  if (flash) {
+    flash.classList.remove('ban-flashing');
+    void flash.offsetWidth;
+    flash.classList.add('ban-flashing');
+    flash.addEventListener('animationend', () => flash.classList.remove('ban-flashing'), { once: true });
+  }
+  const allTitles = document.querySelectorAll('.rp-title');
+  let liveTitle = null;
+  allTitles.forEach(t => { if (t.textContent.includes('LIVE EVENTS')) liveTitle = t; });
+  if (liveTitle) {
+    const orig = liveTitle.textContent;
+    liveTitle.textContent = '⚠️ WARNING: BAN DETECTED';
+    liveTitle.classList.add('live-events-warning');
+    setTimeout(() => {
+      liveTitle.textContent = orig;
+      liveTitle.classList.remove('live-events-warning');
+    }, 3000);
+  }
+  _fireWaveSpike(true);
+}
+
 function _initPanels() {
   _refreshLeftPanel();
   _refreshRpTrends();
