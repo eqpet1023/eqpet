@@ -1257,8 +1257,7 @@
     .right-panel { display: none !important; }
     /* Rapid timer stays visible above new right panel */
     #rapid-timer { right: 240px; }
-    /* Sidebar cp-bg behind nav content */
-    .sidebar > .cp-bg { z-index: -1; }
+    /* Sidebar cp-bg (now fixed, z handled in base rule) */
   }
   @media (max-width: 1199px) {
     #right-panel { display: none; }
@@ -1329,21 +1328,26 @@
 
   /* ── Cyberpunk Panel Decoration ───────────────────────────── */
   .cp-bg {
-    position: absolute; inset: 0;
+    position: fixed; top: 0; height: 100vh;
     pointer-events: none;
     overflow: hidden;
     background-image:
       linear-gradient(rgba(0,255,170,0.05) 1px, transparent 1px),
       linear-gradient(90deg, rgba(0,255,170,0.05) 1px, transparent 1px);
     background-size: 30px 30px;
+    z-index: -1;
   }
+  .sidebar > .cp-bg  { left: 0; width: 220px; }
+  #right-panel > .cp-bg { right: 0; width: 220px; }
   .scanline {
-    position: absolute;
-    left: 0; right: 0; top: -2px;
+    position: fixed;
+    top: -2px;
     height: 2px;
     background: linear-gradient(transparent, rgba(0,255,170,0.3), transparent);
     animation: cp-scanline 4s linear infinite;
   }
+  .sidebar .scanline  { left: 0; width: 220px; }
+  #right-panel .scanline { right: 0; width: 220px; }
   @keyframes cp-scanline {
     0%   { top: -2px; }
     100% { top: 100%; }
@@ -1362,11 +1366,11 @@
     position: relative; z-index: 1;
   }
   .pulse-wave {
+    position: fixed;
+    bottom: 20px; right: 0; width: 220px;
     display: block;
-    width: calc(100% - 24px);
-    margin: 8px 12px 0;
     opacity: 0.3;
-    position: relative; z-index: 1;
+    z-index: 1;
   }
   .wave-line {
     fill: none;
