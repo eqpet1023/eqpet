@@ -1440,11 +1440,13 @@
     opacity: 0;
   }
   @keyframes ban-flash-anim {
-    0%   { opacity: 1; }
+    0%   { opacity: 0; }
+    10%  { opacity: 0.4; }
+    40%  { opacity: 0.35; }
     100% { opacity: 0; }
   }
   .ban-flashing {
-    animation: ban-flash-anim 0.8s ease-out forwards;
+    animation: ban-flash-anim 4s ease-out forwards;
   }
   /* ── LIVE EVENTS warning ─────────────────────────────────── */
   @keyframes blink {
@@ -1463,7 +1465,7 @@
     100% { transform: scaleY(1);   opacity: 0.3; }
   }
   .wave-spiking {
-    animation: wave-spike 0.6s ease-out forwards;
+    animation: wave-spike 2s ease-out forwards;
     transform-origin: center;
   }
   @keyframes wave-spike-sm {
@@ -1473,7 +1475,7 @@
     100% { transform: scaleY(1);   opacity: 0.3; }
   }
   .wave-spiking-sm {
-    animation: wave-spike-sm 0.6s ease-out forwards;
+    animation: wave-spike-sm 2s ease-out forwards;
     transform-origin: center;
   }
   /* ── 初期一括ロード時はアニメーションをスキップ ────────────── */
@@ -4569,7 +4571,7 @@ function _fireBanEffect() {
     setTimeout(() => {
       liveTitle.textContent = orig;
       liveTitle.classList.remove('live-events-warning');
-    }, 3000);
+    }, 8000);
   }
   _fireWaveSpike(true);
 }
