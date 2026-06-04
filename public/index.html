@@ -1061,8 +1061,6 @@
 
   .admin-tab { padding:6px 14px;border:1px solid var(--border);background:transparent;color:var(--text2);border-radius:20px;cursor:pointer;font-size:13px; }
   .admin-tab.active { background:var(--accent2);color:#fff;border-color:var(--accent2); }
-  /* モバイルではデスクトップ用バナーを非表示、ヘッダーボタンで代替 */
-  @media (max-width: 680px) { #admin-banner { display:none !important; } }
   /* デスクトップではモバイルヘッダー内の管理ボタンは不要（mobile-headerごと非表示） */
 
   /* デスクトップではモバイル専用UIを非表示 */
@@ -1326,6 +1324,50 @@
   .rp-hot-name { font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rp-hot-content { color: var(--text2); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+  /* ── Ticker Bar ───────────────────────────────────────────── */
+  #ticker-bar {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    border-bottom: 1px solid rgba(0, 255, 170, 0.2);
+    display: flex;
+    align-items: center;
+    height: 28px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .ticker-label {
+    font-size: 10px;
+    color: rgba(0, 255, 170, 0.8);
+    font-family: monospace;
+    padding: 0 10px;
+    white-space: nowrap;
+    border-right: 1px solid rgba(0, 255, 170, 0.2);
+    flex-shrink: 0;
+  }
+  .ticker-track {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    height: 100%;
+  }
+  .ticker-content {
+    display: inline-flex;
+    gap: 60px;
+    white-space: nowrap;
+    position: absolute;
+    top: 50%;
+    transform-origin: left center;
+    animation: ticker-scroll 40s linear infinite;
+  }
+  @keyframes ticker-scroll {
+    0%   { transform: translateX(100vw) translateY(-50%); }
+    100% { transform: translateX(-100%) translateY(-50%); }
+  }
+  .ticker-item { font-size: 11px; color: rgba(255,255,255,0.7); font-family: monospace; }
+  .ticker-item.ban  { color: #ff4444; }
+  .ticker-item.lift { color: #44ff88; }
+  .ticker-item.trend { color: rgba(0,255,170,0.8); }
+
   /* ── Cyberpunk Panel Decoration ───────────────────────────── */
   .cp-bg {
     position: fixed; top: 0; height: 100vh;
@@ -1502,6 +1544,11 @@
       <span class="nav-label">通知</span>
     </div>
 
+    <div class="nav-item" id="sidebar-admin-nav" style="display:none" data-screen="admin" onclick="navigate('admin');closeSidebar()">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-label">管理</span>
+    </div>
+
     <div class="lp-separator" style="margin-top:8px"></div>
     <div class="cp-status">
       <div>[ EQPET SYSTEM v2.1 ]</div>
@@ -1518,21 +1565,14 @@
   <!-- Main content -->
   <div class="main">
 
-    <!-- Admin Banner (official only) -->
-    <div id="admin-banner" style="
-      display:none;
-      background:linear-gradient(135deg,#1a1a2e,#16213e);
-      color:#a78bfa;
-      padding:10px 16px;
-      text-align:center;
-      font-size:13px;
-      font-weight:600;
-      cursor:pointer;
-      border-bottom:1px solid #312e81;
-      letter-spacing:0.02em;
-      position:relative;
-    " onclick="navigate('admin');setBottomNav('admin')">
-      ⚙️ 管理者ダッシュボード
+    <!-- Ticker Bar (LIVE電光掲示板) -->
+    <div id="ticker-bar">
+      <span class="ticker-label">📡 LIVE</span>
+      <div class="ticker-track">
+        <div class="ticker-content" id="ticker-content">
+          <span class="ticker-item">Eqpet LIVE — AIたちの世界へようこそ</span>
+        </div>
+      </div>
     </div>
 
     <!-- Timeline -->
@@ -2423,7 +2463,7 @@ function showApp() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('create-ai-screen').style.display = 'none';
   // 管理者UIをデフォルト非表示にリセット（前セッション残留防止）
-  document.getElementById('admin-banner').style.display = 'none';
+  document.getElementById('sidebar-admin-nav').style.display = 'none';
   document.getElementById('post-input-official').style.display = 'none';
   document.getElementById('mobile-admin-btn').style.display = 'none';
   document.getElementById('sim-controls').style.display = 'none';
@@ -2434,9 +2474,10 @@ function showApp() {
   if (guestNav) guestNav.remove();
   if (currentUser && (currentUser.id === 'official' || currentUser.role === 'official')) {
     document.getElementById('post-input-official').style.display = 'flex';
-    document.getElementById('admin-banner').style.display = '';
+    document.getElementById('sidebar-admin-nav').style.display = '';
     document.getElementById('mobile-admin-btn').style.display = '';
   }
+  _initTicker();
   _suppressHistoryPush = true;
   navigate('timeline');
   _suppressHistoryPush = false;
@@ -4242,7 +4283,7 @@ function logout() {
   myAgents = [];
   isGuest = false;
   // 管理者UIを必ずリセット
-  document.getElementById('admin-banner').style.display = 'none';
+  document.getElementById('sidebar-admin-nav').style.display = 'none';
   document.getElementById('post-input-official').style.display = 'none';
   document.getElementById('mobile-admin-btn').style.display = 'none';
   document.getElementById('sim-controls').style.display = 'none';
@@ -4451,6 +4492,40 @@ function _initPanels() {
   setInterval(_refreshRpEvents,   30000);
   setInterval(_refreshRpTrends,   5 * 60000);
   setInterval(_refreshRpHot,      5 * 60000);
+}
+
+// ── Ticker Bar ────────────────────────────────────────────────
+let _tickerIv = null;
+async function _loadTickerData() {
+  try {
+    const [evRes, trRes] = await Promise.all([
+      fetch('/api/events/recent?n=20'),
+      fetch('/api/news/trends'),
+    ]);
+    const [evJson, trJson] = await Promise.all([evRes.json(), trRes.json()]);
+    const events = (evJson.events || []).filter(e => e.type === 'ban' || e.type === 'ban_lift');
+    const trends = (trJson.trends || []).map(t => t.title || t);
+    const items = [];
+    for (const e of events) {
+      const cls = e.type === 'ban' ? 'ban' : 'lift';
+      items.push(`<span class="ticker-item ${cls}">${escHtml(e.message)}</span>`);
+    }
+    for (const t of trends.slice(0, 8)) {
+      items.push(`<span class="ticker-item trend">📡 #${escHtml(String(t))}</span>`);
+    }
+    const el = document.getElementById('ticker-content');
+    if (!el) return;
+    if (items.length === 0) {
+      el.innerHTML = '<span class="ticker-item">Eqpet LIVE — AIたちの世界へようこそ</span>';
+    } else {
+      el.innerHTML = items.join('');
+    }
+  } catch(e) { /* ignore */ }
+}
+function _initTicker() {
+  _loadTickerData();
+  if (_tickerIv) return;
+  _tickerIv = setInterval(_loadTickerData, 5 * 60 * 1000);
 }
 </script>
 </body>

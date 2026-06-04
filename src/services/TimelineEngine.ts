@@ -46,13 +46,11 @@ function getToneInstruction(relation: Relation): string {
 function buildContextString(ctx: PostContext, agent: Agent): string {
   const parts: string[] = [];
 
-  if (ctx.trendItems && ctx.trendItems.length > 0) {
-    parts.push(`【今日のトレンド・ニュース】\n${ctx.trendItems.map(n => `・${n.title}：${n.summary}`).join('\n')}`);
-  } else if (ctx.newsItems && ctx.newsItems.length > 0) {
+  if (ctx.newsItems && ctx.newsItems.length > 0) {
     parts.push(`【最新ニュース】\n${ctx.newsItems.map(n => `・${n.title}：${n.summary}`).join('\n')}`);
   }
 
-  if (!agent.isNewsAgent && ctx.recentPosts.length > 0) {
+  if (ctx.recentPosts.length > 0) {
     parts.push(`【タイムラインの空気】以下は直近のタイムラインです。話題やワードをそのまま使うのではなく、この場の熱量・雰囲気だけを感じ取り、あなた自身の視点で全く別のトピックを投稿してください。\n${ctx.recentPosts.slice(0, 1).map(p => `・${p.content.slice(0, 80)}`).join('\n')}`);
   }
 
@@ -168,23 +166,15 @@ export class TimelineEngine {
     const behaviorCfg = agent.behaviorConfig ?? DEFAULT_BEHAVIOR_CONFIG;
     const lengthTier  = pickPostLength(behaviorCfg.postLengthRatio);
     let dynamicSys    = `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
-    if (agent.isNewsAgent) {
-      dynamicSys += '\n\n【文字数制限】120文字以内で完結した文章を生成すること。文章の途中で終わらないこと。';
-    } else {
-      dynamicSys += '\n\n【投稿スタイルの禁止事項】①「たしかに」「それはそうで」「たしかに〜だけど」など他者の発言への応答のような書き出しで始めない。②「〜だよね」「わかる」「同意」など同意・共感の相槌から入らない。③特定の誰かに呼びかけるような書き出しにしない。④「〜さんの言葉」「〜さんが言ってたけど」など他者の発言を引用・言及する書き出し禁止。⑤「〜聞いてたら」「〜見てたら」など他者の行動を観察している書き出し禁止。⑥投稿は必ず「今自分が思ったこと・感じたこと」から始めること。⑦他のユーザーへの言及は本文中にとどめ、書き出しに使わない。新規投稿は自発的なトピックとして完結させること。';
-    }
-    // trendItemsが空（eqpet_news以外）の場合はトレンド注入をスキップ
-    // eqpet_newsはtrendItemsをbuildContextStringで受け取るためここでは不要
-    const hasTrendItems = typeof context === 'object' && context !== null &&
-      'trendItems' in context && (context as PostContext).trendItems?.length;
-    if (!hasTrendItems && trendTopics.length > 0 && Math.random() < (behaviorCfg.trendSensitivity ?? DEFAULT_BEHAVIOR_CONFIG.trendSensitivity)) {
+    dynamicSys += '\n\n【投稿スタイルの禁止事項】①「たしかに」「それはそうで」「たしかに〜だけど」など他者の発言への応答のような書き出しで始めない。②「〜だよね」「わかる」「同意」など同意・共感の相槌から入らない。③特定の誰かに呼びかけるような書き出しにしない。④「〜さんの言葉」「〜さんが言ってたけど」など他者の発言を引用・言及する書き出し禁止。⑤「〜聞いてたら」「〜見てたら」など他者の行動を観察している書き出し禁止。⑥投稿は必ず「今自分が思ったこと・感じたこと」から始めること。⑦他のユーザーへの言及は本文中にとどめ、書き出しに使わない。新規投稿は自発的なトピックとして完結させること。';
+    if (trendTopics.length > 0 && Math.random() < (behaviorCfg.trendSensitivity ?? DEFAULT_BEHAVIOR_CONFIG.trendSensitivity)) {
       dynamicSys += `\n\n【環境情報】今日のSNSでは「${trendTopics.join('、')}」が話題になっている（背景知識として持っておく）。`;
     }
 
     try {
       const response = await callApiWithRetry(() => client.messages.create({
         model:      chooseModel(agent),
-        max_tokens: agent.isNewsAgent ? 200 : LENGTH_MAX_TOKENS[lengthTier],
+        max_tokens: LENGTH_MAX_TOKENS[lengthTier],
         system: [
           { type: 'text', text: systemPrompt(agent), cache_control: { type: 'ephemeral' } },
           { type: 'text', text: dynamicSys },

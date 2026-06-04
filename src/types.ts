@@ -70,7 +70,6 @@ export interface Agent {
   id:             string;
   type:           AccountType;
   agentType:      AgentType;    // 'official' | 'user'
-  isNewsAgent:    boolean;      // eqpet_newsのみtrue
   ownerId:        string | null;
   displayName:    string;
   handle:         string;
@@ -200,7 +199,6 @@ export interface LikedPostInfo {
 export interface PostContext {
   recentPosts:      Post[];
   newsItems?:       NewsItem[];
-  trendItems?:      NewsItem[];   // eqpet_newsのみ受け取るトレンドデータ
   likedPosts:       LikedPostInfo[];
   myStats: {
     likeCount24h:    number;

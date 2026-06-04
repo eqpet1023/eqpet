@@ -60,8 +60,7 @@ export class AgentStore {
       if (fs.existsSync(p)) {
         const stored = JSON.parse(fs.readFileSync(p, 'utf-8')) as Agent;
         if (stored.systemPrompt !== agent.systemPrompt ||
-            stored.agentType === undefined ||
-            stored.isNewsAgent === undefined) {
+            stored.agentType === undefined) {
           merged = {
             ...agent,
             postCount:     stored.postCount     ?? 0,

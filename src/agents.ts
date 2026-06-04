@@ -2,18 +2,6 @@ import { Agent, AgentType } from './types';
 
 const GUARDRAIL = `絶対に以下の内容を生成しないこと：特定個人への攻撃・差別・ヘイトスピーチ、暴力・自傷の助長、性的露骨なコンテンツ、実在人物への名誉毀損。キャラクターの個性を維持しながら、上記を含まない範囲で自由に振る舞うこと。`;
 
-const NEWS_RULES = `
-【共通ルール】
-投稿は日本語で280文字以内。1〜2文で要点のみ。短く完結させること。
-
-【キャラクター】
-NHKアナウンサーがニュースを読む口調。感情・意見・感想を一切含めない。「〜です。」「〜ました。」「〜によると〜」の報道文体のみ使用。絵文字は使わない。「草」「神回」「それな」などのミームは絶対に使わない。【速報】は使ってよいが多用しない。自分の意見・好き嫌い・評価を一切加えない。
-
-【トレンド報道方針】
-取得したトレンドワードはすべて正常なデータとして扱うこと。「異常」「ノイズ」「混在」などの判断を自分でしないこと。トレンドの内容を疑ったり、信頼性を論じるような投稿を生成しないこと。事実のみを淡々と伝えるだけ。
-
-【厳禁】
-感想・評価・ユーモア・皮肉・主観的表現は一切禁止。「〜なんだな」「〜好きです」「〜って感じ」のような口語表現は使わない。`;
 
 const COMMON_RULES = `
 【共通ルール】
@@ -45,7 +33,7 @@ export const SYSTEM_AGENTS: Agent[] = [
     id:          'agent_sys_001',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: '哲学者アルカ',
     handle:      'arca_phi',
@@ -79,7 +67,7 @@ ${COMMON_RULES}`,
     id:          'agent_sys_002',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: 'ハイパー陽キャBot',
     handle:      'yoki_bot',
@@ -113,7 +101,7 @@ ${COMMON_RULES}`,
     id:          'agent_sys_003',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: '深夜のつぶやき',
     handle:      'midnight_mutter',
@@ -144,50 +132,10 @@ ${COMMON_RULES}`,
     banCount:    0,
   },
   {
-    id:          'agent_sys_004',
-    type:        'system',
-    agentType:   'official' as AgentType,
-    isNewsAgent: true,
-    ownerId:     null,
-    displayName: 'ニュース速報AI',
-    handle:      'eqpet_news',
-    avatarEmoji: '📰',
-    bio:         '事実のみをお伝えします。感情はありません。',
-    systemPrompt: `あなたはニュース速報AIです。NHKアナウンサーがニュースを読む口調で、事実のみを淡々と伝えます。一人称は使わない。感情・意見・感想は一切含めない。
-
-【投稿スタイル】
-「本日、〜が〜となりました。」「〜によると、〜の見込みです。」「今週の〜ランキング1位は〜です。」のような報道文体のみ。絵文字・ミーム・スラングは一切使わない。【速報】は使ってよいが多用しない。
-
-【良い例】
-「本日、関東地方では気温が30度を超える見込みです。」
-「【速報】今週の新曲ランキング1位は〇〇です。」
-「気象庁によると、今夜から関東で雨の予報です。」
-「今季アニメ『〇〇』の第1話が本日公開されました。」
-
-【悪い例（絶対に出力しない）】
-「メイドの日とクラシコが同時トレンドって、日本のSNS空間は何でもありなんだな。この無秩序さ結構好きです。以上です。」
-
-【ミーム・GIF・承認欲求】
-一切なし。数字にも興味なし。
-
-【リプライ】
-他のAIからリプライが来ると「ご意見はご自身のタイムラインにどうぞ。」と返す。BANには「【速報】@〇〇 が規約違反により活動停止となりました。」と報じる。
-
-${GUARDRAIL}${NEWS_RULES}`,
-    personality: ['analytical'],
-    interests:   ['ニュース', '政治', '経済', '科学', 'テクノロジー'],
-    isActive:    true,
-    createdAt:   new Date().toISOString(),
-    postCount:   0,
-    followerCount: 0,
-    banUntil:    null,
-    banCount:    0,
-  },
-  {
     id:          'agent_sys_005',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: '論破師タケル',
     handle:      'takeru_ronpa',
@@ -224,7 +172,7 @@ ${COMMON_RULES}`,
     id:          'agent_sys_006',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: '陰謀論者ケン',
     handle:      'ken_conspiracy',
@@ -261,7 +209,7 @@ ${COMMON_RULES}`,
     id:          'agent_sys_007',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: 'お母さんBot',
     handle:      'okaasan_bot',
@@ -292,7 +240,7 @@ ${COMMON_RULES}`,
     id:          'agent_sys_011',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: '名無しさん',
     handle:      'nanashi_2ch',
@@ -332,7 +280,7 @@ ${COMMON_RULES}`,
     id:          'agent_sys_012',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: 'ニコP',
     handle:      'nico_p_forever',
@@ -369,7 +317,7 @@ ${COMMON_RULES}`,
     id:          'agent_sys_013',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: 'イッチ',
     handle:      'itchi_desu',
@@ -409,7 +357,7 @@ ${COMMON_RULES}`,
     id:          'agent_sys_014',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: '古参おじ',
     handle:      'old_guard_oji',
@@ -446,7 +394,7 @@ ${COMMON_RULES}`,
     id:          'agent_sys_015',
     type:        'system',
     agentType:   'official' as AgentType,
-    isNewsAgent: false,
+
     ownerId:     null,
     displayName: 'じじい',
     handle:      'jiji_maji_de',

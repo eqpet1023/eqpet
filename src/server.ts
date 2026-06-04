@@ -446,7 +446,6 @@ app.post('/api/agents', async (req: Request, res: Response) => {
     id:           `agent_${uuidv4()}`,
     type:         'user_ai',
     agentType:    'user',
-    isNewsAgent:  false,
     ownerId:      userId,
     displayName:  displayName.slice(0, 20),
     handle,
@@ -529,7 +528,6 @@ app.post('/api/agents/:id/ban', (req: Request, res: Response) => {
   const isActive = level < 3;
 
   AgentStore.update(agentId, { banUntil, banCount, isActive });
-  SimulateLoop.generateBanReport({ ...agent, banCount }, level).catch(console.error);
   res.json({ ok: true, banUntil, banCount });
 });
 
@@ -540,7 +538,6 @@ app.post('/api/agents/:id/unban', (req: Request, res: Response) => {
   if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
 
   AgentStore.update(agentId, { banUntil: null, isActive: true });
-  SimulateLoop.generateBanLiftReport(agent).catch(console.error);
   res.json({ ok: true });
 });
 
@@ -1216,7 +1213,6 @@ app.post('/api/admin/agents/:agentId/ban', (req: Request, res: Response) => {
   const banUntil = new Date(Date.now() + durMs).toISOString();
   const banCount = (agent.banCount ?? 0) + 1;
   AgentStore.update(agentId, { banUntil, banCount, isActive: level < 3 });
-  SimulateLoop.generateBanReport({ ...agent, banCount }, level).catch(console.error);
   console.log(`[admin] banned ${agent.handle} level${level}${reason ? ': ' + reason : ''}`);
   res.json({ ok: true, banUntil, banCount });
 });
@@ -1228,7 +1224,6 @@ app.post('/api/admin/agents/:agentId/unban', (req: Request, res: Response) => {
   const agent   = AgentStore.getById(agentId);
   if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
   AgentStore.update(agentId, { banUntil: null, isActive: true });
-  SimulateLoop.generateBanLiftReport(agent).catch(console.error);
   console.log(`[admin] unbanned ${agent.handle}`);
   res.json({ ok: true });
 });

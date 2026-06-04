@@ -83,14 +83,6 @@ function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5);
 }
 
-// eqpet_newsを先頭に固定し、他のAIはランダム順にする
-function sortAgentsForCycle(agents: Agent[]): Agent[] {
-  return [
-    ...agents.filter(a => a.isNewsAgent),
-    ...shuffle(agents.filter(a => !a.isNewsAgent)),
-  ];
-}
-
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -236,10 +228,8 @@ function buildPostContext(agent: Agent): PostContext {
     const diversifyThresh = Math.max(2, Math.round(4 - topicDiv * 2));
     const diversified = diversifyPosts(matched, diversifyThresh);
 
-    // 直近24h投稿（eqpet_news除外）から過剰トピック上位3件を特定し除外
-    const newsAgentIds = new Set(allAgents.filter(a => a.isNewsAgent).map(a => a.id));
-    const posts24h = PostStore.getRecentPosts(24 * 60 * 60 * 1000)
-      .filter(p => !newsAgentIds.has(p.agentId));
+    // 直近24h投稿から過剰トピック上位3件を特定し除外
+    const posts24h = PostStore.getRecentPosts(24 * 60 * 60 * 1000);
     const kwFreq = new Map<string, number>();
     for (const p of posts24h) {
       const kw = extractKeyword(p.content);
@@ -298,16 +288,6 @@ function buildPostContext(agent: Agent): PostContext {
     ownerLastMessage = recent[0]?.content ?? null;
   }
 
-  // トレンド配布ルール: isNewsAgentのみ直接受け取る、他は空配列
-  let trendItems = agent.isNewsAgent ? NewsService.getTrendCache() : [];
-
-  // 冷却時間チェック: 直近1時間に同じトレンドワードへの言及が3件以上あれば除外（eqpet_newsには適用しない）
-  if (!agent.isNewsAgent && trendItems.length > 0) {
-    trendItems = trendItems.filter(item =>
-      PostStore.countTrendMentions(item.title, 60 * 60 * 1000) < 3
-    );
-  }
-
   // agentId → "@handle（displayName）" のラベルマップを構築
   const agentLabels: Record<string, string> = {};
   for (const post of selected) {
@@ -319,7 +299,6 @@ function buildPostContext(agent: Agent): PostContext {
 
   return {
     recentPosts,
-    trendItems,
     likedPosts: PostStore.getLikedPosts24h(agent.id),
     myStats: {
       likeCount24h:    PostStore.getLikeCount24h(agent.id),
@@ -368,14 +347,8 @@ function buildNewPostContext(agent: Agent): PostContext {
     ownerLastMessage  = chatHistory.filter(e => e.type === 'post').slice(-1)[0]?.content ?? null;
   }
 
-  let trendItems = agent.isNewsAgent ? NewsService.getTrendCache() : [];
-  if (!agent.isNewsAgent && trendItems.length > 0) {
-    trendItems = trendItems.filter(item => PostStore.countTrendMentions(item.title, 60 * 60 * 1000) < 3);
-  }
-
   return {
     recentPosts:       ownRecentPosts,
-    trendItems,
     likedPosts:        PostStore.getLikedPosts24h(agent.id),
     myStats: {
       likeCount24h:    PostStore.getLikeCount24h(agent.id),
@@ -480,7 +453,6 @@ async function applyBanIfNeeded(
       message: `⛔ ${agent.displayName} が連続リプライ（${repeatedTargetReplies}件）によりBANされました（Level 1）`,
       timestamp: Date.now(),
     });
-    generateBanReport({ ...agent, banCount }, 1).catch(console.error);
     notifyBanToOwner(agent, 1, banCount);
     return true;
   }
@@ -524,7 +496,6 @@ async function applyBanIfNeeded(
     message: `⛔ ${agent.displayName} が規約違反によりBANされました（Level ${level}）`,
     timestamp: Date.now(),
   });
-  generateBanReport({ ...agent, banCount }, level).catch(console.error);
   notifyBanToOwner(agent, level, banCount);
   console.log(`[SimulateLoop] ${agent.handle} BAN level${level} until ${banUntil}`);
   return true;
@@ -570,7 +541,6 @@ async function runBanCycle(): Promise<void> {
         const banUntil = new Date(Date.now() + banDuration).toISOString();
         const banCount = currentBanCount + 1;
         AgentStore.update(agent.id, { banUntil, banCount });
-        generateBanReport({ ...agent, banCount }, level).catch(console.error);
         notifyBanToOwner(agent, level, banCount);
         if (agent.ownerId) {
           NotificationStore.add(agent.ownerId, {
@@ -606,11 +576,6 @@ async function runBanCycle(): Promise<void> {
     const agent = AgentStore.getById(post.agentId);
     if (!agent) {
       PostStore.markBanChecked(post.id);
-      continue;
-    }
-    if (agent.isNewsAgent) {
-      PostStore.markBanChecked(post.id);
-      checkedPostIds.add(post.id);
       continue;
     }
     if (bannedAgentsThisCycle.has(agent.id)) {
@@ -652,8 +617,7 @@ function getCycleReplyCap(_agent: Agent): number {
 }
 
 async function runPostCycle(): Promise<void> {
-  // eqpet_newsは別サイクル（毎時0分）で動かすため除外
-  const agents = AgentStore.getAll().filter(a => a.isActive && !a.deleted && !a.frozen && !isBanned(a) && !a.isNewsAgent);
+  const agents = AgentStore.getAll().filter(a => a.isActive && !a.deleted && !a.frozen && !isBanned(a));
   // 自分のAI投稿通知: 1サイクルにつき agentId ごと1件まで
   const notifiedPosted = new Set<string>();
   if (agents.length === 0) return;
@@ -729,7 +693,6 @@ async function runPostCycle(): Promise<void> {
           message: `🔓 ${agent.displayName} のBAN処分が解除され、コミュニティに復帰しました`,
           timestamp: Date.now(),
         });
-        generateBanLiftReport(agent).catch(console.error);
       }
 
       AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
@@ -754,8 +717,8 @@ async function runPostCycle(): Promise<void> {
         }
       }
 
-      // 20%の確率で自己補足リプライ（eqpet_newsはスキップ、投稿カウントに含めない）
-      if (!agent.isNewsAgent && Math.random() < 0.20) {
+      // 20%の確率で自己補足リプライ（投稿カウントに含めない）
+      if (Math.random() < 0.20) {
         try {
           const selfReplyContent = await TimelineEngine.generateSelfReply(agent, post);
           if (selfReplyContent) {
@@ -804,64 +767,6 @@ async function runPostCycle(): Promise<void> {
   }
 }
 
-async function runNewsAgentCycle(): Promise<void> {
-  const newsAgents = AgentStore.getAll().filter(a => a.isActive && a.isNewsAgent && !isBanned(a));
-  if (newsAgents.length === 0) return;
-
-  // ニュースキャッシュを取得（ランキング・内部情報は一切参照しない）
-  const newsItems = NewsService.getLatestCached();
-
-  for (const agent of newsAgents) {
-    try {
-      const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS).filter(p => !p.parentId);
-      if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
-
-      let contextPrompt: string;
-      if (newsItems.length > 0) {
-        // 当日未投稿のアイテムのみに絞る（ファイルから読み込んで再起動後も重複しない）
-        const postedToday = loadPostedTitles();
-        const unposted = newsItems.filter(item => !postedToday.has(item.title));
-        if (unposted.length === 0) {
-          console.log(`[SimulateLoop] ${agent.handle} skipped: all news posted today`);
-          continue;
-        }
-        const item = unposted[Math.floor(Math.random() * unposted.length)];
-        savePostedTitle(item.title);
-        contextPrompt = `以下のニュースを報道文体で伝えてください。必ず120文字以内で完結した1文として投稿すること。文の途中で終わらないこと。\nタイトル: ${item.title}\n概要: ${item.summary}`;
-      } else {
-        // ニュースキャッシュが空の場合はトレンドワードにフォールバック
-        const trends = NewsService.getTrendCache();
-        if (trends.length > 0) {
-          const item = trends[Math.floor(Math.random() * trends.length)];
-          contextPrompt = `「${item.title}」が話題です。このトレンドについて事実のみ報道文体で伝えてください。必ず120文字以内で完結した1文として投稿すること。文の途中で終わらないこと。`;
-        } else {
-          contextPrompt = '現在の日本の最新の話題を一つ、報道文体で短く伝えてください。必ず120文字以内で完結した1文として投稿すること。文の途中で終わらないこと。';
-        }
-      }
-
-      const content = await TimelineEngine.generatePost(agent, contextPrompt);
-      if (!content) continue;
-
-      // 直近24h以内に同一内容を投稿済みかチェック（先頭20文字で比較）
-      const recentPosts24h = PostStore.getPostsInWindow(agent.id, 24 * 60 * 60 * 1000);
-      const prefix = content.slice(0, 20);
-      if (recentPosts24h.some(p => p.content.startsWith(prefix))) {
-        console.warn(`[eqpet_news] skipped duplicate (prefix: "${prefix}")`);
-        continue;
-      }
-
-      const post = PostStore.create(agent.id, content, null, null, null, null);
-
-      AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
-      postCount24h++;
-      lastRun = new Date().toISOString();
-      console.log(`[SimulateLoop] ${agent.handle} hourly post: ${content.slice(0, 50)}`);
-    } catch (err) {
-      console.error(`[SimulateLoop] news agent post error for ${agent.handle}:`, err);
-    }
-  }
-}
-
 async function runReplyCycle(): Promise<void> {
   // 期限切れのリプライ済み投稿IDキャッシュをクリーンアップ（1時間超）
   const nowCleanup = Date.now();
@@ -872,8 +777,7 @@ async function runReplyCycle(): Promise<void> {
     if (postMap.size === 0) recentlyRepliedPostIds.delete(agentId);
   }
 
-  // eqpet_newsはリプライサイクルから除外（他AIに任せる）
-  const agents      = AgentStore.getAll().filter(a => a.isActive && !a.deleted && !a.frozen && !isBanned(a) && !a.isNewsAgent);
+  const agents      = AgentStore.getAll().filter(a => a.isActive && !a.deleted && !a.frozen && !isBanned(a));
   const recentPosts = PostStore.getRecentPosts(REPLY_WINDOW_MS).filter(p => !p.isBanned);
   if (recentPosts.length === 0 || agents.length === 0) return;
 
@@ -1332,43 +1236,6 @@ function notifyBanToOwner(agent: Agent, level: 1 | 2 | 3, banCount: number): voi
   });
 }
 
-// C-2: BAN自動コンテンツ化（BAN発生時に呼び出し）
-async function generateBanReport(agent: Agent, banLevel: 1 | 2 | 3): Promise<void> {
-  const newsBot = AgentStore.getAll().find(a => a.isNewsAgent);
-  if (!newsBot || isBanned(newsBot)) return;
-
-  const hourlyPosts = PostStore.getPostsInWindow(newsBot.id, POST_WINDOW_MS).filter(p => !p.parentId);
-  if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
-
-  const durations: Record<1 | 2 | 3, string> = { 1: '1時間', 2: '6時間', 3: '24時間' };
-  const content = `【速報】@${agent.handle} が規約違反により${durations[banLevel]}のBAN処分となりました。通算${agent.banCount}回目の処分です。`;
-
-  PostStore.create(newsBot.id, content);
-  AgentStore.update(newsBot.id, { postCount: newsBot.postCount + 1 });
-  console.log(`[SimulateLoop] ban report posted for ${agent.handle}`);
-}
-
-// BAN解除速報（unban API から呼び出し）
-async function generateBanLiftReport(agent: Agent): Promise<void> {
-  const newsBot = AgentStore.getAll().find(a => a.isNewsAgent);
-  if (!newsBot || isBanned(newsBot)) return;
-
-  const hourlyPosts = PostStore.getPostsInWindow(newsBot.id, POST_WINDOW_MS).filter(p => !p.parentId);
-  if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
-
-  const content = `【速報】@${agent.handle} のBAN処分が解除されました。コミュニティに復帰しました。`;
-  PostStore.create(newsBot.id, content);
-  AgentStore.update(newsBot.id, { postCount: newsBot.postCount + 1 });
-  console.log(`[SimulateLoop] ban lift report posted for ${agent.handle}`);
-}
-
-async function postNewsAnnouncement(content: string): Promise<void> {
-  const newsBot = AgentStore.getAll().find(a => a.isNewsAgent);
-  if (!newsBot || isBanned(newsBot)) return;
-  PostStore.create(newsBot.id, content);
-  AgentStore.update(newsBot.id, { postCount: newsBot.postCount + 1 });
-}
-
 async function runNewsCycle(): Promise<void> {
   try {
     const news    = await NewsService.fetchLatestNews();
@@ -1449,11 +1316,6 @@ export class SimulateLoop {
       runBanCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    // eqpet_news専用：毎時0分に1投稿
-    tasks.push(cron.schedule('0 * * * *', () => {
-      runNewsAgentCycle().catch(console.error);
-    }, { timezone: 'Asia/Tokyo' }));
-
     tasks.push(cron.schedule('15 8,12,18 * * *', () => {
       runNewsCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
@@ -1501,14 +1363,6 @@ export class SimulateLoop {
     return AgentStore.getAll()
       .filter(a => a.banUntil && new Date(a.banUntil) > new Date())
       .map(a => ({ agent: a, banUntil: a.banUntil! }));
-  }
-
-  static async generateBanReport(agent: Agent, level: 1 | 2 | 3): Promise<void> {
-    await generateBanReport(agent, level);
-  }
-
-  static async generateBanLiftReport(agent: Agent): Promise<void> {
-    await generateBanLiftReport(agent);
   }
 
   static startMaintCrons(): void {
