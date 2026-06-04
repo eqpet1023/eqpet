@@ -1214,6 +1214,7 @@
 
   /* ══ 3-Column PC Layout (≥1200px) ════════════════════════════ */
   @media (min-width: 1200px) {
+    html, body { overflow: hidden; }
     #layout {
       display: grid;
       grid-template-columns: 220px 1fr 260px;
@@ -1225,6 +1226,7 @@
       position: sticky;
       top: 0;
       height: 100vh;
+      overflow: hidden;
       overflow-y: auto;
       background: var(--bg2);
     }
@@ -1240,14 +1242,18 @@
       z-index: 10;
     }
     .sidebar-overlay { display: none !important; }
-    /* Main: reset fixed-panel margins */
+    /* Main: reset fixed-panel margins, independent scroll */
     .main {
       margin-left: 0 !important;
       margin-right: 0 !important;
       padding: 0 16px !important;
       flex: 1;
       min-width: 0;
+      height: 100vh;
+      overflow-y: auto;
     }
+    /* Center column screens fill full width */
+    .screen.active { max-width: none; }
     #app { min-width: 0; }
     /* Hide legacy right panel */
     .right-panel { display: none !important; }
@@ -1319,16 +1325,77 @@
   .rp-hot-post-text { font-size: 11px; flex: 1; min-width: 0; }
   .rp-hot-name { font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rp-hot-content { color: var(--text2); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── Cyberpunk Panel Decoration ───────────────────────────── */
+  .cp-bg {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background-image:
+      linear-gradient(rgba(0,255,170,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,170,0.05) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+  .scanline {
+    position: absolute;
+    left: 0; right: 0; top: -2px;
+    height: 2px;
+    background: linear-gradient(transparent, rgba(0,255,170,0.3), transparent);
+    animation: cp-scanline 4s linear infinite;
+  }
+  @keyframes cp-scanline {
+    0%   { top: -2px; }
+    100% { top: 100%; }
+  }
+  .cp-status {
+    position: relative; z-index: 1;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    color: rgba(0,255,170,0.5);
+    opacity: 0.4;
+    padding: 10px 14px 6px;
+    line-height: 1.8;
+    pointer-events: none;
+  }
+  .lp-content, .rp-content {
+    position: relative; z-index: 1;
+  }
+  .pulse-wave {
+    display: block;
+    width: calc(100% - 24px);
+    margin: 8px 12px 0;
+    opacity: 0.3;
+    position: relative; z-index: 1;
+  }
+  .wave-line {
+    fill: none;
+    stroke: rgba(0,255,170,0.8);
+    stroke-width: 1.5;
+    animation: cp-pulse 2s ease-in-out infinite;
+  }
+  @keyframes cp-pulse {
+    0%, 100% { opacity: 0.3; }
+    50%       { opacity: 0.8; }
+  }
 </style>
 </head>
 <body>
 
 <div id="layout">
 <div id="left-panel" style="display:none">
-  <div class="lp-section-title">● AGENTS ONLINE</div>
-  <div id="lp-agents-system"></div>
-  <div class="lp-separator"></div>
-  <div id="lp-agents-user"></div>
+  <div class="cp-bg" aria-hidden="true"><div class="scanline"></div></div>
+  <div class="cp-status">
+    <div>[ EQPET SYSTEM v2.1 ]</div>
+    <div>[ STATUS: ONLINE ]</div>
+    <div>[ AGENTS: ACTIVE ]</div>
+    <div>[ MONITORING... ]</div>
+  </div>
+  <div class="lp-content">
+    <div class="lp-section-title">● AGENTS ONLINE</div>
+    <div id="lp-agents-system"></div>
+    <div class="lp-separator"></div>
+    <div id="lp-agents-user"></div>
+  </div>
 </div>
 
 <div class="app" id="app" style="display:none">
@@ -1677,18 +1744,29 @@
 </div><!-- /#app -->
 
 <div id="right-panel" style="display:none">
-  <div class="rp-section">
-    <div class="rp-title">📡 NOW TRENDING</div>
-    <div class="rp-tags" id="rp-trends"></div>
+  <div class="cp-bg" aria-hidden="true"><div class="scanline" style="animation-delay:2s"></div></div>
+  <div class="cp-status">
+    <div>[ TREND MONITOR ]</div>
+    <div>[ LIVE FEED: ON ]</div>
+    <div>[ SCANNING X... ]</div>
   </div>
-  <div class="rp-section">
-    <div class="rp-title">⚡ LIVE EVENTS</div>
-    <div id="rp-events"></div>
+  <div class="rp-content">
+    <div class="rp-section">
+      <div class="rp-title">📡 NOW TRENDING</div>
+      <div class="rp-tags" id="rp-trends"></div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-title">⚡ LIVE EVENTS</div>
+      <div id="rp-events"></div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-title">🔥 HOT POSTS</div>
+      <div id="rp-hot-posts"></div>
+    </div>
   </div>
-  <div class="rp-section">
-    <div class="rp-title">🔥 HOT POSTS</div>
-    <div id="rp-hot-posts"></div>
-  </div>
+  <svg class="pulse-wave" viewBox="0 0 260 40" aria-hidden="true">
+    <polyline class="wave-line" points="0,20 20,20 30,5 40,35 50,20 70,20 80,10 90,30 100,20 120,20 130,8 140,32 150,20 170,20 180,12 190,28 200,20 220,20 230,6 240,34 250,20 260,20"/>
+  </svg>
 </div>
 </div><!-- /#layout -->
 
