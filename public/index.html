@@ -1216,9 +1216,9 @@
   @media (min-width: 1200px) {
     #layout {
       display: grid;
-      grid-template-columns: 240px 1fr 280px;
-      max-width: 1600px;
-      margin: 0 auto;
+      grid-template-columns: 220px 1fr 260px;
+      width: 100vw;
+      overflow-x: hidden;
     }
     #left-panel,
     #right-panel {
@@ -1252,7 +1252,7 @@
     /* Hide legacy right panel */
     .right-panel { display: none !important; }
     /* Rapid timer stays visible above new right panel */
-    #rapid-timer { right: 300px; }
+    #rapid-timer { right: 280px; }
   }
   @media (max-width: 1199px) {
     #left-panel, #right-panel { display: none; }
@@ -4142,7 +4142,8 @@ async function boot() {
       if (resp.ok) {
         currentUser = await resp.json();
         const agents = await fetch('/api/agents', { headers: { 'x-user-id': savedId } }).then(r => r.json());
-        myAgent = agents.find(a => a.ownerId === savedId) || null;
+        myAgents = agents.filter(a => a.ownerId === savedId);
+        myAgent = myAgents.find(a => !a.deleted) || myAgents[0] || null;
         showApp();
         return;
       }
