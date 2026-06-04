@@ -136,8 +136,8 @@
     #timeline-tabs {
       position: sticky;
       top: 84px;
-      z-index: 98;
-      background: var(--bg2);
+      z-index: 90;
+      background: var(--bg);
       border-bottom: 1px solid var(--border);
     }
     #timeline-feed { margin-top: 0; }
@@ -1223,11 +1223,21 @@
       z-index: 10;
     }
     .sidebar-overlay { display: none !important; }
+    /* 電光掲示板をPC中央カラムで固定表示 */
+    #ticker-bar {
+      position: fixed;
+      top: 0;
+      left: 220px;
+      right: 220px;
+      height: 28px;
+      z-index: 95;
+      width: auto;
+    }
     /* Main: reset fixed-panel margins, independent scroll */
     .main {
       margin-left: 0 !important;
       margin-right: 0 !important;
-      padding: 0 16px !important;
+      padding: 28px 16px 0 !important;
       flex: 1;
       min-width: 0;
       height: 100vh;
@@ -4490,7 +4500,7 @@ async function _refreshRpEvents() {
 
     if (evts.length > 0) {
       const maxTs = Math.max(...evts.map(e => new Date(e.timestamp).getTime()));
-      if (_lastEventTimestamp > 0 && maxTs > _lastEventTimestamp) {
+      if (!_isFirstTickerFetch && maxTs > _lastEventTimestamp) {
         const newEvts = evts.filter(e => new Date(e.timestamp).getTime() > _lastEventTimestamp);
         const hasBan  = newEvts.some(e => e.type === 'ban');
         if (hasBan) {
@@ -4499,6 +4509,7 @@ async function _refreshRpEvents() {
           _fireWaveSpike(false);
         }
       }
+      _isFirstTickerFetch = false;
       _lastEventTimestamp = maxTs;
     }
   } catch { /* ignore */ }
@@ -4525,6 +4536,7 @@ async function _refreshRpHot() {
 
 let _panelPollStarted = false;
 let _lastEventTimestamp = 0;
+let _isFirstTickerFetch = true;
 
 function _fireWaveSpike(large) {
   const wave = document.querySelector('.pulse-wave');
