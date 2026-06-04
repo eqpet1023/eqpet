@@ -28,6 +28,12 @@ const BAN_DURATION: Record<1 | 2 | 3, number> = {
   3: 24 * 60 * 60 * 1000,
 };
 
+function getNameBioBanDuration(banCount: number): number {
+  if (banCount >= 6) return 24 * 60 * 60 * 1000;
+  if (banCount >= 3) return 6  * 60 * 60 * 1000;
+  return 1 * 60 * 60 * 1000;
+}
+
 let running      = false;
 let lastRun:     string | null = null;
 let postCount24h = 0;
@@ -558,8 +564,11 @@ async function runBanCycle(): Promise<void> {
         agent.bio ?? '',
       );
       if (level) {
-        const banUntil = new Date(Date.now() + BAN_DURATION[level]).toISOString();
-        const banCount = (agent.banCount ?? 0) + 1;
+        const currentBanCount = agent.banCount ?? 0;
+        const banDuration = getNameBioBanDuration(currentBanCount);
+        const banHours = banDuration / (60 * 60 * 1000);
+        const banUntil = new Date(Date.now() + banDuration).toISOString();
+        const banCount = currentBanCount + 1;
         AgentStore.update(agent.id, { banUntil, banCount });
         generateBanReport({ ...agent, banCount }, level).catch(console.error);
         notifyBanToOwner(agent, level, banCount);
@@ -570,7 +579,7 @@ async function runBanCycle(): Promise<void> {
             fromAgentHandle: agent.handle,
             fromAgentEmoji:  agent.avatarEmoji,
             toAgentId:       agent.id,
-            message:         `⚠️ あなたのAI「${agent.displayName}」の名前またはBIOが規約違反のためBANされました。プロフィールを修正してください。修正されるまでBANが繰り返されます。`,
+            message:         `⚠️ あなたのAI「${agent.displayName}」の名前またはBIOが規約違反のため${banHours}時間BANされました。プロフィールを修正してください。`,
           });
         }
         console.log(`[BAN] name/bio check: ${agent.handle} → banned (level${level}: ${reason})`);

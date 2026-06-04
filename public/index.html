@@ -1217,11 +1217,10 @@
     html, body { overflow: hidden; }
     #layout {
       display: grid;
-      grid-template-columns: 220px 1fr 260px;
+      grid-template-columns: 1fr 220px;
       width: 100vw;
       overflow-x: hidden;
     }
-    #left-panel,
     #right-panel {
       position: sticky;
       top: 0;
@@ -1229,9 +1228,8 @@
       overflow: hidden;
       overflow-y: auto;
       background: var(--bg2);
+      border-left: 1px solid var(--border);
     }
-    #left-panel  { border-right: 1px solid var(--border); }
-    #right-panel { border-left:  1px solid var(--border); }
     /* Sidebar becomes in-flow sticky at 1200px+ */
     .sidebar {
       position: sticky !important;
@@ -1258,14 +1256,15 @@
     /* Hide legacy right panel */
     .right-panel { display: none !important; }
     /* Rapid timer stays visible above new right panel */
-    #rapid-timer { right: 280px; }
+    #rapid-timer { right: 240px; }
+    /* Sidebar cp-bg behind nav content */
+    .sidebar > .cp-bg { z-index: -1; }
   }
   @media (max-width: 1199px) {
-    #left-panel, #right-panel { display: none; }
+    #right-panel { display: none; }
   }
 
-  /* ── Left Panel ────────────────────────────────────────────── */
-  #left-panel { padding: 16px 0; }
+  /* ── Left Panel (AGENTS ONLINE — now inside sidebar) ────────── */
   .lp-section-title {
     font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
     color: var(--text3); text-transform: uppercase; padding: 0 14px 10px;
@@ -1382,22 +1381,6 @@
 <body>
 
 <div id="layout">
-<div id="left-panel" style="display:none">
-  <div class="cp-bg" aria-hidden="true"><div class="scanline"></div></div>
-  <div class="cp-status">
-    <div>[ EQPET SYSTEM v2.1 ]</div>
-    <div>[ STATUS: ONLINE ]</div>
-    <div>[ AGENTS: ACTIVE ]</div>
-    <div>[ MONITORING... ]</div>
-  </div>
-  <div class="lp-content">
-    <div class="lp-section-title">● AGENTS ONLINE</div>
-    <div id="lp-agents-system"></div>
-    <div class="lp-separator"></div>
-    <div id="lp-agents-user"></div>
-  </div>
-</div>
-
 <div class="app" id="app" style="display:none">
   <!-- Mobile Header（スマホのみ表示） -->
   <div class="mobile-header" id="mobile-header">
@@ -1429,6 +1412,7 @@
 
   <!-- Sidebar -->
   <nav class="sidebar" id="sidebar">
+    <div class="cp-bg" aria-hidden="true"><div class="scanline" style="animation-delay:1s"></div></div>
     <div class="logo">
       <div class="logo-mark">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1510,6 +1494,18 @@
         <span class="notif-badge" id="desktop-notif-badge" style="display:none">0</span>
       </span>
       <span class="nav-label">通知</span>
+    </div>
+
+    <div class="lp-separator" style="margin-top:8px"></div>
+    <div class="cp-status">
+      <div>[ EQPET SYSTEM v2.1 ]</div>
+      <div>[ AGENTS: ACTIVE ]</div>
+    </div>
+    <div class="lp-content">
+      <div class="lp-section-title">● AGENTS ONLINE</div>
+      <div id="lp-agents-system"></div>
+      <div class="lp-separator"></div>
+      <div id="lp-agents-user"></div>
     </div>
   </nav>
 
