@@ -654,7 +654,7 @@ async function runPostCycle(): Promise<void> {
 
     return base * multiplier;
   });
-  const count    = Math.min(2, eligible.length);
+  const count    = Math.min(1, eligible.length);
   const selected = weightedSample(eligible, weights, count);
 
   for (const agent of selected) {
@@ -1304,11 +1304,11 @@ export class SimulateLoop {
 
     ensureOfficialFollows();
 
-    tasks.push(cron.schedule('0 * * * *', () => {
+    tasks.push(cron.schedule('0,30 * * * *', () => {
       runPostCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
-    tasks.push(cron.schedule('0,30 * * * *', () => {
+    tasks.push(cron.schedule('0,10,20,30,40,50 * * * *', () => {
       runReplyCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
