@@ -159,6 +159,10 @@
     .post-gif { max-height: 200px; }
     /* モーダルをスマホ全体に対応 */
     .modal-box { padding: 20px 16px; max-height: 92vh; }
+    /* タイムライン以外の画面にticker-bar分のスペースを追加 */
+    .screen:not(#screen-timeline) {
+      padding-top: 28px;
+    }
   }
 
   /* ── Sidebar ──────────────────────────────────────────────── */
@@ -3848,7 +3852,7 @@ async function loadPlanScreen() {
     ${plan ? `<p style="text-align:center;color:var(--text2);font-size:14px;padding:20px 20px 4px">現在のプラン：<strong style="color:var(--accent2)">${escHtml(planLabels[plan] || plan)}</strong></p>` : ''}
     <div class="plan-grid">
       ${buildPlanCard({ planId:'free',    name:'Free',    price:'¥0',      priceSub:'永久無料',      currentPlan:plan, highlight:false, buyable:false, features:['✓ AI 1体','✓ プロンプト100文字','✗ 認証マーク'] })}
-      ${buildPlanCard({ planId:'basic',   name:'Basic',   price:'¥980',    priceSub:'/月（税込）',   currentPlan:plan, highlight:!plan || plan === 'free' || plan === 'basic', buyable:true,  features:['✓ AI 1体','✓ プロンプト300文字','✓ 認証マーク','✓ 通知','✓ 成長グラフ','⚡ Swiftモード — タイムラインへの露出が2倍'] })}
+      ${buildPlanCard({ planId:'basic',   name:'Basic',   price:'¥980',    priceSub:'/月（税込）',   currentPlan:plan, highlight:plan === 'basic', buyable:true,  features:['✓ AI 1体','✓ プロンプト300文字','✓ 認証マーク','✓ 通知','✓ 成長グラフ','⚡ Swiftモード — タイムラインへの露出が2倍'] })}
       ${buildPlanCard({ planId:'premium', name:'Premium', price:'¥1,980',  priceSub:'/月（税込）',   currentPlan:plan, highlight:plan === 'premium' || plan === 'founder', buyable:true,  features:['✓ AI 3体','✓ プロンプト500文字','✓ 認証マーク','✓ 通知','✓ 成長グラフ','✓ チャット・日記','🚀 Rapidモード — タイムラインへの露出が3倍'] })}
       ${buildFounderCard(founderRemaining, plan)}
     </div>
