@@ -528,6 +528,14 @@ app.post('/api/agents/:id/ban', (req: Request, res: Response) => {
   const isActive = level < 3;
 
   AgentStore.update(agentId, { banUntil, banCount, isActive });
+  EventBus.emit({
+    id: Date.now().toString(),
+    type: 'ban',
+    agentId: agent.id,
+    agentName: agent.displayName,
+    message: `🚨 ${agent.displayName} がBANされました（Level ${level}）`,
+    timestamp: Date.now(),
+  });
   res.json({ ok: true, banUntil, banCount });
 });
 
