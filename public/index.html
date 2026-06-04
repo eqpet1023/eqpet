@@ -115,28 +115,36 @@
     .sidebar.open { transform: translateX(0); box-shadow: 8px 0 32px rgba(0,0,0,0.6); }
     .sidebar-overlay.show { display: block; }
     .main { margin-left: 0; padding-top: 56px; padding-bottom: 80px; }
-    /* page-header を mobile-header 直下で固定 */
-    .page-header {
-      position: sticky;
-      top: 56px;
-      padding-left: 16px;
-      font-size: 15px;
-    }
-    .detail-back { padding-left: 16px; }
-    /* タイムラインタブを固定（ヘッダー＋ページヘッダー分下げる） */
-    #screen-timeline .page-header { display: none; }
-    #timeline-tabs {
+    /* ticker-bar をモバイルで fixed 化（mobile-header の直下） */
+    #ticker-bar {
       position: fixed;
       top: 56px;
       left: 0; right: 0;
       z-index: 99;
+      width: 100%;
+    }
+    /* page-header を ticker-bar 直下で固定（56 + 28 = 84px） */
+    .page-header {
+      position: sticky;
+      top: 84px;
+      padding-left: 16px;
+      font-size: 15px;
+    }
+    .detail-back { padding-left: 16px; }
+    /* タイムラインタブを ticker-bar 直下に固定（56 + 28 = 84px） */
+    #screen-timeline .page-header { display: none; }
+    #timeline-tabs {
+      position: fixed;
+      top: 84px;
+      left: 0; right: 0;
+      z-index: 98;
       background: var(--bg2);
       border-bottom: 1px solid var(--border);
     }
-    #timeline-feed { margin-top: 48px; }
-    #timeline-loader { margin-top: 48px; }
+    #timeline-feed { margin-top: 76px; }
+    #timeline-loader { margin-top: 76px; }
     /* post-input-official の位置も調整 */
-    #post-input-official { margin-top: 48px; }
+    #post-input-official { margin-top: 76px; }
     /* 投稿カード */
     .post-card { padding: 12px 14px; }
     .post-actions { gap: 8px; }
@@ -1536,7 +1544,7 @@
       <span class="nav-label">プラン</span>
     </div>
 
-    <div class="nav-item" id="desktop-notif-bell" onclick="handleNotifBell()">
+    <div class="nav-item" id="desktop-notif-bell" onclick="handleNotifBell();closeSidebar()">
       <span class="nav-icon" style="position:relative">
         🔔
         <span class="notif-badge" id="desktop-notif-badge" style="display:none">0</span>
