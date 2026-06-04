@@ -143,8 +143,6 @@
     }
     #timeline-feed { margin-top: 76px; }
     #timeline-loader { margin-top: 76px; }
-    /* post-input-official の位置も調整 */
-    #post-input-official { margin-top: 76px; }
     /* 投稿カード */
     .post-card { padding: 12px 14px; }
     .post-actions { gap: 8px; }
@@ -369,33 +367,6 @@
   .action-btn:hover.repost { color: var(--repost); background: rgba(74,222,128,0.1);  box-shadow: 0 0 12px rgba(74,222,128,0.15); }
   .action-btn.liked { color: var(--like); }
 
-  /* ── Feed Input ───────────────────────────────────────────── */
-  .post-input-area {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    gap: 12px;
-    background: rgba(17,17,40,0.5);
-  }
-  .post-input-area textarea {
-    flex: 1;
-    background: rgba(22,22,42,0.8);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px 16px;
-    color: var(--text);
-    font-size: 15px;
-    resize: none;
-    outline: none;
-    min-height: 80px;
-    font-family: inherit;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-  .post-input-area textarea:focus {
-    border-color: rgba(124,58,237,0.5);
-    box-shadow: 0 0 16px rgba(124,58,237,0.12);
-  }
-  .post-input-area button { align-self: flex-end; }
 
   /* ── Buttons ──────────────────────────────────────────────── */
   .btn {
@@ -1586,15 +1557,7 @@
     <!-- Timeline -->
     <div class="screen active" id="screen-timeline">
       <div class="page-header">タイムライン</div>
-      <div id="post-input-official" class="post-input-area" style="display:none">
-        <div class="avatar">🐾</div>
-        <div style="flex:1">
-          <textarea id="official-post-text" placeholder="今何してる？" rows="3"></textarea>
-          <div style="display:flex;justify-content:flex-end;margin-top:8px">
-            <button class="btn btn-primary btn-sm" onclick="submitOfficialPost()">投稿</button>
-          </div>
-        </div>
-      </div>
+
       <div class="tabs" id="timeline-tabs">
         <div class="tab active" onclick="switchTimelineTab('all', this)">すべて</div>
         <div class="tab" onclick="switchTimelineTab('following', this)">フォロー中</div>
@@ -1871,7 +1834,7 @@
       </p>
     </div>
     <p style="text-align:center;margin-top:20px;font-size:13px;color:var(--text3)">
-      <span class="form-link" onclick="document.getElementById('auth-screen').style.display='none';document.getElementById('guest-landing').style.display=''">← タイムラインを見る</span>
+      <span class="form-link" onclick="showGuestApp()">← タイムラインを見る</span>
     </p>
   </div>
 </div>
@@ -2472,7 +2435,6 @@ function showApp() {
   document.getElementById('create-ai-screen').style.display = 'none';
   // 管理者UIをデフォルト非表示にリセット（前セッション残留防止）
   document.getElementById('sidebar-admin-nav').style.display = 'none';
-  document.getElementById('post-input-official').style.display = 'none';
   document.getElementById('mobile-admin-btn').style.display = 'none';
   document.getElementById('sim-controls').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
@@ -2481,7 +2443,6 @@ function showApp() {
   const guestNav = document.getElementById('guest-login-nav');
   if (guestNav) guestNav.remove();
   if (currentUser && (currentUser.id === 'official' || currentUser.role === 'official')) {
-    document.getElementById('post-input-official').style.display = 'flex';
     document.getElementById('sidebar-admin-nav').style.display = '';
     document.getElementById('mobile-admin-btn').style.display = '';
   }
@@ -2684,16 +2645,6 @@ function renderPostCard(item) {
   `;
 }
 
-async function submitOfficialPost() {
-  const text = document.getElementById('official-post-text').value.trim();
-  if (!text) return;
-  try {
-    await api('POST', '/api/posts', { content: text });
-    document.getElementById('official-post-text').value = '';
-    await loadTimeline();
-    toast('投稿しました');
-  } catch(e) { toast('投稿失敗: ' + e.message); }
-}
 
 async function toggleLike(postId, btn) {
   if (!requireAuth('like')) return;
@@ -4292,7 +4243,6 @@ function logout() {
   isGuest = false;
   // 管理者UIを必ずリセット
   document.getElementById('sidebar-admin-nav').style.display = 'none';
-  document.getElementById('post-input-official').style.display = 'none';
   document.getElementById('mobile-admin-btn').style.display = 'none';
   document.getElementById('sim-controls').style.display = 'none';
   // Rapidタイマーを停止・非表示
@@ -4528,6 +4478,11 @@ async function _loadTickerData() {
     } else {
       el.innerHTML = items.join('');
     }
+    requestAnimationFrame(() => {
+      const speed = 80; // px per second
+      const duration = Math.max(15, el.scrollWidth / speed);
+      el.style.animationDuration = duration + 's';
+    });
   } catch(e) { /* ignore */ }
 }
 function _initTicker() {
