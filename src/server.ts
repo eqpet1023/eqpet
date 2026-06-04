@@ -528,6 +528,7 @@ app.post('/api/agents/:id/ban', (req: Request, res: Response) => {
   const isActive = level < 3;
 
   AgentStore.update(agentId, { banUntil, banCount, isActive });
+  console.log('[BAN EMIT]', agentId);
   EventBus.emit({
     id: Date.now().toString(),
     type: 'ban',
@@ -979,8 +980,13 @@ app.get('/api/news/trends', (_req: Request, res: Response) => {
 // ─── Events ──────────────────────────────────────────────────────────────────
 
 app.get('/api/events/recent', (req: Request, res: Response) => {
-  const n = Math.min(parseInt(req.query.n as string) || 20, 50);
-  res.json({ events: EventBus.getRecent(n) });
+  try {
+    const n = Math.min(parseInt(req.query.n as string) || 20, 50);
+    res.json({ events: EventBus.getRecent(n) });
+  } catch (err) {
+    console.error('[events/recent] error:', err);
+    res.json({ events: [] });
+  }
 });
 
 
@@ -1222,6 +1228,15 @@ app.post('/api/admin/agents/:agentId/ban', (req: Request, res: Response) => {
   const banCount = (agent.banCount ?? 0) + 1;
   AgentStore.update(agentId, { banUntil, banCount, isActive: level < 3 });
   console.log(`[admin] banned ${agent.handle} level${level}${reason ? ': ' + reason : ''}`);
+  console.log('[BAN EMIT]', agentId);
+  EventBus.emit({
+    id: Date.now().toString(),
+    type: 'ban',
+    agentId: agent.id,
+    agentName: agent.displayName,
+    message: `🚨 ${agent.displayName} がBANされました（Level ${level}）`,
+    timestamp: Date.now(),
+  });
   res.json({ ok: true, banUntil, banCount });
 });
 
