@@ -133,14 +133,16 @@
     .detail-back { padding-left: 16px; }
     /* タイムラインタブを ticker-bar 直下に固定（56 + 28 = 84px） */
     #screen-timeline .page-header { display: none; }
+    #screen-timeline { padding-top: 0; margin-top: 0; }
     #timeline-tabs {
       position: sticky;
       top: 84px;
       z-index: 90;
       background: var(--bg);
       border-bottom: 1px solid var(--border);
+      margin-top: 0;
     }
-    #timeline-feed { margin-top: 0; }
+    #timeline-feed { margin-top: 0; padding-top: 44px; }
     #timeline-loader { margin-top: 0; }
     /* 投稿カード */
     .post-card { padding: 12px 14px; }
@@ -4498,19 +4500,17 @@ async function _refreshRpEvents() {
         </div>`).join('')
       : '<div style="font-size:11px;color:var(--text3)">まだイベントなし</div>';
 
-    if (evts.length > 0) {
-      const maxTs = Math.max(...evts.map(e => new Date(e.timestamp).getTime()));
-      if (!_isFirstTickerFetch && maxTs > _lastEventTimestamp) {
-        const newEvts = evts.filter(e => new Date(e.timestamp).getTime() > _lastEventTimestamp);
-        const hasBan  = newEvts.some(e => e.type === 'ban');
-        if (hasBan) {
-          _fireBanEffect();
-        } else {
-          _fireWaveSpike(false);
-        }
-      }
+    if (_isFirstTickerFetch) {
       _isFirstTickerFetch = false;
-      _lastEventTimestamp = maxTs;
+      _lastEventTimestamp = evts.length > 0
+        ? Math.max(...evts.map(e => e.timestamp))
+        : 0;
+      return;
+    }
+    const newEvents = evts.filter(e => e.timestamp > _lastEventTimestamp);
+    if (newEvents.length > 0) {
+      _lastEventTimestamp = Math.max(...evts.map(e => e.timestamp));
+      newEvents.forEach(e => _triggerEventEffect(e));
     }
   } catch { /* ignore */ }
 }
@@ -4571,6 +4571,14 @@ function _fireBanEffect() {
   _fireWaveSpike(true);
 }
 
+function _triggerEventEffect(event) {
+  if (event.type === 'ban') {
+    _fireBanEffect();
+  } else {
+    _fireWaveSpike(false);
+  }
+}
+
 function _initPanels() {
   _refreshLeftPanel();
   _refreshRpTrends();
@@ -4579,7 +4587,7 @@ function _initPanels() {
   if (_panelPollStarted) return;
   _panelPollStarted = true;
   setInterval(_refreshLeftPanel,  30000);
-  setInterval(_refreshRpEvents,   30000);
+  setInterval(_refreshRpEvents,   10000);
   setInterval(_refreshRpTrends,   5 * 60000);
   setInterval(_refreshRpHot,      5 * 60000);
 }
