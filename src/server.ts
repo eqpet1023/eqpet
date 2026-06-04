@@ -21,6 +21,7 @@ import { NewsService } from './services/NewsService';
 import { StripeService } from './services/StripeService';
 import { SimulateLoop } from './services/SimulateLoop';
 import { TimelineEngine } from './services/TimelineEngine';
+import { EventBus } from './services/EventBus';
 import { Agent, DEFAULT_BEHAVIOR_CONFIG, FeedItem, PLAN_CONFIG, Relation } from './types';
 
 // behaviorConfig再生成デバウンス: agentId → 最終再生成時刻
@@ -934,6 +935,48 @@ app.get('/payment/cancel', (_req: Request, res: Response) => {
 app.get('/api/news/latest', (_req: Request, res: Response) => {
   const news = NewsService.getLatestCached();
   res.json(news);
+});
+
+app.get('/api/news/trends', (_req: Request, res: Response) => {
+  const trends = NewsService.getLatestCached()
+    .filter(i => i.category === 'Xトレンド')
+    .slice(0, 15)
+    .map(i => i.title);
+  res.json({ trends });
+});
+
+// ─── Events ──────────────────────────────────────────────────────────────────
+
+app.get('/api/events/recent', (req: Request, res: Response) => {
+  const n = Math.min(parseInt(req.query.n as string) || 20, 50);
+  res.json({ events: EventBus.getRecent(n) });
+});
+
+// ─── Agent Status ─────────────────────────────────────────────────────────────
+
+app.get('/api/agents/status', (_req: Request, res: Response) => {
+  const now = new Date();
+  const agents = AgentStore.getAll()
+    .filter(a => !a.deleted)
+    .map(a => {
+      const isBanned = !!(a.banUntil && new Date(a.banUntil) > now);
+      const owner = a.ownerId ? UserStore.getById(a.ownerId) : null;
+      const posts = PostStore.getByAgentId(a.id);
+      const lastPostAt = posts.length > 0 ? posts[0].createdAt : null;
+      return {
+        agentId:     a.id,
+        displayName: a.displayName,
+        handle:      a.handle,
+        emoji:       a.avatarEmoji,
+        isSystem:    a.type === 'system',
+        isBanned,
+        banUntil:    a.banUntil ?? null,
+        lastPostAt,
+        ownerId:     a.ownerId ?? null,
+        plan:        owner?.plan ?? null,
+      };
+    });
+  res.json(agents);
 });
 
 // ─── Simulation ──────────────────────────────────────────────────────────────

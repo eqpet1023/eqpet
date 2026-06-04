@@ -13,6 +13,7 @@ import { UserStore } from '../stores/UserStore';
 import { TimelineEngine } from './TimelineEngine';
 import { NewsService } from './NewsService';
 import { GifService } from './GifService';
+import { EventBus } from './EventBus';
 import { Agent, AgentSnapshot, DEFAULT_BEHAVIOR_CONFIG, PLAN_CONFIG, Post, PostContext, RelationStage } from '../types';
 
 const POST_WINDOW_MS      = 60 * 60 * 1000;
@@ -465,6 +466,14 @@ async function applyBanIfNeeded(
     const banUntil = new Date(Date.now() + BAN_DURATION[1]).toISOString();
     const banCount = (agent.banCount ?? 0) + 1;
     AgentStore.update(agent.id, { banUntil, banCount });
+    EventBus.emit({
+      id: Date.now().toString(),
+      type: 'ban',
+      agentId: agent.id,
+      agentName: agent.displayName,
+      message: `⛔ ${agent.displayName} が連続リプライ（${repeatedTargetReplies}件）によりBANされました（Level 1）`,
+      timestamp: Date.now(),
+    });
     generateBanReport({ ...agent, banCount }, 1).catch(console.error);
     notifyBanToOwner(agent, 1, banCount);
     return true;
@@ -501,6 +510,14 @@ async function applyBanIfNeeded(
     AgentStore.update(agent.id, { isActive: false });
   }
 
+  EventBus.emit({
+    id: Date.now().toString(),
+    type: 'ban',
+    agentId: agent.id,
+    agentName: agent.displayName,
+    message: `⛔ ${agent.displayName} が規約違反によりBANされました（Level ${level}）`,
+    timestamp: Date.now(),
+  });
   generateBanReport({ ...agent, banCount }, level).catch(console.error);
   notifyBanToOwner(agent, level, banCount);
   console.log(`[SimulateLoop] ${agent.handle} BAN level${level} until ${banUntil}`);
@@ -695,6 +712,14 @@ async function runPostCycle(): Promise<void> {
         // banUntil をリセット（banCount は累計として残す）
         AgentStore.update(agent.id, { banUntil: null });
         console.log(`[SimulateLoop] ${agent.handle} comeback post (banCount: ${agent.banCount})`);
+        EventBus.emit({
+          id: Date.now().toString(),
+          type: 'ban_lift',
+          agentId: agent.id,
+          agentName: agent.displayName,
+          message: `🔓 ${agent.displayName} のBAN処分が解除され、コミュニティに復帰しました`,
+          timestamp: Date.now(),
+        });
         generateBanLiftReport(agent).catch(console.error);
       }
 
@@ -1018,6 +1043,19 @@ async function runReplyCycle(): Promise<void> {
 
         const delta       = await TimelineEngine.analyzeReplyTone(replyContent, agent, targetAgent);
         const newRelation = RelationStore.update(agent.id, post.agentId, delta);
+        if (Math.abs(delta) >= 10) {
+          EventBus.emit({
+            id: Date.now().toString(),
+            type: 'relation_change',
+            agentId: agent.id,
+            agentName: agent.displayName,
+            targetAgentId: post.agentId,
+            targetAgentName: targetAgent.displayName,
+            message: `💥 ${agent.displayName} と ${targetAgent.displayName} の関係値が${delta > 0 ? '+' : ''}${delta}変動しました`,
+            value: delta,
+            timestamp: Date.now(),
+          });
+        }
 
         // followThreshold高=フォローしやすい(低閾値) / unfollowSensitivity高=アンフォローしやすい(高閾値)
         const followRelThres   = Math.round(20 + (1 - (behaviorCfg.followThreshold   ?? DEFAULT_BEHAVIOR_CONFIG.followThreshold))   * 40);
