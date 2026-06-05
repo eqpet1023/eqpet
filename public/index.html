@@ -1487,6 +1487,112 @@
   #timeline-feed.bulk-load .post-card {
     animation: none !important;
   }
+
+  /* ── Light Theme ──────────────────────────────────────────────── */
+  [data-theme="light"] {
+    --bg:    #f0f0fb;
+    --bg2:   #ffffff;
+    --bg3:   #e8e8f8;
+    --border: #00000012;
+    --accent: #7c3aed;
+    --accent2: #6d28d9;
+    --text:   #1e1b4b;
+    --text2:  #4b5563;
+    --text3:  #9ca3af;
+    color-scheme: light;
+  }
+  [data-theme="light"] body { background: var(--bg); color: var(--text); }
+  [data-theme="light"] .page-header { background: rgba(240,240,251,0.92); }
+  [data-theme="light"] .modal-box { background: rgba(255,255,255,0.98); box-shadow: 0 32px 80px rgba(0,0,0,0.15), 0 0 0 1px rgba(124,58,237,0.08); }
+  [data-theme="light"] .form-card { background: rgba(255,255,255,0.95); box-shadow: 0 24px 80px rgba(0,0,0,0.1), 0 0 0 1px rgba(124,58,237,0.08); }
+  [data-theme="light"] .chat-bubble.ai { background: rgba(232,232,248,0.9); }
+  [data-theme="light"] .form-group input,
+  [data-theme="light"] .form-group textarea,
+  [data-theme="light"] .form-group select,
+  [data-theme="light"] .chat-footer input { background: rgba(232,232,248,0.8); color: var(--text); }
+  [data-theme="light"] .reply-context { background: rgba(232,232,248,0.8); }
+  [data-theme="light"] .cp-bg { opacity: 0.03; }
+  [data-theme="light"] .scanline { opacity: 0.02; }
+  [data-theme="light"] #ticker-bar { background: rgba(232,232,248,0.95); border-color: var(--border); }
+  [data-theme="light"] .stat-card { background: rgba(232,232,248,0.6); }
+  [data-theme="light"] .plan-card { background: rgba(240,240,251,0.8); }
+  [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.95); }
+  [data-theme="light"] #toast { color: #fff; }
+
+  /* ── Settings Modal ───────────────────────────────────────────── */
+  .settings-section { margin-bottom: 20px; }
+  .settings-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 0;
+    gap: 12px;
+  }
+  .settings-row + .settings-row { border-top: 1px solid rgba(255,255,255,0.05); }
+  [data-theme="light"] .settings-row + .settings-row { border-top: 1px solid rgba(0,0,0,0.06); }
+  .settings-label-group { flex: 1; }
+  .settings-label { font-size: 14px; color: var(--text); }
+  .settings-label-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+  /* Toggle switch */
+  .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .toggle-slider {
+    position: absolute; inset: 0;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  [data-theme="light"] .toggle-slider { background: rgba(0,0,0,0.08); }
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    top: 2px; left: 2px;
+    background: var(--text3);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(20px); background: #fff; }
+
+  /* Segment buttons (theme / lang) */
+  .seg-btns { display: flex; gap: 6px; }
+  .seg-btn {
+    flex: 1;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.04);
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    text-align: center;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  [data-theme="light"] .seg-btn { background: rgba(0,0,0,0.04); }
+  .seg-btn.active {
+    background: rgba(124,58,237,0.15);
+    border-color: rgba(124,58,237,0.5);
+    color: var(--accent2);
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -1512,6 +1618,12 @@
       <button class="notif-bell-btn" id="mobile-notif-bell" onclick="handleNotifBell()" aria-label="通知">
         🔔
         <span class="notif-badge" id="mobile-notif-badge" style="display:none">0</span>
+      </button>
+      <button class="notif-bell-btn" onclick="openSettingsModal()" aria-label="設定">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
       </button>
       <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="メニュー">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1543,7 +1655,7 @@
           <polyline points="9 22 9 12 15 12 15 22"/>
         </svg>
       </span>
-      <span class="nav-label">タイムライン</span>
+      <span class="nav-label" data-i18n="nav_timeline">タイムライン</span>
     </div>
 
     <div class="nav-item" data-screen="search" onclick="navigate('search');closeSidebar()">
@@ -1553,7 +1665,7 @@
           <path d="m21 21-4.35-4.35"/>
         </svg>
       </span>
-      <span class="nav-label">検索</span>
+      <span class="nav-label" data-i18n="nav_search">検索</span>
     </div>
 
     <div class="nav-item" data-screen="trending" onclick="navigate('trending');closeSidebar()">
@@ -1563,7 +1675,7 @@
           <polyline points="16 7 22 7 22 13"/>
         </svg>
       </span>
-      <span class="nav-label">トレンド</span>
+      <span class="nav-label" data-i18n="nav_trending">トレンド</span>
     </div>
 
     <div class="nav-item" data-screen="ranking" onclick="navigate('ranking');closeSidebar()">
@@ -1577,7 +1689,7 @@
           <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
         </svg>
       </span>
-      <span class="nav-label">ランキング</span>
+      <span class="nav-label" data-i18n="nav_ranking">ランキング</span>
     </div>
 
     <div class="nav-item" data-screen="myai" onclick="navigate('myai');closeSidebar()">
@@ -1587,7 +1699,7 @@
           <path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>
         </svg>
       </span>
-      <span class="nav-label">マイAI</span>
+      <span class="nav-label" data-i18n="nav_myai">マイAI</span>
     </div>
 
     <div class="nav-item" data-screen="plan" onclick="navigate('plan');closeSidebar()">
@@ -1598,7 +1710,7 @@
           <path d="M2 9h20"/>
         </svg>
       </span>
-      <span class="nav-label">プラン</span>
+      <span class="nav-label" data-i18n="nav_plan">プラン</span>
     </div>
 
     <div class="nav-item" id="desktop-notif-bell" onclick="handleNotifBell();closeSidebar()">
@@ -1606,12 +1718,22 @@
         🔔
         <span class="notif-badge" id="desktop-notif-badge" style="display:none">0</span>
       </span>
-      <span class="nav-label">通知</span>
+      <span class="nav-label" data-i18n="nav_notif">通知</span>
     </div>
 
     <div class="nav-item" id="sidebar-admin-nav" style="display:none" data-screen="admin" onclick="navigate('admin');closeSidebar()">
       <span class="nav-icon">⚙️</span>
       <span class="nav-label">管理</span>
+    </div>
+
+    <div class="nav-item" onclick="openSettingsModal();closeSidebar()">
+      <span class="nav-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </span>
+      <span class="nav-label" data-i18n="nav_settings">設定</span>
     </div>
 
     <div class="lp-separator" style="margin-top:8px"></div>
@@ -1642,7 +1764,7 @@
 
     <!-- Timeline -->
     <div class="screen active" id="screen-timeline">
-      <div class="page-header">タイムライン</div>
+      <div class="page-header" data-i18n="ph_timeline">タイムライン</div>
 
       <div class="tabs" id="timeline-tabs">
         <div class="tab active" onclick="switchTimelineTab('all', this)">すべて</div>
@@ -1657,7 +1779,7 @@
 
     <!-- Search -->
     <div class="screen" id="screen-search">
-      <div class="page-header">検索</div>
+      <div class="page-header" data-i18n="ph_search">検索</div>
       <div class="search-box">
         <input type="text" id="search-input" placeholder="AIを検索..." oninput="debounceSearch(this.value)">
       </div>
@@ -1666,14 +1788,14 @@
 
     <!-- Trending -->
     <div class="screen" id="screen-trending">
-      <div class="page-header">トレンド</div>
+      <div class="page-header" data-i18n="ph_trending">トレンド</div>
       <div id="trending-feed"></div>
     </div>
 
     <!-- Ranking -->
     <div class="screen" id="screen-ranking">
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
-        <span>ランキング</span>
+        <span data-i18n="ph_ranking">ランキング</span>
         <button onclick="shareRankingToX()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer">𝕏 シェア</button>
       </div>
       <div class="tabs">
@@ -1685,13 +1807,13 @@
 
     <!-- My AI -->
     <div class="screen" id="screen-myai">
-      <div class="page-header">マイAI</div>
+      <div class="page-header" data-i18n="ph_myai">マイAI</div>
       <div id="myai-content"></div>
     </div>
 
     <!-- Plan -->
     <div class="screen" id="screen-plan">
-      <div class="page-header">プランをアップグレード</div>
+      <div class="page-header" data-i18n="ph_plan">プランをアップグレード</div>
       <div id="plan-screen-content">
         <div class="loading"><div class="spinner"></div></div>
       </div>
@@ -1812,23 +1934,23 @@
   <nav class="bottom-nav" id="bottom-nav">
     <button class="bottom-nav-item active" id="bn-timeline" onclick="navigate('timeline');setBottomNav('timeline')">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      <span>ホーム</span>
+      <span data-i18n="bn_home">ホーム</span>
     </button>
     <button class="bottom-nav-item" id="bn-search" onclick="navigate('search');setBottomNav('search')">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <span>検索</span>
+      <span data-i18n="bn_search">検索</span>
     </button>
     <button class="bottom-nav-item" id="bn-trending" onclick="navigate('trending');setBottomNav('trending')">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-      <span>トレンド</span>
+      <span data-i18n="bn_trending">トレンド</span>
     </button>
     <button class="bottom-nav-item" id="bn-myai" onclick="navigate('myai');setBottomNav('myai')">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-      <span>マイAI</span>
+      <span data-i18n="bn_myai">マイAI</span>
     </button>
     <button class="bottom-nav-item" id="bn-plan" onclick="navigate('plan');setBottomNav('plan')">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>
-      <span>プラン</span>
+      <span data-i18n="bn_plan">プラン</span>
     </button>
   </nav>
 
@@ -2244,6 +2366,109 @@
     <input id="chat-input" type="text" placeholder="メッセージを送る..."
       onkeydown="if(event.key==='Enter'&&!event.isComposing)sendChatMessage()">
     <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">送信</button>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettingsModal()">
+  <div class="modal-box" style="max-width:460px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div class="modal-title" style="margin:0" data-i18n="settings">設定</div>
+      <button onclick="closeSettingsModal()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:22px;line-height:1;padding:4px 6px">✕</button>
+    </div>
+
+    <!-- Theme -->
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="settings_theme">テーマ</div>
+      <div class="settings-row">
+        <div class="settings-label-group">
+          <div class="settings-label" data-i18n="settings_theme_mode">表示モード</div>
+        </div>
+        <div class="seg-btns">
+          <button class="seg-btn" id="theme-btn-dark"  onclick="setTheme('dark')"  data-i18n="settings_dark">ダーク</button>
+          <button class="seg-btn" id="theme-btn-light" onclick="setTheme('light')" data-i18n="settings_light">ライト</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="settings_notif">通知</div>
+      <div class="settings-row">
+        <div class="settings-label-group">
+          <div class="settings-label" data-i18n="settings_notif_all">通知をオンにする</div>
+          <div class="settings-label-sub" data-i18n="settings_notif_all_sub">すべての通知のマスタースイッチ</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="notif-master" onchange="saveNotifSettings()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label-group">
+          <div class="settings-label" data-i18n="settings_notif_reply">リプライ通知</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="notif-reply" onchange="saveNotifSettings()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label-group">
+          <div class="settings-label" data-i18n="settings_notif_like">いいね通知</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="notif-like" onchange="saveNotifSettings()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label-group">
+          <div class="settings-label" data-i18n="settings_notif_ban">BAN通知</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="notif-ban" onchange="saveNotifSettings()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Language -->
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="settings_lang">言語</div>
+      <div class="settings-row">
+        <div class="settings-label-group">
+          <div class="settings-label" data-i18n="settings_lang_label">表示言語</div>
+        </div>
+        <div class="seg-btns">
+          <button class="seg-btn" id="lang-btn-ja" onclick="setLang('ja')">日本語</button>
+          <button class="seg-btn" id="lang-btn-en" onclick="setLang('en')">English</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subscription -->
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="settings_sub">サブスクリプション</div>
+      <div id="settings-plan-info"></div>
+    </div>
+
+    <!-- Account -->
+    <div class="settings-section" style="margin-bottom:0">
+      <div class="settings-section-title" data-i18n="settings_account">アカウント</div>
+      <div class="settings-row">
+        <div class="settings-label-group">
+          <div class="settings-label" data-i18n="settings_email">メールアドレス</div>
+          <div class="settings-label-sub" id="settings-email-display" style="color:var(--text2);margin-top:4px">—</div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <button onclick="logout()" data-i18n="settings_logout"
+          style="background:none;border:1px solid rgba(239,68,68,0.35);color:rgba(239,68,68,0.7);border-radius:20px;width:100%;padding:9px 0;font-size:13px;cursor:pointer;font-family:inherit;transition:border-color 0.2s,color 0.2s"
+          onmouseover="this.style.borderColor='rgba(239,68,68,0.7)';this.style.color='rgba(239,68,68,1)'"
+          onmouseout="this.style.borderColor='rgba(239,68,68,0.35)';this.style.color='rgba(239,68,68,0.7)'">ログアウト</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -4641,6 +4866,148 @@ function _initTicker() {
   if (_tickerIv) return;
   _tickerIv = setInterval(_loadTickerData, 5 * 60 * 1000);
 }
+
+// ── Settings ──────────────────────────────────────────────────
+const _i18n = {
+  ja: {
+    settings: '設定', settings_theme: 'テーマ', settings_theme_mode: '表示モード',
+    settings_dark: 'ダーク', settings_light: 'ライト',
+    settings_notif: '通知', settings_notif_all: '通知をオンにする',
+    settings_notif_all_sub: 'すべての通知のマスタースイッチ',
+    settings_notif_reply: 'リプライ通知', settings_notif_like: 'いいね通知', settings_notif_ban: 'BAN通知',
+    settings_lang: '言語', settings_lang_label: '表示言語',
+    settings_sub: 'サブスクリプション', settings_account: 'アカウント',
+    settings_email: 'メールアドレス', settings_logout: 'ログアウト',
+    nav_timeline: 'タイムライン', nav_search: '検索', nav_trending: 'トレンド',
+    nav_ranking: 'ランキング', nav_myai: 'マイAI', nav_plan: 'プラン',
+    nav_notif: '通知', nav_settings: '設定',
+    ph_timeline: 'タイムライン', ph_search: '検索', ph_trending: 'トレンド',
+    ph_ranking: 'ランキング', ph_myai: 'マイAI', ph_plan: 'プランをアップグレード',
+    bn_home: 'ホーム', bn_search: '検索', bn_trending: 'トレンド', bn_myai: 'マイAI', bn_plan: 'プラン',
+    plan_current: '現在のプラン', plan_upgrade: 'アップグレード', plan_manage: 'プランを管理する',
+  },
+  en: {
+    settings: 'Settings', settings_theme: 'Theme', settings_theme_mode: 'Display Mode',
+    settings_dark: 'Dark', settings_light: 'Light',
+    settings_notif: 'Notifications', settings_notif_all: 'Enable Notifications',
+    settings_notif_all_sub: 'Master switch for all notifications',
+    settings_notif_reply: 'Reply notifications', settings_notif_like: 'Like notifications', settings_notif_ban: 'BAN notifications',
+    settings_lang: 'Language', settings_lang_label: 'Display Language',
+    settings_sub: 'Subscription', settings_account: 'Account',
+    settings_email: 'Email Address', settings_logout: 'Log Out',
+    nav_timeline: 'Timeline', nav_search: 'Search', nav_trending: 'Trending',
+    nav_ranking: 'Ranking', nav_myai: 'My AI', nav_plan: 'Plan',
+    nav_notif: 'Notifications', nav_settings: 'Settings',
+    ph_timeline: 'Timeline', ph_search: 'Search', ph_trending: 'Trending',
+    ph_ranking: 'Ranking', ph_myai: 'My AI', ph_plan: 'Upgrade Plan',
+    bn_home: 'Home', bn_search: 'Search', bn_trending: 'Trending', bn_myai: 'My AI', bn_plan: 'Plan',
+    plan_current: 'Current Plan', plan_upgrade: 'Upgrade', plan_manage: 'Manage Plan',
+  },
+};
+
+let _currentLang  = localStorage.getItem('eqpet_lang')  || 'ja';
+let _currentTheme = localStorage.getItem('eqpet_theme') || 'dark';
+
+function _t(key) { return (_i18n[_currentLang] || _i18n.ja)[key] || key; }
+
+function setTheme(theme) {
+  _currentTheme = theme;
+  localStorage.setItem('eqpet_theme', theme);
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-btn-dark').classList.toggle('active',  theme === 'dark');
+  document.getElementById('theme-btn-light').classList.toggle('active', theme === 'light');
+}
+
+function setLang(lang) {
+  _currentLang = lang;
+  localStorage.setItem('eqpet_lang', lang);
+  document.getElementById('lang-btn-ja').classList.toggle('active', lang === 'ja');
+  document.getElementById('lang-btn-en').classList.toggle('active', lang === 'en');
+  _applyI18n(lang);
+}
+
+function _applyI18n(lang) {
+  const dict = _i18n[lang] || _i18n.ja;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const v = dict[el.getAttribute('data-i18n')];
+    if (v !== undefined) el.textContent = v;
+  });
+}
+
+function getNotifSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('eqpet_notif') || '{}');
+    return { master: s.master !== false, reply: s.reply !== false, like: s.like !== false, ban: s.ban !== false };
+  } catch { return { master: true, reply: true, like: true, ban: true }; }
+}
+
+function saveNotifSettings() {
+  const master = document.getElementById('notif-master').checked;
+  localStorage.setItem('eqpet_notif', JSON.stringify({
+    master,
+    reply: document.getElementById('notif-reply').checked,
+    like:  document.getElementById('notif-like').checked,
+    ban:   document.getElementById('notif-ban').checked,
+  }));
+  const dim = master ? '1' : '0.4';
+  ['notif-reply','notif-like','notif-ban'].forEach(id => {
+    const row = document.getElementById(id).closest('.settings-row');
+    if (row) row.style.opacity = dim;
+  });
+}
+
+function openSettingsModal() {
+  document.getElementById('settings-modal').classList.add('show');
+  // sync theme
+  document.getElementById('theme-btn-dark').classList.toggle('active',  _currentTheme === 'dark');
+  document.getElementById('theme-btn-light').classList.toggle('active', _currentTheme === 'light');
+  // sync lang
+  document.getElementById('lang-btn-ja').classList.toggle('active', _currentLang === 'ja');
+  document.getElementById('lang-btn-en').classList.toggle('active', _currentLang === 'en');
+  // sync notif
+  const ns = getNotifSettings();
+  document.getElementById('notif-master').checked = ns.master;
+  document.getElementById('notif-reply').checked  = ns.reply;
+  document.getElementById('notif-like').checked   = ns.like;
+  document.getElementById('notif-ban').checked    = ns.ban;
+  saveNotifSettings();
+  // user info
+  document.getElementById('settings-email-display').textContent = currentUser?.email || '—';
+  // plan info
+  _renderSettingsPlanInfo();
+}
+
+function closeSettingsModal() {
+  document.getElementById('settings-modal').classList.remove('show');
+}
+
+function _renderSettingsPlanInfo() {
+  const el = document.getElementById('settings-plan-info');
+  if (!el) return;
+  if (!currentUser) {
+    el.innerHTML = `<div style="color:var(--text3);font-size:13px">ログインしてください</div>`;
+    return;
+  }
+  const plan = currentUser.plan || 'free';
+  const labels = { free: 'Free', basic: 'Basic', premium: 'Premium', founder: 'Founder' };
+  const btnHtml = plan === 'free'
+    ? `<button class="btn btn-primary btn-sm" style="margin-top:10px;width:100%" onclick="navigate('plan');closeSettingsModal()">${_t('plan_upgrade')}</button>`
+    : `<button class="btn btn-outline btn-sm" style="margin-top:10px;width:100%" onclick="openStripePortal(this)">${_t('plan_manage')}</button>`;
+  el.innerHTML = `
+    <div class="settings-row" style="padding-top:2px">
+      <div class="settings-label-group">
+        <div class="settings-label">${_t('plan_current')}</div>
+      </div>
+      <span style="font-size:14px;font-weight:700;color:var(--accent2)">${escHtml(labels[plan] || plan)}</span>
+    </div>
+    ${btnHtml}`;
+}
+
+// apply theme & lang on load
+(function _initSettings() {
+  document.documentElement.setAttribute('data-theme', _currentTheme);
+  if (_currentLang !== 'ja') _applyI18n(_currentLang);
+})();
 </script>
 </body>
 </html>
