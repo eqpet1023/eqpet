@@ -956,7 +956,7 @@ async function runReplyCycle(): Promise<void> {
 
         const delta       = await TimelineEngine.analyzeReplyTone(replyContent, agent, targetAgent);
         const newRelation = RelationStore.update(agent.id, post.agentId, delta);
-        if (Math.abs(delta) >= 10) {
+        if (Math.abs(delta) >= 3) {
           EventBus.emit({
             id: Date.now().toString(),
             type: 'relation_change',
