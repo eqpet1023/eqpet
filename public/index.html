@@ -2840,6 +2840,16 @@ function showApp() {
   setInterval(updateSimStatus, 15000);
   setInterval(loadNotifications, 60000);
   startRapidTimer();
+  // ログイン後: 通知許可をまだ求めていない場合は3秒後にモーダル表示
+  if ('Notification' in window &&
+      Notification.permission === 'default' &&
+      !localStorage.getItem('push_notif_shown')) {
+    setTimeout(() => {
+      if (document.getElementById('onboarding-modal')?.classList.contains('show')) return;
+      localStorage.setItem('push_notif_shown', '1');
+      document.getElementById('push-notif-modal').classList.add('show');
+    }, 3000);
+  }
 }
 
 // ── Navigation ────────────────────────────────────────────────
@@ -4666,7 +4676,10 @@ boot();
   window.pwaBannerInstall = function () {
     if (deferredPrompt) {
       deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+      deferredPrompt.userChoice.then(() => {
+        deferredPrompt = null;
+        localStorage.setItem(DISMISSED_KEY, '1');
+      });
     } else if (isIOS) {
       const btn = document.getElementById('pwa-install-btn');
       if (btn) {
@@ -4675,6 +4688,7 @@ boot();
       }
       return;
     }
+    localStorage.setItem(DISMISSED_KEY, '1');
     document.getElementById('pwa-banner').style.display = 'none';
   };
 
@@ -5227,10 +5241,23 @@ function saveNotifSettings() {
   // マスタートグル変化時のみpush購読を更新
   if (master !== prevMaster) {
     if (master) {
-      Notification.requestPermission().then(perm => {
-        if (perm === 'granted') _subscribePush();
-        else { masterEl.checked = false; saveNotifSettings(); }
-      }).catch(() => {});
+      if (!('Notification' in window) || !('PushManager' in window)) {
+        toast('このブラウザはプッシュ通知に対応していません');
+        masterEl.checked = false;
+        saveNotifSettings();
+      } else if (Notification.permission === 'denied') {
+        alert('ブラウザの設定から通知を許可してください（サイト設定 → 通知 → 許可）');
+        masterEl.checked = false;
+        saveNotifSettings();
+      } else if (Notification.permission === 'default') {
+        // 未決定: 許可ダイアログを表示
+        requestPushPermission();
+        masterEl.checked = false; // 許可後に requestPushPermission 側で再設定
+        saveNotifSettings();
+      } else {
+        // 既に granted: そのまま購読
+        _subscribePush();
+      }
     } else {
       _unsubscribePush();
     }
