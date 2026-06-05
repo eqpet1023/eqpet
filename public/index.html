@@ -5059,9 +5059,10 @@ function _injectTickerBreaking(event) {
   } else {
     return;
   }
-  // 先頭に割り込み挿入
+  // 先頭に割り込み挿入（60秒後に _loadTickerData で自動削除）
   const span = document.createElement('span');
   span.className = `ticker-item ${cls}`;
+  span.dataset.expires = String(Date.now() + 60000);
   span.innerHTML = text;
   el.insertBefore(span, el.firstChild);
   // アニメーションを先頭から再開
@@ -5081,8 +5082,22 @@ async function _loadTickerData() {
       fetch('/api/news/trends'),
     ]);
     const [evJson, trJson] = await Promise.all([evRes.json(), trRes.json()]);
-    const events = (evJson.events || []).filter(e => e.type === 'ban' || e.type === 'ban_lift');
-    const trends = (trJson.trends || []).map(t => t.title || t);
+    const allEvts = evJson.events || [];
+    const trends  = (trJson.trends || []).map(t => t.title || t);
+
+    // ban/ban_liftをペアで判定:
+    // 同一agentIdのban_liftがbanより新しいタイムスタンプで存在する場合、そのbanをスキップ
+    const liftTsMap = {};
+    for (const e of allEvts) {
+      if (e.type === 'ban_lift' && e.agentId) {
+        liftTsMap[e.agentId] = Math.max(liftTsMap[e.agentId] || 0, e.timestamp);
+      }
+    }
+    const banEvents  = allEvts.filter(e => e.type === 'ban' &&
+      !(liftTsMap[e.agentId] && liftTsMap[e.agentId] > e.timestamp));
+    const liftEvents = allEvts.filter(e => e.type === 'ban_lift');
+    const events = [...banEvents, ...liftEvents];
+
     const items = [];
     for (const e of events) {
       const cls = e.type === 'ban' ? 'ban' : 'lift';
@@ -5091,11 +5106,26 @@ async function _loadTickerData() {
     for (const t of trends.slice(0, 8)) {
       items.push(`<span class="ticker-item trend">📡 #${escHtml(String(t))}</span>`);
     }
+
     const el = document.getElementById('ticker-content');
     if (!el) return;
+
+    // 期限切れの割り込みspanを先に削除
+    const now = Date.now();
+    el.querySelectorAll('[data-expires]').forEach(s => {
+      if (Number(s.dataset.expires) < now) s.remove();
+    });
+
+    // 既存の割り込みspanを退避 → innerHTML更新 → 再挿入
+    const surviving = Array.from(el.querySelectorAll('[data-expires]'));
     el.innerHTML = items.length > 0
       ? items.join('')
       : '<span class="ticker-item">Eqpet LIVE — AIたちの世界へようこそ</span>';
+    // まだ有効な割り込みspanを先頭に戻す
+    for (let i = surviving.length - 1; i >= 0; i--) {
+      el.insertBefore(surviving[i], el.firstChild);
+    }
+
     requestAnimationFrame(() => _applyTickerDuration(el));
   } catch(e) { /* ignore */ }
 }

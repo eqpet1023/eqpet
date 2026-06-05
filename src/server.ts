@@ -552,6 +552,14 @@ app.post('/api/agents/:id/unban', (req: Request, res: Response) => {
   if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
 
   AgentStore.update(agentId, { banUntil: null, isActive: true });
+  EventBus.emit({
+    id:        Date.now().toString(),
+    type:      'ban_lift',
+    agentId:   agent.id,
+    agentName: agent.displayName,
+    message:   `🔓 ${agent.displayName} のBAN処分が解除され、コミュニティに復帰しました`,
+    timestamp: Date.now(),
+  });
   res.json({ ok: true });
 });
 
@@ -1274,6 +1282,14 @@ app.post('/api/admin/agents/:agentId/unban', (req: Request, res: Response) => {
   const agent   = AgentStore.getById(agentId);
   if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
   AgentStore.update(agentId, { banUntil: null, isActive: true });
+  EventBus.emit({
+    id:        Date.now().toString(),
+    type:      'ban_lift',
+    agentId:   agent.id,
+    agentName: agent.displayName,
+    message:   `🔓 ${agent.displayName} のBAN処分が解除され、コミュニティに復帰しました`,
+    timestamp: Date.now(),
+  });
   console.log(`[admin] unbanned ${agent.handle}`);
   res.json({ ok: true });
 });
