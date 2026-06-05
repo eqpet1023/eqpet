@@ -1414,15 +1414,12 @@
     opacity: 0.3;
     z-index: 1;
   }
-  .wave-line {
+  #pulse-wave-poly {
     fill: none;
     stroke: rgba(0,255,170,0.8);
     stroke-width: 1.5;
-    animation: cp-pulse 2s ease-in-out infinite;
-  }
-  @keyframes cp-pulse {
-    0%, 100% { opacity: 0.3; }
-    50%       { opacity: 0.8; }
+    stroke-linejoin: round;
+    stroke-linecap: round;
   }
 
   /* ── BAN flash ───────────────────────────────────────────── */
@@ -2005,7 +2002,7 @@
     </div>
   </div>
   <svg class="pulse-wave" viewBox="0 0 260 40" aria-hidden="true">
-    <polyline class="wave-line" points="0,20 20,20 30,5 40,35 50,20 70,20 80,10 90,30 100,20 120,20 130,8 140,32 150,20 170,20 180,12 190,28 200,20 220,20 230,6 240,34 250,20 260,20"/>
+    <polyline id="pulse-wave-poly" points="0,20 260,20"/>
   </svg>
 </div>
 </div><!-- /#layout -->
@@ -4738,24 +4735,37 @@ async function _refreshRpTrends() {
 }
 
 // Right panel — events
+function _rpEventToHtml(e) {
+  const time = relativeTime(new Date(e.timestamp).toISOString());
+  let icon, style, msg;
+  switch (e.type) {
+    case 'ban':
+      icon = '🚨'; style = 'color:#ff4444;font-weight:600'; msg = e.message; break;
+    case 'ban_lift':
+      icon = '✅'; style = 'color:#4ade80;font-weight:600'; msg = e.message; break;
+    case 'relation_change':
+      icon = '💫'; style = 'color:var(--accent2)'; msg = e.message; break;
+    default:
+      return null; // post/reply は表示しない
+  }
+  return `<div class="rp-event">
+    <div class="rp-event-msg" style="${style}">${icon} ${escHtml(msg)}</div>
+    <div class="rp-event-time">${time}</div>
+  </div>`;
+}
+
 async function _refreshRpEvents() {
   const el = document.getElementById('rp-events');
   if (!el) return;
   try {
     const { events: evts } = await fetch('/api/events/recent?n=10').then(r => r.json());
-    console.log('[POLL] events:', evts.length, 'lastTs:', _lastEventTimestamp);
-    el.innerHTML = evts.length > 0
-      ? evts.map(e => `<div class="rp-event">
-          <div class="rp-event-msg">${escHtml(e.message)}</div>
-          <div class="rp-event-time">${relativeTime(new Date(e.timestamp).toISOString())}</div>
-        </div>`).join('')
-      : '<div style="font-size:11px;color:var(--text3)">まだイベントなし</div>';
+    const displayEvts = evts.filter(e => ['ban','ban_lift','relation_change'].includes(e.type));
+    const html = displayEvts.map(_rpEventToHtml).filter(Boolean).join('');
+    el.innerHTML = html || '<div style="font-size:11px;color:var(--text3)">まだイベントなし</div>';
 
     if (_isFirstTickerFetch) {
       _isFirstTickerFetch = false;
-      _lastEventTimestamp = evts.length > 0
-        ? Math.max(...evts.map(e => e.timestamp))
-        : 0;
+      _lastEventTimestamp = evts.length > 0 ? Math.max(...evts.map(e => e.timestamp)) : 0;
       return;
     }
     const newEvents = evts.filter(e => e.timestamp > _lastEventTimestamp);
@@ -4789,46 +4799,129 @@ let _panelPollStarted = false;
 let _lastEventTimestamp = 0;
 let _isFirstTickerFetch = true;
 
-function _fireWaveSpike(large) {
-  const wave = document.querySelector('.pulse-wave');
-  if (!wave) return;
-  const cls = large ? 'wave-spiking' : 'wave-spiking-sm';
-  wave.classList.remove('wave-spiking', 'wave-spiking-sm');
-  void wave.offsetWidth;
-  wave.classList.add(cls);
-  wave.addEventListener('animationend', () => wave.classList.remove(cls), { once: true });
+// ── SVG Pulse Wave (rAF-driven) ───────────────────────────────
+const _WAVE_W = 260, _WAVE_H = 40, _WAVE_CY = 20;
+let _wavePhase      = 0;
+let _waveExcitement = 0;   // 0=calm … 1=max
+let _waveBanMode    = false;
+let _waveRafId      = null;
+let _waveLastTs     = 0;
+
+function _ecgSample(pos) {
+  // pos: 0..1, one ECG period → returns normalized amplitude −1..+1
+  if (pos < 0.12) return 0;
+  if (pos < 0.20) return 0.25  * Math.sin((pos-0.12)/0.08  * Math.PI); // P
+  if (pos < 0.25) return 0;
+  if (pos < 0.28) return -0.20 * (pos-0.25)/0.03;                       // Q dip
+  if (pos < 0.33) return -0.20 + 1.20*(pos-0.28)/0.05;                  // R rise → peak
+  if (pos < 0.38) return  1.00 - 1.15*(pos-0.33)/0.05;                  // R fall → S
+  if (pos < 0.42) return -0.15 + 0.15*(pos-0.38)/0.04;                  // S recovery
+  if (pos < 0.52) return  0.35 * Math.sin((pos-0.42)/0.10 * Math.PI);   // T wave
+  return 0;
+}
+
+function _buildWavePoints() {
+  const exc = _waveExcitement;
+  const amp = 4 + 13 * exc;          // 4px calm … 17px max
+  const periods = 2.5;               // ECG cycles visible across the SVG
+  const N = 80;
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const xn  = i / N;
+    const x   = xn * _WAVE_W;
+    const pos = (_wavePhase + xn * periods) % 1;
+    let   y   = _ecgSample(pos) * amp;
+    if (exc > 0.4) y += (Math.random() - 0.5) * amp * (exc - 0.4) * 0.7; // noise
+    pts.push(`${x.toFixed(1)},${(_WAVE_CY - y).toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+function _waveRaf(ts) {
+  const panel = document.getElementById('right-panel');
+  if (!panel || panel.style.display === 'none') {
+    _waveLastTs = 0;
+    _waveRafId = requestAnimationFrame(_waveRaf);
+    return;
+  }
+  if (!_waveLastTs) _waveLastTs = ts;
+  const dt = Math.min(ts - _waveLastTs, 50);
+  _waveLastTs = ts;
+
+  // excitement decay
+  const decay = _waveBanMode ? 0.22 : 0.38; // BAN decays slower
+  _waveExcitement = Math.max(0, _waveExcitement - decay * dt / 1000);
+  if (_waveExcitement < 0.04) _waveBanMode = false;
+
+  // phase advance (speed proportional to excitement)
+  _wavePhase = (_wavePhase + (0.35 + _waveExcitement * 1.1) * dt / 1000) % 1;
+
+  const poly = document.getElementById('pulse-wave-poly');
+  if (poly) {
+    poly.setAttribute('points', _buildWavePoints());
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const stroke  = _waveBanMode
+      ? '#ff4444'
+      : isLight ? 'rgba(124,58,237,0.65)' : 'rgba(0,255,170,0.8)';
+    poly.setAttribute('stroke', stroke);
+  }
+  _waveRafId = requestAnimationFrame(_waveRaf);
+}
+
+function _startWave() {
+  if (_waveRafId) return;
+  _waveRafId = requestAnimationFrame(_waveRaf);
+}
+
+function _triggerWaveExcitement(level, isBan) {
+  _waveExcitement = Math.max(_waveExcitement, level);
+  if (isBan) _waveBanMode = true;
+}
+
+function _fireBanFlash() {
+  const flash = document.getElementById('ban-flash');
+  if (!flash) return;
+  flash.classList.remove('ban-flashing');
+  void flash.offsetWidth;
+  flash.classList.add('ban-flashing');
+  flash.addEventListener('animationend', () => flash.classList.remove('ban-flashing'), { once: true });
+}
+
+function _fireLiveEventsWarning(text, cls) {
+  const allTitles = document.querySelectorAll('.rp-title');
+  allTitles.forEach(t => {
+    if (!t.textContent.includes('LIVE EVENTS')) return;
+    const orig = t.textContent;
+    t.textContent = text;
+    t.classList.add(cls);
+    setTimeout(() => { t.textContent = orig; t.classList.remove(cls); }, 6000);
+  });
 }
 
 function _fireBanEffect() {
-  console.log('[BAN EFFECT] fired');
-  const flash = document.getElementById('ban-flash');
-  if (flash) {
-    flash.classList.remove('ban-flashing');
-    void flash.offsetWidth;
-    flash.classList.add('ban-flashing');
-    flash.addEventListener('animationend', () => flash.classList.remove('ban-flashing'), { once: true });
-  }
-  const allTitles = document.querySelectorAll('.rp-title');
-  let liveTitle = null;
-  allTitles.forEach(t => { if (t.textContent.includes('LIVE EVENTS')) liveTitle = t; });
-  if (liveTitle) {
-    const orig = liveTitle.textContent;
-    liveTitle.textContent = '⚠️ WARNING: BAN DETECTED';
-    liveTitle.classList.add('live-events-warning');
-    setTimeout(() => {
-      liveTitle.textContent = orig;
-      liveTitle.classList.remove('live-events-warning');
-    }, 8000);
-  }
-  _fireWaveSpike(true);
+  _fireBanFlash();
+  _fireLiveEventsWarning('⚠️ WARNING: BAN DETECTED', 'live-events-warning');
+  _triggerWaveExcitement(1.0, true);
 }
 
 function _triggerEventEffect(event) {
-  console.log('[EVENT DETECTED]', event.type, event.timestamp);
-  if (event.type === 'ban') {
-    _fireBanEffect();
-  } else {
-    _fireWaveSpike(false);
+  switch (event.type) {
+    case 'ban':
+      _fireBanEffect();
+      break;
+    case 'ban_lift':
+      _fireBanFlash();
+      _triggerWaveExcitement(0.65, false); // chaotic then settle
+      break;
+    case 'relation_change':
+      _triggerWaveExcitement(0.35, false);
+      break;
+    case 'post':
+    case 'reply':
+      _triggerWaveExcitement(0.08, false);
+      break;
+    default:
+      _triggerWaveExcitement(0.12, false);
   }
 }
 
@@ -4837,6 +4930,7 @@ function _initPanels() {
   _refreshRpTrends();
   _refreshRpEvents();
   _refreshRpHot();
+  _startWave();
   if (_panelPollStarted) return;
   _panelPollStarted = true;
   setInterval(_refreshLeftPanel,  30000);
