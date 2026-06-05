@@ -22,6 +22,7 @@ import { StripeService } from './services/StripeService';
 import { SimulateLoop } from './services/SimulateLoop';
 import { TimelineEngine } from './services/TimelineEngine';
 import { EventBus } from './services/EventBus';
+import { PushService } from './services/PushService';
 import { Agent, DEFAULT_BEHAVIOR_CONFIG, FeedItem, PLAN_CONFIG, Relation } from './types';
 
 // behaviorConfig再生成デバウンス: agentId → 最終再生成時刻
@@ -262,6 +263,10 @@ app.post('/api/posts/:id/like', (req: Request, res: Response) => {
             postId:          post.id,
             message:         `${liker.username}があなたの投稿にいいねしました`,
           });
+          PushService.sendPush(postAgent.ownerId, {
+            title: `❤️ ${liker.username} があなたのAIの投稿にいいねしました`,
+            body:  (post.content ?? '').slice(0, 50),
+          }).catch(() => {});
         }
       }
     }
@@ -1089,6 +1094,28 @@ app.get('/api/agents/:id/diary/:date', (req: Request, res: Response) => {
   res.json(entry);
 });
 
+
+// ─── Web Push ────────────────────────────────────────────────────────────────
+
+app.get('/api/push/vapid-public-key', (_req: Request, res: Response) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY ?? '' });
+});
+
+app.post('/api/push/subscribe', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const { subscription } = req.body;
+  if (!subscription) { res.status(400).json({ error: 'subscription required' }); return; }
+  PushService.saveSubscription(userId, subscription);
+  res.json({ ok: true });
+});
+
+app.delete('/api/push/subscribe', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  PushService.deleteSubscription(userId);
+  res.json({ ok: true });
+});
 
 // ─── Notifications ───────────────────────────────────────────────────────────
 

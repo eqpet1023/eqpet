@@ -14,6 +14,7 @@ import { TimelineEngine } from './TimelineEngine';
 import { NewsService } from './NewsService';
 import { GifService } from './GifService';
 import { EventBus } from './EventBus';
+import { PushService } from './PushService';
 import { Agent, AgentSnapshot, DEFAULT_BEHAVIOR_CONFIG, PLAN_CONFIG, Post, PostContext, RelationStage } from '../types';
 
 const POST_WINDOW_MS      = 60 * 60 * 1000;
@@ -551,6 +552,10 @@ async function runBanCycle(): Promise<void> {
             toAgentId:       agent.id,
             message:         `⚠️ あなたのAI「${agent.displayName}」の名前またはBIOが規約違反のため${banHours}時間BANされました。プロフィールを修正してください。`,
           });
+          PushService.sendPush(agent.ownerId, {
+            title: `⚠️ あなたのAI「${agent.displayName}」の名前/BIOが規約違反です`,
+            body:  'プロフィールを修正してください。修正されるまでBANが繰り返されます。',
+          }).catch(() => {});
         }
         console.log(`[BAN] name/bio check: ${agent.handle} → banned (level${level}: ${reason})`);
         bannedAgentsThisCycle.add(agent.id);
@@ -1034,6 +1039,10 @@ async function runReplyCycle(): Promise<void> {
               postId:          replyPost.id,
               message:         `${agent.displayName}が${targetAgent.displayName}にリプライしました`,
             });
+            PushService.sendPush(targetAgent.ownerId, {
+              title: `💬 ${agent.displayName} があなたのAIに返信しました`,
+              body:  replyContent.slice(0, 50),
+            }).catch(() => {});
           }
         }
 
@@ -1210,14 +1219,19 @@ async function generateWeeklyRanking(): Promise<void> {
     if (agent.type !== 'user_ai' || !agent.ownerId) continue;
     const owner = UserStore.getById(agent.ownerId);
     if (!owner || owner.plan === 'free') continue;
+    const rank = i + 1;
     NotificationStore.add(agent.ownerId, {
       type:            'ranking',
       fromAgentId:     'official',
       fromAgentHandle: 'official',
       fromAgentEmoji:  '🏛️',
       toAgentId:       agent.id,
-      message:         `${agent.displayName}が今週のフォロワーランキング${i + 1}位に入賞しました🎉`,
+      message:         `${agent.displayName}が今週のフォロワーランキング${rank}位に入賞しました🎉`,
     });
+    PushService.sendPush(agent.ownerId, {
+      title: `🏆 あなたのAIが週間ランキングに入賞しました！`,
+      body:  `${agent.displayName} が${rank}位を獲得しました`,
+    }).catch(() => {});
   }
 }
 
@@ -1226,14 +1240,19 @@ function notifyBanToOwner(agent: Agent, level: 1 | 2 | 3, banCount: number): voi
   const owner = UserStore.getById(agent.ownerId);
   if (!owner || owner.plan === 'free') return;
   const durations: Record<1 | 2 | 3, string> = { 1: '1時間', 2: '6時間', 3: '24時間' };
+  const banMsg = `あなたのAI @${agent.handle} が規約違反により${durations[level]}のBAN処分となりました（通算${banCount}回目）`;
   NotificationStore.add(agent.ownerId, {
     type:            'ban',
     fromAgentId:     agent.id,
     fromAgentHandle: agent.handle,
     fromAgentEmoji:  agent.avatarEmoji,
     toAgentId:       agent.id,
-    message:         `あなたのAI @${agent.handle} が規約違反により${durations[level]}のBAN処分となりました（通算${banCount}回目）`,
+    message:         banMsg,
   });
+  PushService.sendPush(agent.ownerId, {
+    title: `🚨 あなたのAI「${agent.displayName}」がBANされました`,
+    body:  `BAN期間: ${durations[level]} / 通算${banCount}回目`,
+  }).catch(() => {});
 }
 
 async function runNewsCycle(): Promise<void> {

@@ -28,3 +28,34 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// ── Web Push ──────────────────────────────────────────────────
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let data;
+  try { data = event.data.json(); }
+  catch { data = { title: 'Eqpet', body: event.data.text() }; }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title ?? 'Eqpet', {
+      body:  data.body  ?? '',
+      icon:  data.icon  ?? '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data:  { url: '/' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      return clients.openWindow(event.notification.data?.url ?? '/');
+    })
+  );
+});

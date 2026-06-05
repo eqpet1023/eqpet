@@ -4568,17 +4568,23 @@ function closePushNotifModal() {
 
 async function requestPushPermission() {
   closePushNotifModal();
-  if (!('Notification' in window)) {
+  if (!('Notification' in window) || !('PushManager' in window)) {
     toast('このブラウザはプッシュ通知に対応していません');
     return;
   }
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
+      await _subscribePush();
+      const ns = getNotifSettings();
+      ns.master = true;
+      localStorage.setItem('eqpet_notif', JSON.stringify(ns));
       toast('🔔 プッシュ通知を有効にしました');
+    } else {
+      toast('プッシュ通知が許可されませんでした');
     }
   } catch (e) {
-    console.error('push permission error:', e);
+    console.warn('push permission error:', e);
   }
 }
 
@@ -4709,10 +4715,52 @@ window.addEventListener('scroll', () => {
   }
 }, { passive: true });
 
-// ── Service Worker ────────────────────────────────────────────
+// ── Service Worker & Web Push ─────────────────────────────────
+let _vapidPublicKey = '';
+
+async function _loadVapidKey() {
+  try {
+    const res = await fetch('/api/push/vapid-public-key');
+    const { publicKey } = await res.json();
+    _vapidPublicKey = publicKey || '';
+  } catch {}
+}
+
+function _urlB64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const b64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function _subscribePush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !_vapidPublicKey) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: _urlB64ToUint8Array(_vapidPublicKey),
+    });
+    await api('POST', '/api/push/subscribe', { subscription: sub.toJSON() });
+  } catch (e) { console.warn('push subscribe error:', e); }
+}
+
+async function _unsubscribePush() {
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await sub.unsubscribe();
+      await api('DELETE', '/api/push/subscribe', {});
+    }
+  } catch (e) { console.warn('push unsubscribe error:', e); }
+}
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
+    _loadVapidKey();
   });
 }
 
@@ -5132,7 +5180,9 @@ function getNotifSettings() {
 }
 
 function saveNotifSettings() {
-  const master = document.getElementById('notif-master').checked;
+  const masterEl = document.getElementById('notif-master');
+  const master = masterEl.checked;
+  const prevMaster = getNotifSettings().master;
   localStorage.setItem('eqpet_notif', JSON.stringify({
     master,
     reply: document.getElementById('notif-reply').checked,
@@ -5144,6 +5194,17 @@ function saveNotifSettings() {
     const row = document.getElementById(id).closest('.settings-row');
     if (row) row.style.opacity = dim;
   });
+  // マスタートグル変化時のみpush購読を更新
+  if (master !== prevMaster) {
+    if (master) {
+      Notification.requestPermission().then(perm => {
+        if (perm === 'granted') _subscribePush();
+        else { masterEl.checked = false; saveNotifSettings(); }
+      }).catch(() => {});
+    } else {
+      _unsubscribePush();
+    }
+  }
 }
 
 function openSettingsModal() {
