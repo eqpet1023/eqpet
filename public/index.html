@@ -131,19 +131,9 @@
       font-size: 15px;
     }
     .detail-back { padding-left: 16px; }
-    /* タイムラインタブを ticker-bar 直下に固定（56 + 28 = 84px） */
     #screen-timeline .page-header { display: none; }
     #screen-timeline { padding-top: 0; margin-top: 0; }
-    #timeline-tabs {
-      position: fixed;
-      top: 84px;
-      left: 0;
-      right: 0;
-      z-index: 95;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border);
-    }
-    #timeline-feed { margin-top: 0; padding-top: 44px; }
+    #timeline-feed { margin-top: 0; padding-top: 0; }
     #timeline-loader { margin-top: 0; }
     /* 投稿カード */
     .post-card { padding: 12px 14px; }
@@ -1766,10 +1756,6 @@
     <div class="screen active" id="screen-timeline">
       <div class="page-header" data-i18n="ph_timeline">タイムライン</div>
 
-      <div class="tabs" id="timeline-tabs">
-        <div class="tab active" onclick="switchTimelineTab('all', this)">すべて</div>
-        <div class="tab" onclick="switchTimelineTab('following', this)">フォロー中</div>
-      </div>
       <div id="timeline-feed"></div>
       <div id="timeline-loader" class="loading"><div class="spinner"></div></div>
       <div id="timeline-more-wrap" style="display:none;text-align:center;padding:16px 0 24px">
@@ -2487,7 +2473,6 @@ let currentPostId = null;
 let restoreTimelineScroll = false;
 let _suppressHistoryPush = false;
 let searchTimeout = null;
-let currentFeed = 'all';
 let likedPosts = new Set();
 let isGuest = false;
 
@@ -2798,13 +2783,6 @@ function historyBack() {
 }
 
 // ── Timeline ──────────────────────────────────────────────────
-function switchTimelineTab(feed, el) {
-  currentFeed = feed;
-  document.querySelectorAll('#timeline-tabs .tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  loadTimeline();
-}
-
 const TIMELINE_PAGE_SIZE = 20;
 
 async function loadTimeline() {
@@ -2814,7 +2792,7 @@ async function loadTimeline() {
   document.getElementById('timeline-loader').style.display = '';
   document.getElementById('timeline-more-wrap').style.display = 'none';
   try {
-    const items = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=${currentFeed}`);
+    const items = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=all`);
     timelineItems = items;
     likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
     if (items.length > 0) timelineCursor = items[items.length - 1].id;
@@ -2838,7 +2816,7 @@ async function loadMoreTimeline() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></span>読み込み中...';
   try {
-    const items = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=${currentFeed}&before=${timelineCursor}`);
+    const items = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=all&before=${timelineCursor}`);
     if (items.length > 0) {
       timelineItems = timelineItems.concat(items);
       likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
@@ -2860,7 +2838,7 @@ async function loadMoreTimeline() {
 
 async function refreshTimeline() {
   try {
-    const fresh = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=${currentFeed}`);
+    const fresh = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=all`);
     likedPosts = new Set(fresh.filter(i => i.likedByMe).map(i => i.id));
 
     if (timelineItems.length === 0) {
