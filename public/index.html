@@ -64,19 +64,9 @@
 
   .main { margin-left: 220px; flex: 1; }
 
-  .right-panel {
-    width: 300px;
-    position: fixed;
-    right: 0; top: 0;
-    height: 100vh;
-    background: var(--bg2);
-    border-left: 1px solid var(--border);
-    padding: 20px;
-    overflow-y: auto;
-  }
-  @media (max-width: 900px) { .right-panel { display: none; } }
-  /* 右パネル表示時は .main に右マージンを加えてパネルの下に潜らないようにする */
-  @media (min-width: 901px) { .main { margin-right: 300px; padding: 0 40px; } }
+  /* 旧右パネル — 全サイズで非表示（#right-panel に完全移行済み） */
+  .right-panel { display: none !important; }
+  @media (min-width: 901px) { .main { padding: 0 40px; } }
   @media (min-width: 681px) and (max-width: 900px) { .main { padding: 0 28px; } }
 
   /* ── Hamburger ────────────────────────────────────────────── */
@@ -1235,15 +1225,16 @@
       z-index: 10;
     }
     .sidebar-overlay { display: none !important; }
-    /* 電光掲示板をPC中央カラムで固定表示 */
+    /* 電光掲示板: 中央カラムのみ（左サイドバー220px・右パネル220pxを除外） */
     #ticker-bar {
       position: fixed;
       top: 0;
-      left: 220px;
-      right: 220px;
+      left: 220px;  /* sidebar width */
+      right: 220px; /* right panel width */
       height: 28px;
       z-index: 95;
       width: auto;
+      box-sizing: border-box;
     }
     /* Main: reset fixed-panel margins, independent scroll */
     .main {
@@ -1554,7 +1545,10 @@
   [data-theme="light"] .reply-context { background: rgba(232,232,248,0.8); }
   [data-theme="light"] .cp-bg { opacity: 0.03; }
   [data-theme="light"] .scanline { opacity: 0.02; }
-  [data-theme="light"] #ticker-bar { background: rgba(232,232,248,0.95); border-color: var(--border); }
+  [data-theme="light"] #ticker-bar { background: rgba(232,232,248,0.95); border-color: var(--border); border-bottom: 1px solid rgba(124,58,237,0.15); }
+  [data-theme="light"] .ticker-label { color: var(--accent2); border-right-color: rgba(124,58,237,0.2); }
+  [data-theme="light"] #ecg-monitor { background: #0a1a0a; border-top-color: rgba(0,140,80,0.5); box-shadow: 0 -4px 12px rgba(0,0,0,0.12); }
+  [data-theme="light"] #ecg-label { color: rgba(0,210,110,0.65); }
   [data-theme="light"] .stat-card { background: rgba(232,232,248,0.6); }
   [data-theme="light"] .plan-card { background: rgba(240,240,251,0.8); }
   [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.95); }
@@ -1691,18 +1685,8 @@
       <span class="logo-text">Eqpet</span>
     </div>
     <div class="mobile-header-actions">
-      <span id="founder-counter-mobile" style="display:none;font-size:11px;color:#a78bfa;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);border-radius:20px;padding:3px 8px;white-space:nowrap"></span>
+      <span id="founder-counter-mobile" style="display:none;font-size:11px;color:#a78bfa;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);border-radius:20px;padding:3px 8px;white-space:nowrap;cursor:pointer" onclick="navigate('plan');closeSidebar()" title="Founderプランの残り枠"></span>
       <button id="mobile-admin-btn" style="display:none;background:none;border:none;cursor:pointer;font-size:18px;padding:6px;color:#a78bfa" onclick="navigate('admin');setBottomNav('admin')" aria-label="管理">⚙️</button>
-      <button class="notif-bell-btn" id="mobile-notif-bell" onclick="handleNotifBell()" aria-label="通知">
-        🔔
-        <span class="notif-badge" id="mobile-notif-badge" style="display:none">0</span>
-      </button>
-      <button class="notif-bell-btn" onclick="openSettingsModal()" aria-label="設定">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-          <circle cx="12" cy="12" r="3"/>
-        </svg>
-      </button>
       <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="メニュー">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/>
