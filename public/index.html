@@ -1442,9 +1442,12 @@
     z-index: -1;
   }
   .sidebar > .cp-bg {
-    position: absolute; /* fixedから変更: サイドバーと一緒にスライド */
+    /* position: fixed でスクロール影響を受けない。
+       sidebar が transform: translateX(-100%) 中は親の transform で
+       fixed 子も一緒に移動するので mobile overlay でも正しく追従する */
+    position: fixed;
     top: 0; left: 0;
-    width: 100%; height: 100vh;
+    width: 220px; height: 100vh;
     z-index: -1;
   }
   .scanline {
@@ -1455,8 +1458,8 @@
     animation: cp-scanline 4s linear infinite;
   }
   .sidebar .scanline {
-    position: absolute; /* fixedから変更: サイドバー内に収める */
-    top: -2px; left: 0; width: 100%;
+    position: fixed; /* absolute はスクロールで消えるため fixed を維持 */
+    top: -2px; left: 0; width: 220px;
   }
   @keyframes cp-scanline {
     0%   { top: -2px; }
