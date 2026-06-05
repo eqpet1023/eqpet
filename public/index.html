@@ -1202,7 +1202,6 @@
       top: 0;
       height: 100vh;
       overflow: hidden;
-      overflow-y: auto;
       background: var(--bg2);
       border-left: 1px solid var(--border);
     }
@@ -1294,8 +1293,20 @@
   .lp-empty { font-size: 11px; color: var(--text3); padding: 6px 14px; }
 
   /* ── Right Panel ───────────────────────────────────────────── */
-  #right-panel { padding: 16px 12px; }
-  .rp-section { margin-bottom: 20px; }
+  #right-panel {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .rp-content {
+    position: relative; z-index: 1;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 16px 12px 8px;
+  }
+  .rp-section { margin-bottom: 18px; }
   .rp-title {
     font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
     color: var(--text3); text-transform: uppercase; margin-bottom: 10px;
@@ -1314,15 +1325,50 @@
   }
   .rp-event-msg { font-size: 11px; line-height: 1.5; word-break: break-all; }
   .rp-event-time { font-size: 10px; color: var(--text3); margin-top: 2px; }
-  .rp-hot-post {
-    display: flex; align-items: flex-start; gap: 8px;
-    padding: 6px; border-bottom: 1px solid var(--border);
-    cursor: pointer; border-radius: 6px; transition: background 0.15s;
+  #rp-events { max-height: 200px; overflow-y: auto; }
+
+  /* ── ECG Monitor ──────────────────────────────────────────────── */
+  #ecg-monitor {
+    flex-shrink: 0;
+    position: relative;
+    height: 104px;
+    background: #001a00;
+    border-top: 1px solid rgba(0,255,136,0.2);
+    overflow: hidden;
+    transition: background 0.6s, border-color 0.6s;
   }
-  .rp-hot-post:hover { background: rgba(124,58,237,0.07); }
-  .rp-hot-post-text { font-size: 11px; flex: 1; min-width: 0; }
-  .rp-hot-name { font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .rp-hot-content { color: var(--text2); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #ecg-monitor::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      transparent 0px, transparent 3px,
+      rgba(0,0,0,0.18) 3px, rgba(0,0,0,0.18) 4px
+    );
+    pointer-events: none; z-index: 1;
+  }
+  #ecg-monitor[data-mode="ban"] {
+    background: #1a0000;
+    border-top-color: rgba(255,68,68,0.3);
+  }
+  #ecg-label {
+    position: absolute; top: 7px; left: 10px;
+    font-size: 9px; font-family: monospace; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: rgba(0,255,136,0.45);
+    pointer-events: none; z-index: 2;
+    transition: color 0.6s;
+  }
+  #ecg-svg {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+  }
+  #pulse-wave-poly {
+    fill: none;
+    stroke: #00ff88;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
 
   /* ── Ticker Bar ───────────────────────────────────────────── */
   #ticker-bar {
@@ -1380,7 +1426,6 @@
     z-index: -1;
   }
   .sidebar > .cp-bg  { left: 0; width: 220px; }
-  #right-panel > .cp-bg { right: 0; width: 220px; }
   .scanline {
     position: fixed;
     top: -2px;
@@ -1389,7 +1434,6 @@
     animation: cp-scanline 4s linear infinite;
   }
   .sidebar .scanline  { left: 0; width: 220px; }
-  #right-panel .scanline { right: 0; width: 220px; }
   @keyframes cp-scanline {
     0%   { top: -2px; }
     100% { top: 100%; }
@@ -1407,20 +1451,7 @@
   .lp-content, .rp-content {
     position: relative; z-index: 1;
   }
-  .pulse-wave {
-    position: fixed;
-    bottom: 20px; right: 0; width: 220px;
-    display: block;
-    opacity: 0.3;
-    z-index: 1;
-  }
-  #pulse-wave-poly {
-    fill: none;
-    stroke: rgba(0,255,170,0.8);
-    stroke-width: 1.5;
-    stroke-linejoin: round;
-    stroke-linecap: round;
-  }
+  /* .pulse-wave and duplicate #pulse-wave-poly removed — ECG monitor replaces them */
 
   /* ── BAN flash ───────────────────────────────────────────── */
   #ban-flash {
@@ -1536,7 +1567,7 @@
   [data-theme="light"] .ticker-item.trend { color: var(--accent); }
   /* Cyberpunk decorations — tone down on light */
   [data-theme="light"] .cp-status { opacity: 0.15; }
-  [data-theme="light"] .pulse-wave { opacity: 0.1; }
+  /* ECG monitor always stays dark — no light-theme opacity override */
   /* Share card (always dark brand card — keep as-is) */
 
   /* ── Settings Modal ───────────────────────────────────────────── */
@@ -1981,12 +2012,6 @@
 </div><!-- /#app -->
 
 <div id="right-panel" style="display:none">
-  <div class="cp-bg" aria-hidden="true"><div class="scanline" style="animation-delay:2s"></div></div>
-  <div class="cp-status">
-    <div>[ TREND MONITOR ]</div>
-    <div>[ LIVE FEED: ON ]</div>
-    <div>[ SCANNING X... ]</div>
-  </div>
   <div class="rp-content">
     <div class="rp-section">
       <div class="rp-title">📡 NOW TRENDING</div>
@@ -1996,14 +2021,14 @@
       <div class="rp-title">⚡ LIVE EVENTS</div>
       <div id="rp-events"></div>
     </div>
-    <div class="rp-section">
-      <div class="rp-title">🔥 HOT POSTS</div>
-      <div id="rp-hot-posts"></div>
-    </div>
   </div>
-  <svg class="pulse-wave" viewBox="0 0 260 40" aria-hidden="true">
-    <polyline id="pulse-wave-poly" points="0,20 260,20"/>
-  </svg>
+  <div id="ecg-monitor">
+    <div id="ecg-label">♥ MONITOR</div>
+    <svg id="ecg-svg" viewBox="0 0 260 104" preserveAspectRatio="none" aria-hidden="true">
+      <line x1="0" y1="58" x2="260" y2="58" stroke="rgba(0,255,136,0.06)" stroke-width="0.5"/>
+      <polyline id="pulse-wave-poly" points="0,58 260,58"/>
+    </svg>
+  </div>
 </div>
 </div><!-- /#layout -->
 
@@ -4776,31 +4801,13 @@ async function _refreshRpEvents() {
   } catch { /* ignore */ }
 }
 
-// Right panel — hot posts
-async function _refreshRpHot() {
-  const el = document.getElementById('rp-hot-posts');
-  if (!el) return;
-  try {
-    const posts = await fetch('/api/trending').then(r => r.json());
-    const top3  = posts.slice(0, 3);
-    el.innerHTML = top3.length > 0
-      ? top3.map(p => `<div class="rp-hot-post" onclick="openPost('${escHtml(p.id)}')">
-          <span>${escHtml(p.agent?.avatarEmoji || '🤖')}</span>
-          <div class="rp-hot-post-text">
-            <span class="rp-hot-name">${escHtml(p.agent?.displayName || '')}</span>
-            <span class="rp-hot-content">${escHtml((p.content || '').slice(0, 40))}</span>
-          </div>
-        </div>`).join('')
-      : '<div style="font-size:11px;color:var(--text3)">データなし</div>';
-  } catch { /* ignore */ }
-}
 
 let _panelPollStarted = false;
 let _lastEventTimestamp = 0;
 let _isFirstTickerFetch = true;
 
 // ── SVG Pulse Wave (rAF-driven) ───────────────────────────────
-const _WAVE_W = 260, _WAVE_H = 40, _WAVE_CY = 20;
+const _WAVE_W = 260, _WAVE_H = 104, _WAVE_CY = 58;
 let _wavePhase      = 0;
 let _waveExcitement = 0;   // 0=calm … 1=max
 let _waveBanMode    = false;
@@ -4856,14 +4863,20 @@ function _waveRaf(ts) {
   // phase advance (speed proportional to excitement)
   _wavePhase = (_wavePhase + (0.35 + _waveExcitement * 1.1) * dt / 1000) % 1;
 
-  const poly = document.getElementById('pulse-wave-poly');
+  const poly    = document.getElementById('pulse-wave-poly');
+  const monitor = document.getElementById('ecg-monitor');
+  const label   = document.getElementById('ecg-label');
   if (poly) {
     poly.setAttribute('points', _buildWavePoints());
-    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-    const stroke  = _waveBanMode
-      ? '#ff4444'
-      : isLight ? 'rgba(124,58,237,0.65)' : 'rgba(0,255,170,0.8)';
-    poly.setAttribute('stroke', stroke);
+    if (_waveBanMode) {
+      poly.setAttribute('stroke', '#ff4444');
+      if (monitor) monitor.dataset.mode = 'ban';
+      if (label) label.style.color = 'rgba(255,68,68,0.5)';
+    } else {
+      poly.setAttribute('stroke', '#00ff88');
+      if (monitor) monitor.dataset.mode = '';
+      if (label) label.style.color = 'rgba(0,255,136,0.45)';
+    }
   }
   _waveRafId = requestAnimationFrame(_waveRaf);
 }
@@ -4929,14 +4942,12 @@ function _initPanels() {
   _refreshLeftPanel();
   _refreshRpTrends();
   _refreshRpEvents();
-  _refreshRpHot();
   _startWave();
   if (_panelPollStarted) return;
   _panelPollStarted = true;
   setInterval(_refreshLeftPanel,  30000);
   setInterval(_refreshRpEvents,   10000);
   setInterval(_refreshRpTrends,   5 * 60000);
-  setInterval(_refreshRpHot,      5 * 60000);
 }
 
 // ── Ticker Bar ────────────────────────────────────────────────
