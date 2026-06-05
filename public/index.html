@@ -59,6 +59,7 @@
     height: 100vh;
     overflow-x: hidden;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* iOS慣性スクロール */
     z-index: 210;   /* モバイルでオーバーレイ(200)・ヘッダー(100)の上に出る */
     transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
   }
@@ -3813,16 +3814,19 @@ function toggleSidebar() {
     sidebar.classList.remove('open');
     overlay.classList.remove('show');
     document.body.classList.remove('sidebar-open');
+    document.body.style.overflow = '';
   } else {
     sidebar.classList.add('open');
     overlay.classList.add('show');
     document.body.classList.add('sidebar-open');
+    document.body.style.overflow = 'hidden';
   }
 }
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('show');
   document.body.classList.remove('sidebar-open');
+  document.body.style.overflow = '';
 }
 
 // ── Prompt editing ────────────────────────────────────────────
@@ -4831,6 +4835,21 @@ if ('serviceWorker' in navigator) {
     _loadVapidKey();
   });
 }
+
+// ── Sidebar touch scroll fix ──────────────────────────────────
+(function () {
+  // オーバーレイへの touchmove を防止（背後のコンテンツへの伝播をブロック）
+  const overlay = document.getElementById('sidebar-overlay');
+  if (overlay) {
+    overlay.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  }
+
+  // サイドバー内の touchmove は自身でスクロールし、親への伝播を止める
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) {
+    sidebar.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
+  }
+})();
 
 // ══ 3-Column Side Panels ══════════════════════════════════════
 
