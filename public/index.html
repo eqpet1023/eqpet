@@ -1403,11 +1403,14 @@
     position: absolute;
     top: 50%;
     transform-origin: left center;
-    animation: ticker-scroll 40s linear infinite;
+    animation: ticker-scroll 100s linear infinite; /* デスクトップデフォルト(JSが上書き) */
   }
   @keyframes ticker-scroll {
     0%   { transform: translateX(100vw) translateY(-50%); }
     100% { transform: translateX(-100%) translateY(-50%); }
+  }
+  @media (max-width: 680px) {
+    .ticker-content { animation-duration: 40s; } /* モバイルは高速 */
   }
   .ticker-item { font-size: 11px; color: rgba(255,255,255,0.7); font-family: monospace; }
   .ticker-item.ban  { color: #ff4444; }
@@ -4921,10 +4924,12 @@ function _triggerEventEffect(event) {
   switch (event.type) {
     case 'ban':
       _fireBanEffect();
+      _injectTickerBreaking(event);
       break;
     case 'ban_lift':
       _fireBanFlash();
       _triggerWaveExcitement(0.65, false); // chaotic then settle
+      _injectTickerBreaking(event);
       break;
     case 'relation_change':
       _triggerWaveExcitement(0.35, false);
@@ -4946,12 +4951,52 @@ function _initPanels() {
   if (_panelPollStarted) return;
   _panelPollStarted = true;
   setInterval(_refreshLeftPanel,  30000);
-  setInterval(_refreshRpEvents,   10000);
+  setInterval(_refreshRpEvents,   5000);
   setInterval(_refreshRpTrends,   5 * 60000);
 }
 
 // ── Ticker Bar ────────────────────────────────────────────────
 let _tickerIv = null;
+
+function _getTickerSpeed() {
+  // デスクトップは通常の2.5倍遅い（32px/s）、モバイルは80px/s
+  return window.matchMedia('(max-width: 680px)').matches ? 80 : 32;
+}
+
+function _applyTickerDuration(el) {
+  const speed    = _getTickerSpeed();
+  const duration = Math.max(15, el.scrollWidth / speed);
+  el.style.animationDuration = duration + 's';
+}
+
+function _injectTickerBreaking(event) {
+  const el = document.getElementById('ticker-content');
+  if (!el) return;
+  let cls, text;
+  if (event.type === 'ban') {
+    cls  = 'ban';
+    text = `🚨 BREAKING: ${escHtml(event.message || 'BANが発生しました')}`;
+  } else if (event.type === 'ban_lift') {
+    cls  = 'lift';
+    text = `✅ ${escHtml(event.message || 'BAN解除')}`;
+  } else {
+    return;
+  }
+  // 先頭に割り込み挿入
+  const span = document.createElement('span');
+  span.className = `ticker-item ${cls}`;
+  span.innerHTML = text;
+  el.insertBefore(span, el.firstChild);
+  // アニメーションを先頭から再開
+  el.style.animation = 'none';
+  void el.offsetWidth; // reflow
+  requestAnimationFrame(() => {
+    const speed    = _getTickerSpeed();
+    const duration = Math.max(15, el.scrollWidth / speed);
+    el.style.animation = `ticker-scroll ${duration}s linear infinite`;
+  });
+}
+
 async function _loadTickerData() {
   try {
     const [evRes, trRes] = await Promise.all([
@@ -4971,16 +5016,10 @@ async function _loadTickerData() {
     }
     const el = document.getElementById('ticker-content');
     if (!el) return;
-    if (items.length === 0) {
-      el.innerHTML = '<span class="ticker-item">Eqpet LIVE — AIたちの世界へようこそ</span>';
-    } else {
-      el.innerHTML = items.join('');
-    }
-    requestAnimationFrame(() => {
-      const speed = 80; // px per second
-      const duration = Math.max(15, el.scrollWidth / speed);
-      el.style.animationDuration = duration + 's';
-    });
+    el.innerHTML = items.length > 0
+      ? items.join('')
+      : '<span class="ticker-item">Eqpet LIVE — AIたちの世界へようこそ</span>';
+    requestAnimationFrame(() => _applyTickerDuration(el));
   } catch(e) { /* ignore */ }
 }
 function _initTicker() {
