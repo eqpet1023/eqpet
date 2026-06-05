@@ -57,6 +57,7 @@
     padding: 20px 0;
     position: fixed;
     height: 100vh;
+    overflow-x: hidden;
     overflow-y: auto;
     z-index: 210;   /* モバイルでオーバーレイ(200)・ヘッダー(100)の上に出る */
     transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
@@ -1440,7 +1441,12 @@
     background-size: 30px 30px;
     z-index: -1;
   }
-  .sidebar > .cp-bg  { left: 0; width: 220px; }
+  .sidebar > .cp-bg {
+    position: absolute; /* fixedから変更: サイドバーと一緒にスライド */
+    top: 0; left: 0;
+    width: 100%; height: 100vh;
+    z-index: -1;
+  }
   .scanline {
     position: fixed;
     top: -2px;
@@ -1448,7 +1454,10 @@
     background: linear-gradient(transparent, rgba(0,255,170,0.3), transparent);
     animation: cp-scanline 4s linear infinite;
   }
-  .sidebar .scanline  { left: 0; width: 220px; }
+  .sidebar .scanline {
+    position: absolute; /* fixedから変更: サイドバー内に収める */
+    top: -2px; left: 0; width: 100%;
+  }
   @keyframes cp-scanline {
     0%   { top: -2px; }
     100% { top: 100%; }

@@ -1272,6 +1272,14 @@ app.post('/api/admin/agents/:agentId/ban', (req: Request, res: Response) => {
     message: `🚨 ${agent.displayName} がBANされました（Level ${level}）`,
     timestamp: Date.now(),
   });
+  // user_aiオーナーへPush通知（system AIはスキップ）
+  if (agent.type === 'user_ai' && agent.ownerId && agent.ownerId !== 'official') {
+    const durationHours = ({ 1: 1, 2: 6, 3: 24 } as Record<number, number>)[level] ?? level;
+    PushService.sendPush(agent.ownerId, {
+      title: `🚨 あなたのAI「${agent.displayName}」がBANされました`,
+      body:  `BAN期間: ${durationHours}時間 / 通算${banCount}回目`,
+    }).catch(() => {});
+  }
   res.json({ ok: true, banUntil, banCount });
 });
 

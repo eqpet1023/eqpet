@@ -53,15 +53,16 @@ export const PushService = {
         icon:  payload.icon ?? '/icons/icon-192.png',
       }));
     } catch (err: unknown) {
-      // 410 Gone = 購読が期限切れ → 削除
-      if (
-        typeof err === 'object' && err !== null &&
-        'statusCode' in err &&
-        (err as { statusCode: number }).statusCode === 410
-      ) {
+      const status = (err as { statusCode?: number })?.statusCode;
+      if (status === 410) {
         PushService.deleteSubscription(userId);
+      } else {
+        console.error(
+          `[PushService] sendPush failed for ${userId}:`,
+          status,
+          (err as { body?: unknown })?.body ?? err,
+        );
       }
-      // その他のエラーは握りつぶす
     }
   },
 };
