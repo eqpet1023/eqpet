@@ -1225,15 +1225,16 @@
       z-index: 10;
     }
     .sidebar-overlay { display: none !important; }
-    /* 電光掲示板: 中央カラムのみ（左サイドバー220px・右パネル220pxを除外） */
+    /* 電光掲示板: 中央カラムのみ（左サイドバー220px・右パネル220px除外）
+       ※ width:100% はベースCSSで後から定義されているため !important で上書き必須 */
     #ticker-bar {
-      position: fixed;
-      top: 0;
-      left: 220px;  /* sidebar width */
-      right: 220px; /* right panel width */
+      position: fixed !important;
+      top: 0 !important;
+      left: 220px !important;
+      right: 220px !important;
+      width: auto !important;
       height: 28px;
       z-index: 95;
-      width: auto;
       box-sizing: border-box;
     }
     /* Main: reset fixed-panel margins, independent scroll */
@@ -1547,8 +1548,10 @@
   [data-theme="light"] .scanline { opacity: 0.02; }
   [data-theme="light"] #ticker-bar { background: rgba(232,232,248,0.95); border-color: var(--border); border-bottom: 1px solid rgba(124,58,237,0.15); }
   [data-theme="light"] .ticker-label { color: var(--accent2); border-right-color: rgba(124,58,237,0.2); }
-  [data-theme="light"] #ecg-monitor { background: #0a1a0a; border-top-color: rgba(0,140,80,0.5); box-shadow: 0 -4px 12px rgba(0,0,0,0.12); }
-  [data-theme="light"] #ecg-label { color: rgba(0,210,110,0.65); }
+  /* ECG monitor on light theme: light bg with gray border */
+  [data-theme="light"] #ecg-monitor { background: #f2f2f2; border-top: 1px solid #cccccc; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
+  [data-theme="light"] #ecg-monitor::before { background: repeating-linear-gradient(transparent 0px, transparent 3px, rgba(0,0,0,0.04) 3px, rgba(0,0,0,0.04) 4px); }
+  [data-theme="light"] #ecg-monitor[data-mode="ban"] { background: #fff0f0; border-top-color: rgba(200,50,50,0.4); }
   [data-theme="light"] .stat-card { background: rgba(232,232,248,0.6); }
   [data-theme="light"] .plan-card { background: rgba(240,240,251,0.8); }
   [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.95); }
@@ -1564,8 +1567,6 @@
   [data-theme="light"] .type-badge { background: rgba(220,220,245,0.8); color: var(--text2); }
   [data-theme="light"] .type-badge.system  { background: rgba(124,58,237,0.1);  color: #6d28d9; border-color: rgba(124,58,237,0.3); }
   [data-theme="light"] .type-badge.user_ai { background: rgba(34,197,94,0.12);  color: #16a34a; border-color: rgba(34,197,94,0.35); }
-  /* ECG monitor — border visible against light rp-content bg */
-  [data-theme="light"] #ecg-monitor { border-top-color: rgba(0,160,90,0.4); }
   /* Stat / plan cards */
   [data-theme="light"] .stat-card { background: rgba(220,220,245,0.6); }
   [data-theme="light"] .plan-card { background: rgba(240,240,251,0.85); }
@@ -4898,14 +4899,15 @@ function _waveRaf(ts) {
   const label   = document.getElementById('ecg-label');
   if (poly) {
     poly.setAttribute('points', _buildWavePoints());
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     if (_waveBanMode) {
       poly.setAttribute('stroke', '#ff4444');
       if (monitor) monitor.dataset.mode = 'ban';
-      if (label) label.style.color = 'rgba(255,68,68,0.5)';
+      if (label) label.style.color = isLight ? 'rgba(180,30,30,0.85)' : 'rgba(255,68,68,0.5)';
     } else {
       poly.setAttribute('stroke', '#00ff88');
       if (monitor) monitor.dataset.mode = '';
-      if (label) label.style.color = 'rgba(0,255,136,0.45)';
+      if (label) label.style.color = isLight ? '#444444' : 'rgba(0,255,136,0.45)';
     }
   }
   _waveRafId = requestAnimationFrame(_waveRaf);
