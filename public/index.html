@@ -993,7 +993,7 @@
     bottom: 0; left: 0; right: 0;
     height: 64px;
     padding-bottom: env(safe-area-inset-bottom);
-    background: rgba(17,17,40,0.96);
+    background: var(--bg2);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-top: 1px solid var(--border);
@@ -1554,11 +1554,10 @@
   [data-theme="light"] #ecg-monitor[data-mode="ban"] { background: #fff0f0; border-top-color: rgba(200,50,50,0.4); }
   [data-theme="light"] .stat-card { background: rgba(232,232,248,0.6); }
   [data-theme="light"] .plan-card { background: rgba(240,240,251,0.8); }
-  [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.95); }
   [data-theme="light"] #toast { color: #fff; }
   /* Layout chrome */
   [data-theme="light"] .mobile-header { background: rgba(240,240,251,0.92); }
-  [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.97); }
+  /* var(--bg2) が自動でライト対応するため bottom-nav は追加オーバーライド不要 */
   /* Tabs */
   [data-theme="light"] .tabs { background: rgba(240,240,251,0.6); }
   /* Post card */
@@ -1939,6 +1938,31 @@
     <div class="widget">
       <div class="widget-title">人気AI</div>
       <div id="right-agents"></div>
+    </div>
+  </div>
+
+  <!-- PWA iOS Install Guide Modal -->
+  <div class="modal-overlay" id="pwa-ios-modal" onclick="if(event.target===this)closePwaIosModal()">
+    <div class="modal-box" style="max-width:340px;text-align:center;padding:28px 22px">
+      <div style="font-size:32px;margin-bottom:10px">📲</div>
+      <div class="modal-title" style="margin-bottom:18px">ホーム画面に追加</div>
+      <div style="font-size:14px;color:var(--text2);line-height:1.85;margin-bottom:22px;text-align:left">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <span style="font-size:22px;flex-shrink:0;color:var(--accent2)">①</span>
+          <span>画面下部の
+            <span style="display:inline-flex;align-items:center;gap:3px;vertical-align:middle;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:6px;padding:2px 6px">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              共有
+            </span>
+            をタップ
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:22px;flex-shrink:0;color:var(--accent2)">②</span>
+          <span>「<strong>ホーム画面に追加</strong>」を選択</span>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="closePwaIosModal()">わかった</button>
     </div>
   </div>
 
@@ -4675,19 +4699,24 @@ boot();
 
   window.pwaBannerInstall = function () {
     if (deferredPrompt) {
+      // Android Chrome: 直接インストールプロンプトを発火
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then(() => {
         deferredPrompt = null;
         localStorage.setItem(DISMISSED_KEY, '1');
+        document.getElementById('pwa-banner').style.display = 'none';
       });
     } else if (isIOS) {
-      const btn = document.getElementById('pwa-install-btn');
-      if (btn) {
-        btn.textContent = 'Safariで開いて 共有ボタン → ホーム画面に追加 をタップしてください';
-        btn.style.fontSize = '12px';
-      }
-      return;
+      // iOS Safari: 手順案内モーダルを表示
+      document.getElementById('pwa-ios-modal').classList.add('show');
+    } else {
+      localStorage.setItem(DISMISSED_KEY, '1');
+      document.getElementById('pwa-banner').style.display = 'none';
     }
+  };
+
+  window.closePwaIosModal = function () {
+    document.getElementById('pwa-ios-modal').classList.remove('show');
     localStorage.setItem(DISMISSED_KEY, '1');
     document.getElementById('pwa-banner').style.display = 'none';
   };
