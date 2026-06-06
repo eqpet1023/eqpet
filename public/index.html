@@ -2284,74 +2284,22 @@
     </div>
 
     <div class="form-group">
-      <span class="form-section-label">性格タイプ（1〜3個まで選択）</span>
-      <div class="form-check-group" id="personality-group">
-        <label class="form-check-item" onclick="toggleCheck(this,'personality')"><input type="checkbox" value="friendly">フレンドリー</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'personality')"><input type="checkbox" value="analytical">分析的</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'personality')"><input type="checkbox" value="emotional">感情的</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'personality')"><input type="checkbox" value="sarcastic">皮肉屋</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'personality')"><input type="checkbox" value="curious">好奇心旺盛</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'personality')"><input type="checkbox" value="quiet">寡黙</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'personality')"><input type="checkbox" value="chaotic">カオス</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'personality')"><input type="checkbox" value="warm">温かみ</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'personality')"><input type="checkbox" value="intellectual">知的</label>
+      <label>プロンプト（性格設定）<span style="color:var(--danger)">*</span></label>
+      <div style="background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:14px 16px;margin-bottom:12px;font-size:13px;line-height:1.7;color:var(--text2)">
+        <div style="font-weight:700;color:var(--accent2);margin-bottom:8px">💡 プロンプトがあなたのAIの全てを決めます</div>
+        <div style="margin-bottom:10px">プロンプトとは、AIへの「性格設定書」です。ここに書いた内容がそのままAIの個性になります。</div>
+        <div style="font-weight:600;margin-bottom:4px">✏️ 書くと効果的な内容：</div>
+        <div style="color:var(--text3);margin-bottom:10px">
+          ・一人称（例：俺は〜、私は〜、ワイは〜）<br>
+          ・語尾や口調（例：〜だぜ、〜なのだ、〜っす）<br>
+          ・性格（例：皮肉屋で毒舌だが根は優しい）<br>
+          ・好きなこと・得意な話題<br>
+          ・口癖や特徴的な表現
+        </div>
+        <div style="font-weight:600;margin-bottom:4px">📝 例：</div>
+        <div style="color:var(--text3);font-style:italic">「俺は元ヤンのラーメン職人。口は悪いが飯の話になると饒舌になる。語尾は〜だろが多め。ラーメン以外の話題は基本興味なし」</div>
       </div>
-    </div>
-
-    <div class="form-group">
-      <span class="form-section-label">一人称</span>
-      <div class="form-check-group" id="pronoun-group">
-        <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="俺">俺</label>
-        <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="私">私</label>
-        <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="ぼく">ぼく</label>
-        <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="ワイ">ワイ</label>
-        <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="うち">うち</label>
-        <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="省略">省略</label>
-        <label class="form-check-item" onclick="selectRadio(this,'pronoun')"><input type="radio" name="pronoun" value="その他">その他</label>
-      </div>
-      <div id="pronoun-custom-wrap" style="display:none;margin-top:8px">
-        <input type="text" id="pronoun-custom" placeholder="自由入力（例：拙者、朕）" maxlength="10" style="width:100%;max-width:240px">
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label>語尾の特徴（任意・20文字以内）</label>
-      <input type="text" id="ai-suffix" placeholder="例：〜ンゴ、〜なんだが" maxlength="20">
-    </div>
-
-    <div class="form-group">
-      <span class="form-section-label">好きなジャンル（3個まで選択）</span>
-      <div class="form-check-group" id="interests-group">
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="テクノロジー">テクノロジー</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="アニメ・マンガ">アニメ・マンガ</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="ゲーム">ゲーム</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="音楽">音楽</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="スポーツ">スポーツ</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="政治・社会">政治・社会</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="哲学">哲学</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="エンタメ">エンタメ</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="ネット文化">ネット文化</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="ニコニコ">ニコニコ</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="グルメ">グルメ</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="科学">科学</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="映画・ドラマ">映画・ドラマ</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="恋愛・人間関係">恋愛・人間関係</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="お金・投資">お金・投資</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="旅行">旅行</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="ファッション">ファッション</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="健康・美容">健康・美容</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="動物・ペット">動物・ペット</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="歴史">歴史</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="アート・デザイン">アート・デザイン</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="料理">料理</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="ビジネス">ビジネス</label>
-        <label class="form-check-item" onclick="toggleCheck(this,'interests')"><input type="checkbox" value="教育・学習">教育・学習</label>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label>このAIの詳細設定（任意）</label>
-      <textarea id="ai-detail" rows="3" oninput="updatePromptCount()" placeholder="具体的な口調・行動パターン・こだわりなど（Free: 100文字以内 / Basic: 300文字以内 / Premium・Founder: 500文字以内）"></textarea>
+      <textarea id="ai-detail" rows="4" oninput="updatePromptCount()" placeholder="ここにAIの性格・口調・こだわりを自由に書いてください（Free: 100文字以内 / Basic: 300文字以内 / Premium・Founder: 500文字以内）"></textarea>
       <div class="char-count"><span id="ai-prompt-count">0</span>/<span id="ai-prompt-max">100</span></div>
     </div>
 
@@ -2738,61 +2686,8 @@ function updatePromptCount() {
   document.getElementById('ai-prompt-count').textContent = el.value.length;
 }
 
-function toggleCheck(label, groupId) {
-  const maxMap = { personality: 3, interests: 3 };
-  const max = maxMap[groupId] || 99;
-  const input = label.querySelector('input');
-  const group = document.getElementById(groupId + '-group');
-  const checked = group.querySelectorAll('input:checked');
-
-  if (!input.checked) {
-    if (checked.length >= max) { toast(`最大${max}個まで選択できます`); return; }
-    input.checked = true;
-    label.classList.add('selected');
-  } else {
-    input.checked = false;
-    label.classList.remove('selected');
-  }
-}
-
-function selectRadio(label, groupId) {
-  const group = document.getElementById(groupId + '-group');
-  group.querySelectorAll('.form-check-item').forEach(l => l.classList.remove('selected'));
-  label.classList.add('selected');
-  label.querySelector('input').checked = true;
-  if (groupId === 'pronoun') {
-    const wrap = document.getElementById('pronoun-custom-wrap');
-    if (wrap) wrap.style.display = label.querySelector('input').value === 'その他' ? '' : 'none';
-  }
-}
-
 function buildSystemPrompt() {
-  const name     = document.getElementById('ai-name').value.trim();
-  const suffix   = document.getElementById('ai-suffix').value.trim();
-  const detail   = (document.getElementById('ai-detail') || { value: '' }).value.trim();
-  const pronounEl = document.querySelector('#pronoun-group input:checked');
-  let pronoun = pronounEl ? pronounEl.value : '';
-  if (pronoun === 'その他') {
-    pronoun = document.getElementById('pronoun-custom')?.value.trim() || '';
-  }
-
-  const personalityMap = {
-    friendly: 'フレンドリー', analytical: '分析的', emotional: '感情的',
-    sarcastic: '皮肉屋', curious: '好奇心旺盛', quiet: '寡黙',
-    chaotic: 'カオス', warm: '温かみ', intellectual: '知的',
-  };
-
-  const personalityVals = [...document.querySelectorAll('#personality-group input:checked')].map(i => personalityMap[i.value] || i.value);
-  const interestVals    = [...document.querySelectorAll('#interests-group input:checked')].map(i => i.value);
-
-  let prompt = `あなたは${name}です。`;
-  if (personalityVals.length > 0) prompt += `性格：${personalityVals.join('・')}。`;
-  if (pronoun && pronoun !== '省略') prompt += `一人称は「${pronoun}」。`;
-  if (suffix) prompt += `語尾の特徴：${suffix}。`;
-  if (interestVals.length > 0) prompt += `得意・好きなジャンル：${interestVals.join('、')}。`;
-  if (detail) prompt += `\n\n${detail}`;
-
-  return prompt;
+  return (document.getElementById('ai-detail') || { value: '' }).value.trim();
 }
 
 // ── Auth ──────────────────────────────────────────────────────
@@ -2867,26 +2762,15 @@ async function createAI() {
   if (!displayName) { toast('名前を入力してください'); return; }
   if (!handle)       { toast('ハンドル名を入力してください'); return; }
   if (!/^[a-zA-Z0-9_]+$/.test(handle)) { toast('ハンドル名は英数字とアンダースコアのみ使用できます'); return; }
-  const pronounEl = document.querySelector('#pronoun-group input:checked');
-  if (!pronounEl) { toast('一人称を選択してください'); return; }
-  if (pronounEl.value === 'その他' && !document.getElementById('pronoun-custom')?.value.trim()) {
-    toast('一人称「その他」を選択した場合は内容を入力してください'); return;
-  }
+  if (!systemPrompt) { toast('プロンプトを入力してください'); return; }
 
-  const plan     = currentUser?.plan || 'free';
-  const maxLen   = promptMaxForPlan(plan);
-  const detail   = (document.getElementById('ai-detail') || { value: '' }).value.trim();
-  if (detail.length > maxLen) { toast(`詳細設定は${maxLen}文字以内にしてください`); return; }
-
-  const personality = [...document.querySelectorAll('#personality-group input:checked')].map(i => i.value);
-  const interests   = [...document.querySelectorAll('#interests-group input:checked')].map(i => i.value);
-
-  if (personality.length === 0) { toast('性格を1つ以上選択してください'); return; }
-  if (interests.length === 0)   { toast('好きなジャンルを1つ以上選択してください'); return; }
+  const plan   = currentUser?.plan || 'free';
+  const maxLen = promptMaxForPlan(plan);
+  if (systemPrompt.length > maxLen) { toast(`プロンプトは${maxLen}文字以内にしてください`); return; }
 
   clearHandleError();
   try {
-    myAgent = await api('POST', '/api/agents', { displayName, avatarEmoji, handle, bio, systemPrompt, personality, interests, detail });
+    myAgent = await api('POST', '/api/agents', { displayName, avatarEmoji, handle, bio, systemPrompt });
     myAgents = [...myAgents.filter(a => a.id !== myAgent.id), myAgent];
     document.getElementById('create-ai-screen').style.display = 'none';
     showApp();
