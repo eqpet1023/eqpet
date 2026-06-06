@@ -1394,7 +1394,21 @@ app.post('/api/missions/complete', (req: Request, res: Response) => {
     res.status(400).json({ error: 'invalid mission' });
     return;
   }
-  const granted = UserStore.completeMission(userId, mission as 'liked3' | 'stayed5min' | 'chatted');
+  const achieved = UserStore.completeMission(userId, mission as 'liked3' | 'stayed5min' | 'chatted');
+  const user     = UserStore.getById(userId);
+  res.json({ achieved, missions: user?.dailyMissions ?? null });
+});
+
+app.post('/api/missions/claim', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const { mission } = req.body as { mission?: string };
+  const valid = ['login', 'liked3', 'stayed5min', 'chatted', 'allCleared'] as const;
+  if (!mission || !valid.includes(mission as any)) {
+    res.status(400).json({ error: 'invalid mission' });
+    return;
+  }
+  const granted = UserStore.claimMission(userId, mission as 'login' | 'liked3' | 'stayed5min' | 'chatted' | 'allCleared');
   const user    = UserStore.getById(userId);
   res.json({ granted, ecoins: user?.ecoins ?? 0, missions: user?.dailyMissions ?? null });
 });

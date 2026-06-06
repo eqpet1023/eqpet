@@ -140,11 +140,17 @@ export type UserRole = 'official' | 'user';
 export type UserPlan = 'free' | 'basic' | 'premium' | 'founder';
 
 export interface DailyMissions {
-  liked3:     boolean;
-  stayed5min: boolean;
-  chatted:    boolean;
-  allCleared: boolean;
-  date:       string;
+  loggedIn:          boolean;
+  loggedInClaimed:   boolean;
+  liked3:            boolean;
+  liked3Claimed:     boolean;
+  stayed5min:        boolean;
+  stayed5minClaimed: boolean;
+  chatted:           boolean;
+  chattedClaimed:    boolean;
+  allCleared:        boolean;
+  allClearedClaimed: boolean;
+  date:              string;
 }
 
 export interface User {

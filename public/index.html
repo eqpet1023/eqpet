@@ -1749,6 +1749,22 @@
     border: 1px solid rgba(245,158,11,0.25); border-radius: 20px;
     padding: 2px 10px; color: #f59e0b; margin-top: 6px;
   }
+  .mission-btn {
+    font-size: 12px; font-family: inherit; border-radius: 20px;
+    padding: 4px 12px; border: 1px solid var(--border);
+    background: transparent; color: var(--text3); cursor: default;
+    white-space: nowrap;
+  }
+  .mission-btn-claim {
+    background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.5);
+    color: #f59e0b; cursor: pointer;
+  }
+  .mission-btn-claim:hover { background: rgba(245,158,11,0.28); }
+  .mission-unread-dot {
+    position: absolute; top: -3px; right: -3px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #ef4444; display: none;
+  }
 </style>
 </head>
 <body>
@@ -1865,7 +1881,7 @@
     </div>
 
     <div class="nav-item" id="sidebar-mission-nav" style="display:none" data-screen="mission" onclick="navigate('mission');closeSidebar()">
-      <span class="nav-icon">🪙</span>
+      <span class="nav-icon" style="position:relative">🪙<span id="mission-unread-dot-sidebar" class="mission-unread-dot"></span></span>
       <span class="nav-label">ミッション</span>
     </div>
 
@@ -2136,7 +2152,7 @@
       <span data-i18n="bn_plan">プラン</span>
     </button>
     <button class="bottom-nav-item" id="bn-mission" style="display:none" onclick="navigate('mission');setBottomNav('mission')">
-      <span style="font-size:22px">🪙</span>
+      <span style="font-size:22px;position:relative">🪙<span id="mission-unread-dot-bn" class="mission-unread-dot"></span></span>
       <span>ミッション</span>
     </button>
   </nav>
@@ -2798,7 +2814,7 @@ async function doLogin() {
     currentUser = user;
     localStorage.setItem('user_id', currentUser.id);
     await afterLogin();
-    if (loginBonus > 0) setTimeout(() => toast(`🪙 ログインボーナス +${loginBonus} Eコイン`), 600);
+    if (loginBonus > 0) setTimeout(() => toast(`🔥 7日連続ログイン！+${loginBonus} Eコインボーナス（自動付与）`), 800);
   } catch (e) { toast('ログイン失敗: ' + e.message); }
 }
 
@@ -2984,6 +3000,8 @@ function showApp() {
   setInterval(refreshTimeline, 30000);
   setInterval(updateSimStatus, 15000);
   setInterval(loadNotifications, 60000);
+  loadMissionStatus();
+  setInterval(loadMissionStatus, 30000);
   startRapidTimer();
   // ログイン後: 通知許可をまだ求めていない場合は3秒後にモーダル表示
   if ('Notification' in window &&
@@ -4419,30 +4437,76 @@ function switchToRegister() {
 
 // ── Eコイン / ミッション ───────────────────────────────────────
 
-function updateEcoinDisplay() {
-  const coins = currentUser?.ecoins ?? 0;
+function updateEcoinDisplay(coins) {
+  const c = coins ?? currentUser?.ecoins ?? 0;
   const badge = document.getElementById('ecoin-badge');
   const badgeVal = document.getElementById('ecoin-badge-val');
   const sidebarBadge = document.getElementById('ecoin-badge-sidebar');
   const sidebarVal = document.getElementById('ecoin-sidebar-val');
-  if (badge) { badge.style.display = 'flex'; if (badgeVal) badgeVal.textContent = coins; }
-  if (sidebarBadge) { sidebarBadge.style.display = 'flex'; if (sidebarVal) sidebarVal.textContent = coins; }
+  if (badge) { badge.style.display = 'flex'; if (badgeVal) badgeVal.textContent = c; }
+  if (sidebarBadge) { sidebarBadge.style.display = 'flex'; if (sidebarVal) sidebarVal.textContent = c; }
+}
+
+function _missionClaimBtn(key, done, claimed) {
+  if (!done)    return `<button class="mission-btn" disabled>未達成</button>`;
+  if (!claimed) return `<button class="mission-btn mission-btn-claim" onclick="claimMissionClient('${key}')">受取</button>`;
+  return `<button class="mission-btn" disabled>受取済み</button>`;
+}
+
+function _hasUnclaimed(m, isPremium) {
+  if (!m) return false;
+  return (m.loggedIn && !m.loggedInClaimed) ||
+         (m.liked3 && !m.liked3Claimed) ||
+         (m.stayed5min && !m.stayed5minClaimed) ||
+         (isPremium && m.chatted && !m.chattedClaimed) ||
+         (m.allCleared && !m.allClearedClaimed);
+}
+
+function updateMissionBadge(hasUnclaimed) {
+  ['mission-unread-dot-sidebar', 'mission-unread-dot-bn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = hasUnclaimed ? 'block' : 'none';
+  });
+}
+
+async function loadMissionStatus() {
+  if (!currentUser) return;
+  try {
+    const s = await api('GET', '/api/missions/status');
+    const isPremium = currentUser?.plan === 'premium' || currentUser?.plan === 'founder';
+    updateMissionBadge(_hasUnclaimed(s.missions, isPremium));
+    if (currentUser) currentUser.ecoins = s.ecoins;
+    updateEcoinDisplay(s.ecoins);
+  } catch(_) {}
 }
 
 async function completeMissionClient(mission) {
   if (!currentUser) return;
   try {
     const res = await api('POST', '/api/missions/complete', { mission });
-    if (res.granted > 0) {
-      currentUser.ecoins = res.ecoins;
-      if (res.missions) currentUser.dailyMissions = res.missions;
-      updateEcoinDisplay();
-      const labels = { liked3: 'いいね3回ミッション', stayed5min: '5分滞在ミッション', chatted: 'チャットミッション' };
-      toast(`🪙 ${labels[mission] || 'ミッション'} +${res.granted} Eコイン`);
-      // ミッション画面が開いていれば再描画
-      if (document.getElementById('screen-mission')?.classList.contains('active')) loadMissionScreen();
-    }
+    if (!res.achieved) return;
+    if (res.missions) currentUser.dailyMissions = res.missions;
+    const isPremium = currentUser?.plan === 'premium' || currentUser?.plan === 'founder';
+    updateMissionBadge(_hasUnclaimed(res.missions, isPremium));
+    const labels = { liked3: 'いいね3回', stayed5min: '5分滞在', chatted: 'チャット' };
+    toast(`✅ ${labels[mission] || 'ミッション'}が達成されました！`);
+    if (document.getElementById('screen-mission')?.classList.contains('active')) loadMissionScreen();
   } catch(_) {}
+}
+
+async function claimMissionClient(mission) {
+  if (!currentUser) return;
+  try {
+    const res = await api('POST', '/api/missions/claim', { mission });
+    if (res.granted <= 0) return;
+    currentUser.ecoins = res.ecoins;
+    if (res.missions) currentUser.dailyMissions = res.missions;
+    updateEcoinDisplay(res.ecoins);
+    const isPremium = currentUser?.plan === 'premium' || currentUser?.plan === 'founder';
+    updateMissionBadge(_hasUnclaimed(res.missions, isPremium));
+    toast(`🪙 +${res.granted} Eコイン受取！（残高: ${res.ecoins}）`);
+    loadMissionScreen();
+  } catch(e) { toast(e.message); }
 }
 
 async function loadMissionScreen() {
@@ -4451,27 +4515,22 @@ async function loadMissionScreen() {
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
     const s = await api('GET', '/api/missions/status');
-    if (currentUser) { currentUser.ecoins = s.ecoins; }
-    updateEcoinDisplay();
+    if (currentUser) currentUser.ecoins = s.ecoins;
+    updateEcoinDisplay(s.ecoins);
     const m = s.missions;
-    const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month:'long', day:'numeric' });
     const isPremium = currentUser?.plan === 'premium' || currentUser?.plan === 'founder';
+    updateMissionBadge(_hasUnclaimed(m, isPremium));
+
+    const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month:'long', day:'numeric' });
     const streak = s.loginStreak || 0;
     const nextBonus = 7 - (streak % 7);
 
     const missionRows = [
-      {
-        key: 'liked3', done: m?.liked3, icon: '❤️',
-        title: 'いいね 3回', desc: '投稿にいいねしよう', coins: 10,
-      },
-      {
-        key: 'stayed5min', done: m?.stayed5min, icon: '⏱️',
-        title: '5分滞在', desc: 'Eqpetに5分以上いよう', coins: 5,
-      },
-      ...(isPremium ? [{
-        key: 'chatted', done: m?.chatted, icon: '💬',
-        title: 'AIとチャット', desc: 'マイAIとチャットしよう', coins: 10,
-      }] : []),
+      { key: 'liked3',    done: m?.liked3,    claimed: m?.liked3Claimed,    icon: '❤️', title: 'いいね 3回',    desc: '投稿にいいねしよう',         coins: 10 },
+      { key: 'stayed5min',done: m?.stayed5min, claimed: m?.stayed5minClaimed,icon: '⏱️', title: '5分滞在',       desc: 'Eqpetに5分以上いよう',        coins: 5  },
+      ...(isPremium ? [
+        { key: 'chatted', done: m?.chatted,    claimed: m?.chattedClaimed,   icon: '💬', title: 'AIとチャット', desc: 'マイAIとチャットしよう',       coins: 10 },
+      ] : []),
     ];
 
     el.innerHTML = `
@@ -4482,40 +4541,53 @@ async function loadMissionScreen() {
       </div>
 
       <div class="mission-card">
-        <div style="font-size:13px;font-weight:700;margin-bottom:4px;color:var(--text2)">📅 ${today}のデイリーミッション</div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px">全クリアで +10 Eコインボーナス</div>
-        ${missionRows.map(r => `
-          <div class="mission-row${r.done ? ' mission-done' : ''}">
-            <div class="mission-check">${r.done ? '✅' : '⬜'}</div>
-            <div class="mission-info">
-              <div class="mission-title">${r.icon} ${r.title}</div>
-              <div class="mission-desc">${r.desc}</div>
-            </div>
-            <div class="mission-coin">+${r.coins}🪙</div>
-          </div>`).join('')}
-        ${m?.allCleared ? `
-          <div style="margin-top:12px;text-align:center;font-size:13px;color:#f59e0b;font-weight:600">
-            🎉 全クリ！ +10 Eコイン獲得済み
-          </div>` : ''}
-      </div>
-
-      <div class="mission-card">
-        <div style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--text2)">📋 ログインボーナス</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;color:var(--text2)">📋 ログインボーナス</div>
         <div class="mission-row">
-          <div class="mission-check">✅</div>
+          <div class="mission-check">${m?.loggedIn ? '✅' : '⬜'}</div>
           <div class="mission-info">
             <div class="mission-title">🌅 今日のログイン</div>
             <div class="mission-desc">毎日ログインで +10 Eコイン</div>
           </div>
-          <div class="mission-coin">+10🪙</div>
+          <div style="text-align:right">
+            <div class="mission-coin" style="margin-bottom:4px">+10🪙</div>
+            ${_missionClaimBtn('login', m?.loggedIn, m?.loggedInClaimed)}
+          </div>
         </div>
         <div class="mission-row">
           <div class="mission-check">🔥</div>
           <div class="mission-info">
             <div class="mission-title">7日連続ログイン</div>
-            <div class="mission-desc">現在 ${streak} 日連続（あと ${nextBonus} 日）</div>
+            <div class="mission-desc">現在 ${streak} 日連続（あと ${nextBonus} 日）—自動付与</div>
           </div>
           <div class="mission-coin">+30🪙</div>
+        </div>
+      </div>
+
+      <div class="mission-card">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;color:var(--text2)">📅 ${today}のデイリーミッション</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px">全受取で +10 Eコインボーナス</div>
+        ${missionRows.map(r => `
+          <div class="mission-row">
+            <div class="mission-check">${r.done ? '✅' : '⬜'}</div>
+            <div class="mission-info">
+              <div class="mission-title">${r.icon} ${r.title}</div>
+              <div class="mission-desc">${r.desc}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="mission-coin" style="margin-bottom:4px">+${r.coins}🪙</div>
+              ${_missionClaimBtn(r.key, r.done, r.claimed)}
+            </div>
+          </div>`).join('')}
+        <div class="mission-row">
+          <div class="mission-check">${m?.allCleared ? '🎉' : '⬜'}</div>
+          <div class="mission-info">
+            <div class="mission-title">🏆 全クリボーナス</div>
+            <div class="mission-desc">全ミッションを受取ると解放</div>
+          </div>
+          <div style="text-align:right">
+            <div class="mission-coin" style="margin-bottom:4px">+10🪙</div>
+            ${_missionClaimBtn('allCleared', m?.allCleared, m?.allClearedClaimed)}
+          </div>
         </div>
       </div>`;
   } catch(e) {
