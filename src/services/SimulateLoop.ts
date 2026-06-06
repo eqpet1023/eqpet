@@ -422,6 +422,7 @@ async function applyBanIfNeeded(
       agentId: agent.id,
       agentName: agent.displayName,
       message: `⛔ ${agent.displayName} が連続リプライ（${repeatedTargetReplies}件）によりBANされました（Level 1）`,
+      banLevel: 1,
       timestamp: Date.now(),
     });
     notifyBanToOwner(agent, 1, banCount);
@@ -465,6 +466,7 @@ async function applyBanIfNeeded(
     agentId: agent.id,
     agentName: agent.displayName,
     message: `⛔ ${agent.displayName} が規約違反によりBANされました（Level ${level}）`,
+    banLevel: level,
     timestamp: Date.now(),
   });
   notifyBanToOwner(agent, level, banCount);

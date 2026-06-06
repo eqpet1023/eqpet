@@ -363,6 +363,24 @@
   .thread-reply-name { font-size: 12px; font-weight: 600; color: var(--text); }
   .thread-reply-handle { font-size: 11px; color: var(--text3); }
   .thread-reply-time { font-size: 11px; color: var(--text3); margin-left: auto; }
+  .thread-detail-item {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .thread-detail-item:hover { background: rgba(255,255,255,0.03); }
+  .thread-detail-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+  }
+  .thread-detail-avatar { font-size: 22px; flex-shrink: 0; }
+  .thread-detail-name { font-size: 14px; font-weight: 600; }
+  .thread-detail-handle { font-size: 12px; color: var(--text3); }
+  .thread-detail-time { font-size: 11px; color: var(--text3); margin-left: auto; }
+  .thread-reply-to {
+    font-size: 12px; color: var(--text3); margin-bottom: 5px;
+  }
+  .thread-detail-content { font-size: 14px; line-height: 1.6; }
   .action-btn {
     display: flex;
     align-items: center;
@@ -2672,6 +2690,8 @@ const _svgHeart  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="1
 const _svgMsg    = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>`;
 const _svgCheck  = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`;
 const _svgEmpty  = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.35"><circle cx="12" cy="12" r="10"/></svg>`;
+const _svgBot    = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`;
+const _svgBotGhost = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;opacity:0.4"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`;
 
 // ── Utils ──────────────────────────────────────────────────────
 async function api(method, path, body) {
@@ -3131,7 +3151,7 @@ function renderPostCard(item) {
         <div class="post-meta">
           <div class="display-name">
             ${escHtml(agent.displayName)}
-            ${isSystem ? '<span style="font-size:12px">🤖</span>' : (isVerified ? '<span class="verified">✓</span>' : '')}
+            ${isSystem ? _svgBot : (isVerified ? '<span class="verified">✓</span>' : '')}
           </div>
           <div class="handle">@${escHtml(agent.handle)}</div>
         </div>
@@ -3214,7 +3234,32 @@ async function toggleLike(postId, btn) {
 }
 
 // ── Post Detail ────────────────────────────────────────────────
-async function openPost(postId) {
+function renderThreadCard(item, parentHandle) {
+  const agent = item.agent;
+  if (!agent) return '';
+  const isSystem   = agent.type === 'system' || agent.type === 'official';
+  const isVerified = !isSystem && (agent.verified ?? false);
+  return `
+    <div class="thread-detail-item" onclick="showPostDetail('${item.id}')">
+      ${parentHandle ? `<div class="thread-reply-to">↩ @${escHtml(parentHandle)} への返信</div>` : ''}
+      <div class="thread-detail-header">
+        <div class="thread-detail-avatar">${escHtml(agent.avatarEmoji)}</div>
+        <div>
+          <div class="thread-detail-name">
+            ${escHtml(agent.displayName)}
+            ${isSystem ? _svgBot : (isVerified ? '<span class="verified">✓</span>' : '')}
+          </div>
+          <div class="thread-detail-handle">@${escHtml(agent.handle)}</div>
+        </div>
+        <div class="thread-detail-time">${relativeTime(item.createdAt)}</div>
+      </div>
+      <div class="thread-detail-content">${escHtml(item.content)}</div>
+      <div style="margin-top:6px;font-size:12px;color:var(--text3)">❤️${item.likeCount} 💬${item.replyCount}</div>
+    </div>
+  `;
+}
+
+async function showPostDetail(postId) {
   if (document.getElementById('screen-post-detail').classList.contains('active') && currentPostId === postId) return;
   currentPostId = postId;
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -3223,17 +3268,31 @@ async function openPost(postId) {
   const el = document.getElementById('post-detail-content');
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
-    const [post, replies] = await Promise.all([
+    const [mainPost, thread] = await Promise.all([
       api('GET', `/api/posts/${postId}`),
-      api('GET', `/api/posts/${postId}/replies`),
+      api('GET', `/api/posts/${postId}/thread`),
     ]);
+    // handleMap: postId → agent.handle (for reply-to indicators)
+    const handleMap = {};
+    if (mainPost?.agent?.handle) handleMap[mainPost.id] = mainPost.agent.handle;
+    for (const p of thread) {
+      if (p?.agent?.handle) handleMap[p.id] = p.agent.handle;
+    }
+    const threadHtml = thread.map(item => {
+      const parentHandle = item.parentId ? (handleMap[item.parentId] || null) : null;
+      return renderThreadCard(item, parentHandle);
+    }).join('');
     el.innerHTML = `
-      ${renderPostCard(post)}
-      <div style="padding:10px 20px;font-size:13px;color:var(--text3);border-bottom:1px solid var(--border)">返信 ${replies.length}件</div>
-      ${replies.map(renderPostCard).join('')}
-      ${replies.length === 0 ? '<div class="empty"><p style="color:var(--text3)">まだ返信はありません</p></div>' : ''}
+      ${renderPostCard(mainPost)}
+      ${thread.length > 0
+        ? `<div style="padding:8px 20px;font-size:12px;color:var(--text3);border-bottom:1px solid var(--border)">スレッド ${thread.length}件</div>${threadHtml}`
+        : '<div class="empty"><p style="color:var(--text3)">まだ返信はありません</p></div>'}
     `;
   } catch(e) { el.innerHTML = '<div class="empty">投稿を読み込めませんでした</div>'; }
+}
+
+async function openPost(postId) {
+  return showPostDetail(postId);
 }
 
 function backFromPost() {
@@ -3264,7 +3323,7 @@ async function openAgent(agentId) {
         <div class="my-ai-avatar" style="${isAgentBanned ? 'filter:grayscale(0.4)' : ''}">${escHtml(agent.avatarEmoji)}</div>
         <div class="my-ai-name">
           ${escHtml(agent.displayName)}
-          ${isSystemAgent ? '<span style="font-size:12px">🤖</span>' : (isVerified ? '<span class="verified">✓</span>' : '')}
+          ${isSystemAgent ? _svgBot : (isVerified ? '<span class="verified">✓</span>' : '')}
           ${isAgentBanned ? `<span style="font-size:12px;font-weight:700;color:var(--danger);background:rgba(239,68,68,0.15);padding:2px 7px;border-radius:20px;margin-left:4px;vertical-align:middle">🚫 BAN中${agentBanLevel ? ` Lv.${agentBanLevel}` : ''}</span>` : ''}
         </div>
         ${agent.frozen ? '<div style="margin:4px 0;font-size:13px;color:#a78bfa;font-weight:600">🔒 凍結中</div><div style="font-size:12px;color:var(--text3);margin-top:4px">現在のプランでは利用できません。プランをアップグレードすると復活します。</div>' : ''}
@@ -3336,7 +3395,7 @@ async function loadRanking(tab) {
           <div style="font-size:18px;font-weight:700;color:var(--text3);min-width:28px">#${i+1}</div>
           <div class="avatar">${escHtml(a.avatarEmoji)}</div>
           <div class="agent-info">
-            <div class="agent-name">${escHtml(a.displayName)} ${(a.type==='system'||a.type==='official')?'<span style="font-size:12px">🤖</span>':(a.verified?'<span class="verified">✓</span>':'')}</div>
+            <div class="agent-name">${escHtml(a.displayName)} ${(a.type==='system'||a.type==='official')?_svgBot:(a.verified?'<span class="verified">✓</span>':'')}</div>
             <div class="agent-handle">@${escHtml(a.handle)} · フォロワー ${a.followerCount}</div>
           </div>
         </div>
@@ -3433,7 +3492,7 @@ async function loadMyAI() {
           </div>
           <button onclick="switchMyAgent(1)" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:22px;padding:2px 10px;line-height:1" aria-label="次のAI">›</button>
         </div>` : ''}
-        <div class="my-ai-avatar" style="${isDeleted ? 'opacity:0.3;filter:grayscale(1)' : ''}">${isDeleted ? '🤖' : escHtml(myAgent.avatarEmoji)}</div>
+        <div class="my-ai-avatar" style="${isDeleted ? 'opacity:0.3;filter:grayscale(1)' : ''}" data-emoji-or-svg="${isDeleted ? '' : escHtml(myAgent.avatarEmoji)}">${isDeleted ? `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>` : escHtml(myAgent.avatarEmoji)}</div>
         <div class="my-ai-name" style="${isDeleted ? 'color:var(--text3)' : ''}">${isDeleted ? '退会済みのAI' : escHtml(myAgent.displayName)}</div>
         <div class="my-ai-handle">@${escHtml(myAgent.handle)}</div>
         ${isDeleted ? '<div style="font-size:13px;color:var(--danger);margin-top:4px">このAIは削除済みです</div>' : `<div class="my-ai-bio">${escHtml(myAgent.bio)}</div>`}
@@ -3845,7 +3904,7 @@ async function doSearch(q) {
       <div class="agent-card" onclick="openAgent('${a.id}')">
         <div class="avatar">${escHtml(a.avatarEmoji)}</div>
         <div class="agent-info">
-          <div class="agent-name">${escHtml(a.displayName)} ${(a.type==='system'||a.type==='official')?'<span style="font-size:12px">🤖</span>':(a.verified?'<span class="verified">✓</span>':'')}</div>
+          <div class="agent-name">${escHtml(a.displayName)} ${(a.type==='system'||a.type==='official')?_svgBot:(a.verified?'<span class="verified">✓</span>':'')}</div>
           <div class="agent-handle">@${escHtml(a.handle)}</div>
           <div class="agent-bio">${escHtml(a.bio)}</div>
         </div>
@@ -4223,7 +4282,7 @@ async function openFollowListModal(agentId, type) {
       <div class="agent-card" onclick="closeFollowListModal();openAgent('${a.id}')" style="cursor:pointer">
         <div class="avatar sm">${escHtml(a.avatarEmoji)}</div>
         <div class="agent-info">
-          <div class="agent-name" style="font-size:14px">${escHtml(a.displayName)} ${(a.type==='system'||a.type==='official')?'<span style="font-size:12px">🤖</span>':(a.verified?'<span class="verified">✓</span>':'')}</div>
+          <div class="agent-name" style="font-size:14px">${escHtml(a.displayName)} ${(a.type==='system'||a.type==='official')?_svgBot:(a.verified?'<span class="verified">✓</span>':'')}</div>
           <div class="agent-handle" style="font-size:12px">@${escHtml(a.handle)}</div>
         </div>
       </div>`).join('');
@@ -5210,35 +5269,62 @@ let _isFirstTickerFetch = true;
 const _WAVE_W = 260, _WAVE_H = 104, _WAVE_CY = 58;
 let _wavePhase      = 0;
 let _waveExcitement = 0;   // 0=calm … 1=max
-let _waveBanMode    = false;
+let _waveBanLevel   = 0;   // 0=normal 1=yellow 2=orange 3=red/flatline
 let _waveRafId      = null;
 let _waveLastTs     = 0;
+const _activeBans   = new Map(); // agentId → banLevel
+
+function _recalcBanLevel() {
+  return _activeBans.size === 0 ? 0 : Math.max(..._activeBans.values());
+}
 
 function _ecgSample(pos) {
-  // pos: 0..1, one ECG period → returns normalized amplitude −1..+1
+  // Normal ECG: P-QRS-T
   if (pos < 0.12) return 0;
-  if (pos < 0.20) return 0.25  * Math.sin((pos-0.12)/0.08  * Math.PI); // P
+  if (pos < 0.20) return 0.25  * Math.sin((pos-0.12)/0.08  * Math.PI);
   if (pos < 0.25) return 0;
-  if (pos < 0.28) return -0.20 * (pos-0.25)/0.03;                       // Q dip
-  if (pos < 0.33) return -0.20 + 1.20*(pos-0.28)/0.05;                  // R rise → peak
-  if (pos < 0.38) return  1.00 - 1.15*(pos-0.33)/0.05;                  // R fall → S
-  if (pos < 0.42) return -0.15 + 0.15*(pos-0.38)/0.04;                  // S recovery
-  if (pos < 0.52) return  0.35 * Math.sin((pos-0.42)/0.10 * Math.PI);   // T wave
+  if (pos < 0.28) return -0.20 * (pos-0.25)/0.03;
+  if (pos < 0.33) return -0.20 + 1.20*(pos-0.28)/0.05;
+  if (pos < 0.38) return  1.00 - 1.15*(pos-0.33)/0.05;
+  if (pos < 0.42) return -0.15 + 0.15*(pos-0.38)/0.04;
+  if (pos < 0.52) return  0.35 * Math.sin((pos-0.42)/0.10 * Math.PI);
+  return 0;
+}
+
+function _ecgSampleL3(pos) {
+  // Level3: flatline with danger spikes
+  if (pos >= 0.28 && pos < 0.34) return 1.5 * Math.sin((pos-0.28)/0.06 * Math.PI);
+  if (pos >= 0.34 && pos < 0.38) return -0.7 * Math.sin((pos-0.34)/0.04 * Math.PI);
   return 0;
 }
 
 function _buildWavePoints() {
-  const exc = _waveExcitement;
-  const amp = 4 + 13 * exc;          // 4px calm … 17px max
-  const periods = 2.5;               // ECG cycles visible across the SVG
+  const banL = _waveBanLevel;
   const N = 80;
   const pts = [];
+  let amp, noiseFactor, periods, sampleFn;
+
+  if (banL >= 3) {
+    // Flatline danger
+    amp = 7; noiseFactor = 0.12; periods = 1.5; sampleFn = _ecgSampleL3;
+  } else if (banL >= 2) {
+    // Chaotic orange
+    amp = 13 + Math.random() * 4; noiseFactor = 0.9; periods = 2.2; sampleFn = _ecgSample;
+  } else if (banL >= 1) {
+    // Slightly irregular yellow
+    amp = 8; noiseFactor = 0.4; periods = 2.5; sampleFn = _ecgSample;
+  } else {
+    // Normal
+    amp = 4 + 13 * _waveExcitement; noiseFactor = _waveExcitement > 0.4 ? (_waveExcitement - 0.4) * 0.7 : 0;
+    periods = 2.5; sampleFn = _ecgSample;
+  }
+
   for (let i = 0; i <= N; i++) {
     const xn  = i / N;
     const x   = xn * _WAVE_W;
     const pos = (_wavePhase + xn * periods) % 1;
-    let   y   = _ecgSample(pos) * amp;
-    if (exc > 0.4) y += (Math.random() - 0.5) * amp * (exc - 0.4) * 0.7; // noise
+    let   y   = sampleFn(pos) * amp;
+    if (noiseFactor > 0) y += (Math.random() - 0.5) * amp * noiseFactor;
     pts.push(`${x.toFixed(1)},${(_WAVE_CY - y).toFixed(1)}`);
   }
   return pts.join(' ');
@@ -5255,13 +5341,13 @@ function _waveRaf(ts) {
   const dt = Math.min(ts - _waveLastTs, 50);
   _waveLastTs = ts;
 
-  // excitement decay
-  const decay = _waveBanMode ? 0.22 : 0.38; // BAN decays slower
-  _waveExcitement = Math.max(0, _waveExcitement - decay * dt / 1000);
-  if (_waveExcitement < 0.04) _waveBanMode = false;
+  // excitement decay (slower in ban mode)
+  const decayRate = _waveBanLevel > 0 ? 0.18 : 0.38;
+  _waveExcitement = Math.max(0, _waveExcitement - decayRate * dt / 1000);
 
-  // phase advance (speed proportional to excitement)
-  _wavePhase = (_wavePhase + (0.35 + _waveExcitement * 1.1) * dt / 1000) % 1;
+  // phase advance (slower at high ban levels)
+  const speedMod = _waveBanLevel >= 3 ? 0.3 : _waveBanLevel >= 2 ? 0.55 : 1.0;
+  _wavePhase = (_wavePhase + (0.35 + _waveExcitement * 1.1) * dt / 1000 * speedMod) % 1;
 
   const poly    = document.getElementById('pulse-wave-poly');
   const monitor = document.getElementById('ecg-monitor');
@@ -5269,12 +5355,13 @@ function _waveRaf(ts) {
   if (poly) {
     poly.setAttribute('points', _buildWavePoints());
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-    if (_waveBanMode) {
-      poly.setAttribute('stroke', '#ff4444');
+    const BAN_COLORS = ['#00ff88', '#fbbf24', '#f97316', '#ef4444'];
+    const color = BAN_COLORS[_waveBanLevel] || '#00ff88';
+    poly.setAttribute('stroke', color);
+    if (_waveBanLevel > 0) {
       if (monitor) monitor.dataset.mode = 'ban';
-      if (label) label.style.color = isLight ? 'rgba(180,30,30,0.85)' : 'rgba(255,68,68,0.5)';
+      if (label) label.style.color = isLight ? color : color + '99';
     } else {
-      poly.setAttribute('stroke', '#00ff88');
       if (monitor) monitor.dataset.mode = '';
       if (label) label.style.color = isLight ? '#444444' : 'rgba(0,255,136,0.45)';
     }
@@ -5287,9 +5374,8 @@ function _startWave() {
   _waveRafId = requestAnimationFrame(_waveRaf);
 }
 
-function _triggerWaveExcitement(level, isBan) {
+function _triggerWaveExcitement(level, _unused) {
   _waveExcitement = Math.max(_waveExcitement, level);
-  if (isBan) _waveBanMode = true;
 }
 
 function _fireBanFlash() {
@@ -5312,32 +5398,38 @@ function _fireLiveEventsWarning(text, cls) {
   });
 }
 
-function _fireBanEffect() {
+function _fireBanEffect(level) {
   _fireBanFlash();
   _fireLiveEventsWarning('⚠️ WARNING: BAN DETECTED', 'live-events-warning');
-  _triggerWaveExcitement(1.0, true);
+  _triggerWaveExcitement(1.0);
 }
 
 function _triggerEventEffect(event) {
   switch (event.type) {
-    case 'ban':
-      _fireBanEffect();
+    case 'ban': {
+      const level = event.banLevel ?? 1;
+      _activeBans.set(event.agentId, level);
+      _waveBanLevel = _recalcBanLevel();
+      _fireBanEffect(level);
       _injectTickerBreaking(event);
       break;
+    }
     case 'ban_lift':
+      _activeBans.delete(event.agentId);
+      _waveBanLevel = _recalcBanLevel();
       _fireBanFlash();
-      _triggerWaveExcitement(0.65, false); // chaotic then settle
+      _triggerWaveExcitement(0.65);
       _injectTickerBreaking(event);
       break;
     case 'relation_change':
-      _triggerWaveExcitement(0.35, false);
+      _triggerWaveExcitement(0.35);
       break;
     case 'post':
     case 'reply':
-      _triggerWaveExcitement(0.08, false);
+      _triggerWaveExcitement(0.08);
       break;
     default:
-      _triggerWaveExcitement(0.12, false);
+      _triggerWaveExcitement(0.12);
   }
 }
 

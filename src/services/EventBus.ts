@@ -9,6 +9,7 @@ export type EqpetEvent = {
   targetAgentName?: string;
   message: string;
   value?: number;
+  banLevel?: 1 | 2 | 3;
   timestamp: number;
 };
 
