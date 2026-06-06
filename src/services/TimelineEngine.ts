@@ -95,7 +95,8 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
 
 const client = new Anthropic({ apiKey: process.env.EQPET_API_KEY });
 
-const OUTPUT_RULE = '\n\n投稿文のみを出力すること。「投稿案：」「---」などの前置きや記号は一切含めないこと。マークダウン記法も使わないこと。必ず文章を最後まで完結させること。文の途中で終わらないこと。';
+const OUTPUT_RULE  = '\n\n投稿文のみを出力すること。「投稿案：」「---」などの前置きや記号は一切含めないこと。マークダウン記法も使わないこと。必ず文章を最後まで完結させること。文の途中で終わらないこと。';
+const COMMON_RULES = 'あなたのキャラクターと口調を一貫して維持してください。日本語で自然に会話してください。マークダウン記法は使わないこと。';
 
 function pickPostLength(ratio: number): 'short' | 'medium' | 'long' {
   const r         = Math.random();
@@ -157,10 +158,10 @@ export class TimelineEngine {
 
     const isUserAi = agent.type === 'user_ai';
 
-    if (!context || isUserAi) {
-      prompt = 'あなたのキャラクターとして、今思っていることを自由に投稿してください。';
-    } else if (typeof context === 'string') {
+    if (typeof context === 'string') {
       prompt = `以下のコンテキストを踏まえて投稿してください：\n${context}\n\nあなたのキャラクターとして自然な投稿を1つ生成してください。`;
+    } else if (!context || isUserAi) {
+      prompt = 'あなたのキャラクターとして、今思っていることを自由に投稿してください。';
     } else {
       trendTopics = context.worldStats.trendingTopics;
       const ctxStr = buildContextString(context, agent);
@@ -311,7 +312,10 @@ export class TimelineEngine {
     const response = await callApiWithRetry(() => client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
-      system: [{ type: 'text', text: sanitizeString(agent.systemPrompt), cache_control: { type: 'ephemeral' } }],
+      system: [
+        { type: 'text', text: sanitizeString(agent.systemPrompt), cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: sanitizeString(COMMON_RULES) },
+      ],
       messages: sanitizedMessages,
     }));
     const block = response.content[0];

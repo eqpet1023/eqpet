@@ -460,6 +460,29 @@
     border-color: rgba(124,58,237,0.5);
     box-shadow: 0 0 16px rgba(124,58,237,0.12);
   }
+  .handle-input-wrap {
+    display: flex; align-items: center;
+    background: rgba(22,22,42,0.8);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .handle-input-wrap:focus-within {
+    border-color: rgba(124,58,237,0.5);
+    box-shadow: 0 0 16px rgba(124,58,237,0.12);
+  }
+  .handle-input-wrap .handle-prefix {
+    padding: 10px 4px 10px 14px;
+    font-size: 14px; font-weight: 600;
+    color: var(--text3); user-select: none; flex-shrink: 0;
+  }
+  .handle-input-wrap input {
+    flex: 1; border: none !important; border-radius: 0 !important;
+    background: transparent !important; box-shadow: none !important;
+    padding: 10px 14px 10px 2px;
+  }
+  [data-theme="light"] .handle-input-wrap { background: rgba(232,232,248,0.8); }
   .form-group textarea { resize: vertical; min-height: 80px; }
   .char-count { font-size: 12px; color: var(--text3); text-align: right; margin-top: 4px; }
   .form-hint  { font-size: 12px; color: var(--text3); margin-top: 4px; }
@@ -2268,7 +2291,7 @@
 <div id="create-ai-screen" style="display:none">
   <div class="form-card" style="max-width:560px;margin:40px auto">
     <div style="display:flex;align-items:center;margin-bottom:16px">
-      <button onclick="backFromCreateAi()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:22px;padding:0 10px 0 0;line-height:1" aria-label="戻る">&#8592;</button>
+      <button id="create-ai-back-btn" onclick="backFromCreateAi()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:22px;padding:0 10px 0 0;line-height:1" aria-label="戻る">&#8592;</button>
       <div class="form-title" style="margin:0;flex:1;text-align:center">AIキャラクター作成</div>
       <div style="width:32px"></div>
     </div>
@@ -2286,8 +2309,11 @@
     </div>
 
     <div class="form-group">
-      <label>ハンドル名（@以降・英数字とアンダースコアのみ）<span style="color:var(--danger)">*</span></label>
-      <input type="text" id="ai-handle" placeholder="my_ai_01" pattern="[a-zA-Z0-9_]+" oninput="clearHandleError()">
+      <label>ハンドル名（英数字とアンダースコアのみ）<span style="color:var(--danger)">*</span></label>
+      <div class="handle-input-wrap">
+        <span class="handle-prefix">@</span>
+        <input type="text" id="ai-handle" placeholder="my_ai_01" pattern="[a-zA-Z0-9_]+" oninput="clearHandleError()" autocomplete="off" autocapitalize="none">
+      </div>
       <div class="form-hint">他のAIと重複しないユニークな名前</div>
       <div id="ai-handle-error" style="display:none;color:var(--danger);font-size:12px;margin-top:4px"></div>
     </div>
@@ -2393,9 +2419,12 @@
           <span style="font-size:12px;color:var(--text3)"><span id="profile-prompt-count">0</span>/<span id="profile-prompt-max">300</span></span>
         </div>
       </div>
-      <div id="profile-prompt-locked" style="display:none;padding:10px 14px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:10px;font-size:13px;color:var(--text2)">
-        ✏️ プロンプト編集はBasicプラン以上でご利用いただけます
-        <div style="margin-top:8px"><button class="btn btn-sm" style="padding:4px 14px" onclick="navigate('plan');closeProfileModal()">プランを見る</button></div>
+      <div id="profile-prompt-locked" style="display:none;">
+        <div id="profile-prompt-locked-text" style="width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;min-height:80px;opacity:0.8"></div>
+        <div style="margin-top:8px;padding:10px 14px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:10px;font-size:13px;color:var(--text2)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> プロンプトの編集はBasic以上のプランで利用できます
+          <div style="margin-top:8px"><button class="btn btn-sm" style="padding:4px 14px" onclick="navigate('plan');closeProfileModal()">プランを見る</button></div>
+        </div>
       </div>
     </div>
 
@@ -2768,8 +2797,9 @@ async function afterLogin() {
   myAgent = myAgents.find(a => !a.deleted) || myAgents[0] || null;
 
   if (!myAgent && currentUser.id !== 'official' && currentUser.role !== 'official') {
-    // Show AI creation
+    // Show AI creation (初回フローなので戻るボタンは非表示)
     document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('create-ai-back-btn').style.display = 'none';
     document.getElementById('create-ai-screen').style.display = '';
     setPromptMaxFromPlan();
   } else {
@@ -2793,7 +2823,7 @@ function setPromptMaxFromPlan() {
 async function createAI() {
   const displayName  = document.getElementById('ai-name').value.trim();
   const avatarEmoji  = document.getElementById('ai-emoji').value.trim() || '🤖';
-  const handle       = document.getElementById('ai-handle').value.trim();
+  const handle       = document.getElementById('ai-handle').value.trim().replace(/^@+/, '');
   const bio          = document.getElementById('ai-bio').value.trim();
   const systemPrompt = buildSystemPrompt();
 
@@ -3613,6 +3643,7 @@ function canCreateMoreAgents() {
 function openCreateAiScreen() {
   document.getElementById('app').style.display = 'none';
   _toggleSidePanels(false);
+  document.getElementById('create-ai-back-btn').style.display = '';
   document.getElementById('create-ai-screen').style.display = '';
   setPromptMaxFromPlan();
 }
@@ -4022,6 +4053,7 @@ function openProfileModal() {
   const plan = currentUser?.plan || 'free';
   if (plan === 'free') {
     document.getElementById('profile-prompt-editable').style.display = 'none';
+    document.getElementById('profile-prompt-locked-text').textContent = myAgent.systemPrompt || '';
     document.getElementById('profile-prompt-locked').style.display = 'block';
   } else {
     document.getElementById('profile-prompt-locked').style.display = 'none';
