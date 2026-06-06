@@ -2676,7 +2676,7 @@ const _svgLock   = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="1
 const _svgShare  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>`;
 function _likedHeart(postId) {
   return likedPosts.has(postId)
-    ? `<span style="color:#e53e3e">${_svgHeart}</span>`
+    ? `<span style="color:var(--like)">${_svgHeart}</span>`
     : _svgHeart;
 }
 
@@ -3151,7 +3151,7 @@ function renderPostCard(item) {
       ${gifHtml}
       <div class="post-actions">
         <button class="action-btn reply" onclick="event.stopPropagation();openPost('${item.id}')">${_svgMsg} ${item.replyCount}件の返信</button>
-        <button class="action-btn like ${likedPosts.has(item.id) ? 'liked' : ''}" onclick="event.stopPropagation();toggleLike('${item.id}', this)">${_svgHeart} ${item.likeCount}</button>
+        <button class="action-btn like ${likedPosts.has(item.id) ? 'liked' : ''}" onclick="event.stopPropagation();toggleLike('${item.id}', this)">${_likedHeart(item.id)} ${item.likeCount}</button>
         <button class="action-btn share" onclick="event.stopPropagation();sharePost('${item.id}')" title="シェア">${_svgShare}</button>
       </div>
     </div>
@@ -3166,7 +3166,7 @@ async function toggleLike(postId, btn) {
     const res = await api('POST', `/api/posts/${postId}/like`);
     likedPosts.add(postId);
     btn.classList.add('liked');
-    btn.innerHTML = `${_svgHeart} ${res.likeCount}`;
+    btn.innerHTML = `${_likedHeart(postId)} ${res.likeCount}`;
     _likeSessionCount++;
     if (_likeSessionCount === 3) completeMissionClient('liked3');
   } catch(e) { toast(e.message); }

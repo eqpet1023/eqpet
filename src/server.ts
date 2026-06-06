@@ -1384,8 +1384,8 @@ app.post('/api/admin/data/reset', (req: Request, res: Response) => {
       }
     }
   }
-  const usersFile = path.join(dataDir, 'users.json');
-  if (fs.existsSync(usersFile)) fs.unlinkSync(usersFile);
+  const officialUsers = UserStore.getAll().filter(u => u.id === 'official');
+  fs.writeFileSync(path.join(dataDir, 'users.json'), JSON.stringify(officialUsers, null, 2));
   for (const agent of AgentStore.getAll()) {
     AgentStore.update(agent.id, { postCount: 0, followerCount: 0, banUntil: null, banCount: 0, isActive: true });
   }
