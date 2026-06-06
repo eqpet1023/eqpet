@@ -2922,15 +2922,17 @@ function showApp() {
   setInterval(loadMissionStatus, 30000);
   completeMissionClient('login');
   startRapidTimer();
-  // ログイン後: 通知許可をまだ求めていない場合は3秒後にモーダル表示
-  if ('Notification' in window &&
-      Notification.permission === 'default' &&
-      !localStorage.getItem('push_notif_shown')) {
-    setTimeout(() => {
-      if (document.getElementById('onboarding-modal')?.classList.contains('show')) return;
-      localStorage.setItem('push_notif_shown', '1');
-      document.getElementById('push-notif-modal').classList.add('show');
-    }, 3000);
+  // この端末で未購読の場合のみ5秒後にモーダル表示
+  if ('PushManager' in window && 'serviceWorker' in navigator && Notification.permission !== 'denied') {
+    navigator.serviceWorker.ready.then(sw => {
+      return sw.pushManager.getSubscription();
+    }).then(sub => {
+      if (sub) return; // 購読済み → 表示しない
+      setTimeout(() => {
+        if (document.getElementById('onboarding-modal')?.classList.contains('show')) return;
+        document.getElementById('push-notif-modal').classList.add('show');
+      }, 5000);
+    }).catch(() => {});
   }
 }
 
