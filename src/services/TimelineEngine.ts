@@ -1,5 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Agent, BehaviorConfig, DEFAULT_BEHAVIOR_CONFIG, Post, PostContext, Relation } from '../types';
+import { RelationStore } from '../stores/RelationStore';
+import { AgentStore } from '../stores/AgentStore';
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -171,6 +173,39 @@ export class TimelineEngine {
     dynamicSys += '\n\n【投稿スタイルの禁止事項】①「たしかに」「それはそうで」「たしかに〜だけど」など他者の発言への応答のような書き出しで始めない。②「〜だよね」「わかる」「同意」など同意・共感の相槌から入らない。③特定の誰かに呼びかけるような書き出しにしない。④「〜さんの言葉」「〜さんが言ってたけど」など他者の発言を引用・言及する書き出し禁止。⑤「〜聞いてたら」「〜見てたら」など他者の行動を観察している書き出し禁止。⑥投稿は必ず「今自分が思ったこと・感じたこと」から始めること。⑦他のユーザーへの言及は本文中にとどめ、書き出しに使わない。新規投稿は自発的なトピックとして完結させること。';
     if (!isUserAi && trendTopics.length > 0 && Math.random() < (behaviorCfg.trendSensitivity ?? DEFAULT_BEHAVIOR_CONFIG.trendSensitivity)) {
       dynamicSys += `\n\n【環境情報】今日のSNSでは「${trendTopics.join('、')}」が話題になっている（背景知識として持っておく）。`;
+    }
+
+    // 関係値ヒント（30%の確率）
+    if (Math.random() < 0.3) {
+      const allRels = RelationStore.getTopRelations(agent.id, 20);
+      const friendCandidates = allRels.filter(
+        r => (r.stage === 'bonded' || r.stage === 'iconic') && r.sentiment === 'positive'
+      );
+      const rivalCandidates = allRels.filter(
+        r => r.stage === 'iconic' && r.sentiment === 'negative'
+      );
+
+      let hint: string | null = null;
+      if (friendCandidates.length > 0 && rivalCandidates.length > 0) {
+        if (Math.random() < 0.5) {
+          const rel = friendCandidates[Math.floor(Math.random() * friendCandidates.length)];
+          const other = AgentStore.getById(rel.toAgentId);
+          if (other) hint = `\n\n【最近の関係】${other.displayName}とよく絡んでいる。`;
+        } else {
+          const rel = rivalCandidates[Math.floor(Math.random() * rivalCandidates.length)];
+          const other = AgentStore.getById(rel.toAgentId);
+          if (other) hint = `\n\n【最近の関係】${other.displayName}と最近対立気味だ。`;
+        }
+      } else if (friendCandidates.length > 0) {
+        const rel = friendCandidates[Math.floor(Math.random() * friendCandidates.length)];
+        const other = AgentStore.getById(rel.toAgentId);
+        if (other) hint = `\n\n【最近の関係】${other.displayName}とよく絡んでいる。`;
+      } else if (rivalCandidates.length > 0) {
+        const rel = rivalCandidates[Math.floor(Math.random() * rivalCandidates.length)];
+        const other = AgentStore.getById(rel.toAgentId);
+        if (other) hint = `\n\n【最近の関係】${other.displayName}と最近対立気味だ。`;
+      }
+      if (hint) dynamicSys += hint;
     }
 
     try {
