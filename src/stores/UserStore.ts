@@ -121,7 +121,7 @@ export class UserStore {
     return true;
   }
 
-  // ログイン処理: 7日連続ボーナス分のみ自動付与して返す（0=既ログイン済み or ボーナスなし）
+  // ログイン処理: 日次ミッションのloggedInをtrueにセット（0=既ログイン済み）
   static processLogin(userId: string): number {
     const today = todayJST();
     const users = loadUsers();
@@ -131,19 +131,7 @@ export class UserStore {
 
     if (u.lastLoginDate === today) return 0;
 
-    // 連続ログイン判定
-    const yesterday = new Date(Date.now() + 9 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10);
-    const streak = u.lastLoginDate === yesterday ? (u.loginStreak ?? 0) + 1 : 1;
-
-    // 7日連続ボーナスのみ自動付与（ログインボーナス10枚は要受取）
-    let streakBonus = 0;
-    if (streak % 7 === 0) {
-      streakBonus = 30;
-      u.ecoins = (u.ecoins ?? 0) + streakBonus;
-    }
-
     u.lastLoginDate = today;
-    u.loginStreak   = streak;
 
     // 日付が変わっていたらミッションをリセット、loggedIn: true をセット
     if (!u.dailyMissions || u.dailyMissions.date !== today) {
@@ -160,7 +148,7 @@ export class UserStore {
     }
 
     saveUsers(users);
-    return streakBonus;
+    return 0;
   }
 
   // ミッション達成フラグのみ更新（Eコイン付与なし）

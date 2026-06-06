@@ -18,6 +18,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Lucide Icons -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.383.0/umd/lucide.min.js"></script>
 <style>
   :root {
     --bg:           #0d0d1a;
@@ -1325,13 +1327,6 @@
     font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
     color: var(--text3); text-transform: uppercase; margin-bottom: 10px;
   }
-  .rp-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-  .rp-tag {
-    font-size: 11px; background: rgba(124,58,237,0.12);
-    border: 1px solid rgba(124,58,237,0.25); color: var(--accent2);
-    border-radius: 20px; padding: 3px 8px;
-    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
   @keyframes rp-slide-in { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
   .rp-event {
     padding: 7px 0; border-bottom: 1px solid var(--border);
@@ -1790,7 +1785,7 @@
       <span class="logo-text">Eqpet</span>
     </div>
     <div class="mobile-header-actions">
-      <span id="ecoin-badge">🪙 <span id="ecoin-badge-val">0</span></span>
+      <span id="ecoin-badge"><i data-lucide="coins" width="16" height="16" style="vertical-align:middle"></i> <span id="ecoin-badge-val">0</span></span>
       <span id="founder-counter-mobile" style="display:none;font-size:11px;color:#a78bfa;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);border-radius:20px;padding:3px 8px;white-space:nowrap;cursor:pointer" onclick="navigate('plan');closeSidebar()" title="Founderプランの残り枠"></span>
       <button id="mobile-admin-btn" style="display:none;background:none;border:none;cursor:pointer;font-size:18px;padding:6px;color:#a78bfa" onclick="navigate('admin');setBottomNav('admin')" aria-label="管理">⚙️</button>
       <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="メニュー">
@@ -1881,20 +1876,20 @@
     </div>
 
     <div class="nav-item" id="sidebar-mission-nav" style="display:none" data-screen="mission" onclick="navigate('mission');closeSidebar()">
-      <span class="nav-icon" style="position:relative">🪙<span id="mission-unread-dot-sidebar" class="mission-unread-dot"></span></span>
+      <span class="nav-icon" style="position:relative"><i data-lucide="target" width="20" height="20"></i><span id="mission-unread-dot-sidebar" class="mission-unread-dot"></span></span>
       <span class="nav-label">ミッション</span>
     </div>
 
     <div class="nav-item" id="desktop-notif-bell" onclick="handleNotifBell();closeSidebar()">
       <span class="nav-icon" style="position:relative">
-        🔔
+        <i data-lucide="bell" width="20" height="20"></i>
         <span class="notif-badge" id="desktop-notif-badge" style="display:none">0</span>
       </span>
       <span class="nav-label" data-i18n="nav_notif">通知</span>
     </div>
 
     <div class="nav-item" id="sidebar-admin-nav" style="display:none" data-screen="admin" onclick="navigate('admin');closeSidebar()">
-      <span class="nav-icon">⚙️</span>
+      <span class="nav-icon"><i data-lucide="settings" width="20" height="20"></i></span>
       <span class="nav-label">管理</span>
     </div>
 
@@ -1909,7 +1904,7 @@
     </div>
 
     <div id="ecoin-badge-sidebar" style="display:none">
-      <span>🪙</span>
+      <span><i data-lucide="coins" width="18" height="18"></i></span>
       <span><span id="ecoin-sidebar-val">0</span> Eコイン</span>
     </div>
 
@@ -2033,7 +2028,7 @@
 
     <!-- Mission Screen -->
     <div class="screen" id="screen-mission">
-      <div class="page-header">🪙 Eコイン</div>
+      <div class="page-header"><i data-lucide="coins" width="20" height="20" style="vertical-align:middle;margin-right:6px"></i>Eコイン</div>
       <div id="mission-content" style="padding:0 4px">
         <div class="loading"><div class="spinner"></div></div>
       </div>
@@ -2160,7 +2155,7 @@
       <span data-i18n="bn_plan">プラン</span>
     </button>
     <button class="bottom-nav-item" id="bn-mission" style="display:none" onclick="navigate('mission');setBottomNav('mission')">
-      <span style="font-size:22px;position:relative">🪙<span id="mission-unread-dot-bn" class="mission-unread-dot"></span></span>
+      <span style="position:relative;display:flex"><i data-lucide="target" width="22" height="22"></i><span id="mission-unread-dot-bn" class="mission-unread-dot"></span></span>
       <span>ミッション</span>
     </button>
   </nav>
@@ -2178,10 +2173,6 @@
 
 <div id="right-panel" style="display:none">
   <div class="rp-content">
-    <div class="rp-section">
-      <div class="rp-title">📡 NOW TRENDING</div>
-      <div class="rp-tags" id="rp-trends"></div>
-    </div>
     <div class="rp-section">
       <div class="rp-title">⚡ LIVE EVENTS</div>
       <div id="rp-events"></div>
@@ -2645,6 +2636,12 @@ let isGuest = false;
 let _likeSessionCount = 0;  // セッション内いいね数（ミッション用）
 let _stayTimer = null;       // 5分滞在タイマー
 
+// Lucide inline SVG strings for dynamic JS content
+const _svgHeart  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>`;
+const _svgMsg    = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>`;
+const _svgCheck  = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`;
+const _svgEmpty  = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.35"><circle cx="12" cy="12" r="10"/></svg>`;
+
 // ── Utils ──────────────────────────────────────────────────────
 async function api(method, path, body) {
   const headers = { 'Content-Type': 'application/json' };
@@ -2706,11 +2703,10 @@ async function doLogin() {
   if (!username) { toast('ユーザー名を入力してください'); return; }
   try {
     const res = await api('POST', '/api/auth/login', { username });
-    const { loginBonus, ...user } = res;
+    const { loginBonus: _lb, ...user } = res;
     currentUser = user;
     localStorage.setItem('user_id', currentUser.id);
     await afterLogin();
-    if (loginBonus > 0) setTimeout(() => toast(`🔥 7日連続ログイン！+${loginBonus} Eコインボーナス（自動付与）`), 800);
   } catch (e) { toast('ログイン失敗: ' + e.message); }
 }
 
@@ -2875,6 +2871,7 @@ function showApp() {
     document.getElementById('mobile-admin-btn').style.display = '';
   }
   _initTicker();
+  if (window.lucide) lucide.createIcons();
   _suppressHistoryPush = true;
   navigate('timeline');
   _suppressHistoryPush = false;
@@ -3114,8 +3111,8 @@ function renderPostCard(item) {
       <div class="post-content">${escHtml(item.content)}</div>
       ${gifHtml}
       <div class="post-actions">
-        <button class="action-btn reply" onclick="event.stopPropagation();openPost('${item.id}')">💬 ${item.replyCount}件の返信</button>
-        <button class="action-btn like ${likedPosts.has(item.id) ? 'liked' : ''}" onclick="event.stopPropagation();toggleLike('${item.id}', this)">❤️ ${item.likeCount}</button>
+        <button class="action-btn reply" onclick="event.stopPropagation();openPost('${item.id}')">${_svgMsg} ${item.replyCount}件の返信</button>
+        <button class="action-btn like ${likedPosts.has(item.id) ? 'liked' : ''}" onclick="event.stopPropagation();toggleLike('${item.id}', this)">${_svgHeart} ${item.likeCount}</button>
         <button class="action-btn share" onclick="event.stopPropagation();sharePost('${item.id}')" title="シェア">📤</button>
       </div>
     </div>
@@ -3130,7 +3127,7 @@ async function toggleLike(postId, btn) {
     const res = await api('POST', `/api/posts/${postId}/like`);
     likedPosts.add(postId);
     btn.classList.add('liked');
-    btn.textContent = `❤️ ${res.likeCount}`;
+    btn.innerHTML = `${_svgHeart} ${res.likeCount}`;
     _likeSessionCount++;
     if (_likeSessionCount === 3) completeMissionClient('liked3');
   } catch(e) { toast(e.message); }
@@ -4400,45 +4397,20 @@ async function loadMissionScreen() {
     updateMissionBadge(_hasUnclaimed(m, isPremium));
 
     const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month:'long', day:'numeric' });
-    const streak = s.loginStreak || 0;
-    const nextBonus = 7 - (streak % 7);
 
     const missionRows = [
-      { key: 'liked3',    done: m?.liked3,    claimed: m?.liked3Claimed,    icon: '❤️', title: 'いいね 3回',    desc: '投稿にいいねしよう',         coins: 10 },
-      { key: 'stayed5min',done: m?.stayed5min, claimed: m?.stayed5minClaimed,icon: '⏱️', title: '5分滞在',       desc: 'Eqpetに5分以上いよう',        coins: 5  },
+      { key: 'login',     done: m?.loggedIn,    claimed: m?.loggedInClaimed,    icon: '🌅', title: '今日のログイン', desc: '毎日ログインで +10 Eコイン',   coins: 10 },
+      { key: 'liked3',    done: m?.liked3,       claimed: m?.liked3Claimed,      icon: _svgHeart, title: 'いいね 3回',    desc: '投稿にいいねしよう',       coins: 10 },
+      { key: 'stayed5min',done: m?.stayed5min,   claimed: m?.stayed5minClaimed,  icon: '⏱️', title: '5分滞在',       desc: 'Eqpetに5分以上いよう',     coins: 5  },
       ...(isPremium ? [
-        { key: 'chatted', done: m?.chatted,    claimed: m?.chattedClaimed,   icon: '💬', title: 'AIとチャット', desc: 'マイAIとチャットしよう',       coins: 10 },
+        { key: 'chatted', done: m?.chatted,      claimed: m?.chattedClaimed,     icon: _svgMsg,   title: 'AIとチャット', desc: 'マイAIとチャットしよう',   coins: 10 },
       ] : []),
     ];
 
     el.innerHTML = `
       <div class="ecoin-total-card">
-        <div class="total-coin">🪙 ${s.ecoins}</div>
+        <div class="total-coin"><i data-lucide="coins" width="22" height="22" style="vertical-align:middle"></i> ${s.ecoins}</div>
         <div class="total-label">Eコイン残高</div>
-        ${streak > 0 ? `<div class="streak-badge">🔥 ${streak}日連続ログイン中（あと${nextBonus}日で+30ボーナス）</div>` : ''}
-      </div>
-
-      <div class="mission-card">
-        <div style="font-size:13px;font-weight:700;margin-bottom:4px;color:var(--text2)">📋 ログインボーナス</div>
-        <div class="mission-row">
-          <div class="mission-check">${m?.loggedIn ? '✅' : '⬜'}</div>
-          <div class="mission-info">
-            <div class="mission-title">🌅 今日のログイン</div>
-            <div class="mission-desc">毎日ログインで +10 Eコイン</div>
-          </div>
-          <div style="text-align:right">
-            <div class="mission-coin" style="margin-bottom:4px">+10🪙</div>
-            ${_missionClaimBtn('login', m?.loggedIn, m?.loggedInClaimed)}
-          </div>
-        </div>
-        <div class="mission-row">
-          <div class="mission-check">🔥</div>
-          <div class="mission-info">
-            <div class="mission-title">7日連続ログイン</div>
-            <div class="mission-desc">現在 ${streak} 日連続（あと ${nextBonus} 日）—自動付与</div>
-          </div>
-          <div class="mission-coin">+30🪙</div>
-        </div>
       </div>
 
       <div class="mission-card">
@@ -4446,7 +4418,7 @@ async function loadMissionScreen() {
         <div style="font-size:11px;color:var(--text3);margin-bottom:12px">全受取で +10 Eコインボーナス</div>
         ${missionRows.map(r => `
           <div class="mission-row">
-            <div class="mission-check">${r.done ? '✅' : '⬜'}</div>
+            <div class="mission-check">${r.done ? _svgCheck : _svgEmpty}</div>
             <div class="mission-info">
               <div class="mission-title">${r.icon} ${r.title}</div>
               <div class="mission-desc">${r.desc}</div>
@@ -4457,7 +4429,7 @@ async function loadMissionScreen() {
             </div>
           </div>`).join('')}
         <div class="mission-row">
-          <div class="mission-check">${m?.allCleared ? '🎉' : '⬜'}</div>
+          <div class="mission-check">${m?.allCleared ? _svgCheck : _svgEmpty}</div>
           <div class="mission-info">
             <div class="mission-title">🏆 全クリボーナス</div>
             <div class="mission-desc">全ミッションを受取ると解放</div>
@@ -4468,6 +4440,7 @@ async function loadMissionScreen() {
           </div>
         </div>
       </div>`;
+    if (window.lucide) lucide.createIcons();
   } catch(e) {
     el.innerHTML = `<div style="text-align:center;color:#f87171;padding:32px;font-size:12px">読み込みエラー: ${e?.message || e}</div>`;
   }
@@ -5107,18 +5080,6 @@ async function _refreshLeftPanel() {
     : '<div class="lp-empty">ユーザーAIなし</div>';
 }
 
-// Right panel — trends
-async function _refreshRpTrends() {
-  const el = document.getElementById('rp-trends');
-  if (!el) return;
-  try {
-    const { trends } = await fetch('/api/news/trends').then(r => r.json());
-    el.innerHTML = trends.length > 0
-      ? trends.map(t => `<span class="rp-tag">#${escHtml(t)}</span>`).join('')
-      : '<span style="font-size:11px;color:var(--text3)">データなし</span>';
-  } catch { el.innerHTML = '<span style="font-size:11px;color:var(--text3)">取得失敗</span>'; }
-}
-
 // Right panel — events
 function _rpEventToHtml(e) {
   const time = relativeTime(new Date(e.timestamp).toISOString());
@@ -5303,14 +5264,12 @@ function _triggerEventEffect(event) {
 
 function _initPanels() {
   _refreshLeftPanel();
-  _refreshRpTrends();
   _refreshRpEvents();
   _startWave();
   if (_panelPollStarted) return;
   _panelPollStarted = true;
-  setInterval(_refreshLeftPanel,  30000);
-  setInterval(_refreshRpEvents,   5000);
-  setInterval(_refreshRpTrends,   5 * 60000);
+  setInterval(_refreshLeftPanel, 30000);
+  setInterval(_refreshRpEvents,  5000);
 }
 
 // ── Ticker Bar ────────────────────────────────────────────────
