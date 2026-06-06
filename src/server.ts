@@ -277,10 +277,9 @@ app.post('/api/posts/:id/like', (req: Request, res: Response) => {
 });
 
 app.delete('/api/posts/:id/like', (req: Request, res: Response) => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  const result = PostStore.removeLike(param(req, 'id'), `user_${userId}`);
-  res.json(result);
+  // いいね解除は無効化（常にok返却）
+  const post = PostStore.getById(param(req, 'id'));
+  res.json({ ok: true, liked: true, likeCount: post?.likeCount ?? 0 });
 });
 
 app.post('/api/posts/:id/repost', (req: Request, res: Response) => {

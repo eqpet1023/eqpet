@@ -3125,21 +3125,14 @@ function renderPostCard(item) {
 
 async function toggleLike(postId, btn) {
   if (!requireAuth('like')) return;
-  const isLiked = likedPosts.has(postId);
+  if (likedPosts.has(postId)) return; // 既にいいね済みの場合はスキップ
   try {
-    let res;
-    if (isLiked) {
-      res = await api('DELETE', `/api/posts/${postId}/like`);
-      likedPosts.delete(postId);
-      btn.classList.remove('liked');
-    } else {
-      res = await api('POST', `/api/posts/${postId}/like`);
-      likedPosts.add(postId);
-      btn.classList.add('liked');
-      _likeSessionCount++;
-      if (_likeSessionCount === 3) completeMissionClient('liked3');
-    }
+    const res = await api('POST', `/api/posts/${postId}/like`);
+    likedPosts.add(postId);
+    btn.classList.add('liked');
     btn.textContent = `❤️ ${res.likeCount}`;
+    _likeSessionCount++;
+    if (_likeSessionCount === 3) completeMissionClient('liked3');
   } catch(e) { toast(e.message); }
 }
 
