@@ -42,6 +42,9 @@ export class UserStore {
       };
       users.push(official);
       saveUsers(users);
+      console.log('[UserStore] official account created: official@eqpet.app');
+    } else {
+      console.log('[UserStore] official account confirmed: official@eqpet.app');
     }
   }
 

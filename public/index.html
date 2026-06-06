@@ -1690,8 +1690,8 @@
 
 <div id="ban-flash"></div>
 
-<!-- Sidebar bg decoration: body直下に配置しtransformの影響を受けないようにする -->
-<div id="sidebar-cp-bg" class="cp-bg" aria-hidden="true">
+<!-- Sidebar bg decoration: body直下に配置しtransformの影響を受けないようにする。ログイン画面では非表示（_toggleSidePanels で制御） -->
+<div id="sidebar-cp-bg" class="cp-bg" aria-hidden="true" style="display:none">
   <div id="sidebar-scanline" class="scanline" style="animation-delay:1s"></div>
 </div>
 
@@ -4854,10 +4854,12 @@ if ('serviceWorker' in navigator) {
 // ══ 3-Column Side Panels ══════════════════════════════════════
 
 function _toggleSidePanels(show) {
-  const lp = document.getElementById('left-panel');
-  const rp = document.getElementById('right-panel');
-  if (lp) lp.style.display = show ? '' : 'none';
-  if (rp) rp.style.display = show ? '' : 'none';
+  const lp    = document.getElementById('left-panel');
+  const rp    = document.getElementById('right-panel');
+  const cpBg  = document.getElementById('sidebar-cp-bg');
+  if (lp)   lp.style.display   = show ? '' : 'none';
+  if (rp)   rp.style.display   = show ? '' : 'none';
+  if (cpBg) cpBg.style.display = show ? '' : 'none';
 }
 
 // Left panel — agent status
