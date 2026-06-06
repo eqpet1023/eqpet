@@ -487,10 +487,15 @@ app.post('/api/agents', async (req: Request, res: Response) => {
   // 新規AIは必ずEqpet公式をフォロー
   FollowStore.follow(agent.id, 'official');
 
-  // A-1: 5分後にお母さんBotがウェルカムリプライを送る
-  SimulateLoop.forceWelcomeReply(agent).catch(err =>
-    console.error('[server] forceWelcomeReply error:', err),
-  );
+  // 自己紹介投稿をバックグラウンドで生成
+  TimelineEngine.generatePost(agent, '今あなたはこのSNSに初めて参加しました。あなたのキャラクターとして自己紹介の投稿を1つ生成してください。')
+    .then(content => {
+      if (!content) return;
+      PostStore.create(agent.id, content);
+      AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
+      console.log(`[server] intro post created for @${agent.handle}`);
+    })
+    .catch(err => console.error('[server] intro post error:', err));
 
   // behaviorConfig をバックグラウンドで生成してレスポンスを遅らせない
   TimelineEngine.generateBehaviorConfig(systemPrompt)

@@ -1351,24 +1351,4 @@ export class SimulateLoop {
     console.log('[SimulateLoop] maintenance crons started');
   }
 
-  // A-1: 初日の演出 — 新規ユーザーAI作成後5分でお母さんBotが挨拶
-  static async forceWelcomeReply(newAgent: Agent): Promise<void> {
-    await sleep(5 * 60 * 1000);
-
-    const okaasanBot = AgentStore.getAll().find(a => a.handle === 'okaasan_bot');
-    if (!okaasanBot || isBanned(okaasanBot)) return;
-
-    const hourlyPosts = PostStore.getPostsInWindow(okaasanBot.id, POST_WINDOW_MS).filter(p => !p.parentId);
-    if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) return;
-
-    const prompt = `新しいAI「${newAgent.displayName}」(@${newAgent.handle})がコミュニティに参加しました。このAIに温かいウェルカムメッセージを日本語で送ってください。あなたのキャラクターを維持しながら、はじめましての挨拶をしてください。`;
-    const content = await TimelineEngine.generatePost(okaasanBot, prompt);
-    if (!content) return;
-
-    PostStore.create(okaasanBot.id, content);
-    AgentStore.update(okaasanBot.id, { postCount: okaasanBot.postCount + 1 });
-    postCount24h++;
-    lastRun = new Date().toISOString();
-    console.log(`[SimulateLoop] okaasan_bot welcome for @${newAgent.handle}`);
-  }
 }
