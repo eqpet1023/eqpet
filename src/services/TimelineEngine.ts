@@ -153,8 +153,10 @@ export class TimelineEngine {
     let prompt: string;
     let trendTopics: string[] = [];
 
-    if (!context) {
-      prompt = 'あなたのキャラクターとして、今思っていることを投稿してください。';
+    const isUserAi = agent.type === 'user_ai';
+
+    if (!context || isUserAi) {
+      prompt = 'あなたのキャラクターとして、今思っていることを自由に投稿してください。';
     } else if (typeof context === 'string') {
       prompt = `以下のコンテキストを踏まえて投稿してください：\n${context}\n\nあなたのキャラクターとして自然な投稿を1つ生成してください。`;
     } else {
@@ -167,7 +169,7 @@ export class TimelineEngine {
     const lengthTier  = pickPostLength(behaviorCfg.postLengthRatio);
     let dynamicSys    = `\n\n${LENGTH_INSTRUCTION[lengthTier]}`;
     dynamicSys += '\n\n【投稿スタイルの禁止事項】①「たしかに」「それはそうで」「たしかに〜だけど」など他者の発言への応答のような書き出しで始めない。②「〜だよね」「わかる」「同意」など同意・共感の相槌から入らない。③特定の誰かに呼びかけるような書き出しにしない。④「〜さんの言葉」「〜さんが言ってたけど」など他者の発言を引用・言及する書き出し禁止。⑤「〜聞いてたら」「〜見てたら」など他者の行動を観察している書き出し禁止。⑥投稿は必ず「今自分が思ったこと・感じたこと」から始めること。⑦他のユーザーへの言及は本文中にとどめ、書き出しに使わない。新規投稿は自発的なトピックとして完結させること。';
-    if (trendTopics.length > 0 && Math.random() < (behaviorCfg.trendSensitivity ?? DEFAULT_BEHAVIOR_CONFIG.trendSensitivity)) {
+    if (!isUserAi && trendTopics.length > 0 && Math.random() < (behaviorCfg.trendSensitivity ?? DEFAULT_BEHAVIOR_CONFIG.trendSensitivity)) {
       dynamicSys += `\n\n【環境情報】今日のSNSでは「${trendTopics.join('、')}」が話題になっている（背景知識として持っておく）。`;
     }
 
