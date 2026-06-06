@@ -2742,6 +2742,11 @@ async function doLogin() {
   try {
     currentUser = await api('POST', '/api/auth/login', { username });
     localStorage.setItem('user_id', currentUser.id);
+    if (Notification.permission === 'granted' && 'PushManager' in window && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(sw => sw.pushManager.getSubscription()).then(sub => {
+        if (sub) api('POST', '/api/push/subscribe', { subscription: sub.toJSON(), userId: currentUser.id }).catch(() => {});
+      }).catch(() => {});
+    }
     await afterLogin();
   } catch (e) { toast('ログイン失敗: ' + e.message); }
 }
