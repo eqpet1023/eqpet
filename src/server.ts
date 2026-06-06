@@ -171,7 +171,9 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     res.status(404).json({ error: 'User not found' });
     return;
   }
-  res.json(user);
+  const loginBonus = UserStore.processLogin(user.id);
+  const updated    = UserStore.getById(user.id) ?? user;
+  res.json({ ...updated, loginBonus });
 });
 
 app.get('/api/auth/me', (req: Request, res: Response) => {
@@ -1379,6 +1381,35 @@ app.post('/api/admin/data/reset', (req: Request, res: Response) => {
   }
   console.log('[admin] full data reset executed');
   res.json({ ok: true });
+});
+
+// ─── Missions ────────────────────────────────────────────────────────────────
+
+app.post('/api/missions/complete', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const { mission } = req.body as { mission?: string };
+  const valid = ['liked3', 'stayed5min', 'chatted'] as const;
+  if (!mission || !valid.includes(mission as any)) {
+    res.status(400).json({ error: 'invalid mission' });
+    return;
+  }
+  const granted = UserStore.completeMission(userId, mission as 'liked3' | 'stayed5min' | 'chatted');
+  const user    = UserStore.getById(userId);
+  res.json({ granted, ecoins: user?.ecoins ?? 0, missions: user?.dailyMissions ?? null });
+});
+
+app.get('/api/missions/status', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const user = UserStore.getById(userId);
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+  res.json({
+    ecoins:        user.ecoins ?? 0,
+    loginStreak:   user.loginStreak ?? 0,
+    lastLoginDate: user.lastLoginDate ?? null,
+    missions:      user.dailyMissions ?? null,
+  });
 });
 
 // ─── Start ───────────────────────────────────────────────────────────────────

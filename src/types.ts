@@ -139,6 +139,14 @@ export interface Relation {
 export type UserRole = 'official' | 'user';
 export type UserPlan = 'free' | 'basic' | 'premium' | 'founder';
 
+export interface DailyMissions {
+  liked3:     boolean;
+  stayed5min: boolean;
+  chatted:    boolean;
+  allCleared: boolean;
+  date:       string;
+}
+
 export interface User {
   id:                string;
   username:          string;
@@ -149,6 +157,10 @@ export interface User {
   createdAt:         string;
   agentIds:          string[];
   stripeCustomerId?: string;
+  ecoins?:           number;
+  lastLoginDate?:    string;
+  loginStreak?:      number;
+  dailyMissions?:    DailyMissions;
 }
 
 export interface PlanConfig {

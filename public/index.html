@@ -1684,6 +1684,71 @@
     color: var(--accent2);
     font-weight: 600;
   }
+
+  /* ── Eコイン・ミッション ─────────────────────────────────────── */
+  #ecoin-badge {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #f59e0b;
+    background: rgba(245,158,11,0.12);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 20px;
+    padding: 3px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #ecoin-badge-sidebar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    margin: 0 8px 4px;
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 10px;
+    font-size: 13px;
+    color: #f59e0b;
+    cursor: pointer;
+  }
+  .mission-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 10px;
+  }
+  .mission-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .mission-row:last-child { border-bottom: none; }
+  .mission-check { font-size: 18px; width: 24px; text-align: center; }
+  .mission-info  { flex: 1; margin: 0 12px; }
+  .mission-title { font-size: 14px; font-weight: 600; }
+  .mission-desc  { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  .mission-coin  { font-size: 13px; color: #f59e0b; font-weight: 600; white-space: nowrap; }
+  .mission-done  { opacity: 0.5; }
+  .ecoin-total-card {
+    background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(251,191,36,0.08));
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 14px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .ecoin-total-card .total-coin { font-size: 36px; font-weight: 700; color: #f59e0b; }
+  .ecoin-total-card .total-label { font-size: 13px; color: var(--text3); margin-top: 4px; }
+  .streak-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; background: rgba(245,158,11,0.12);
+    border: 1px solid rgba(245,158,11,0.25); border-radius: 20px;
+    padding: 2px 10px; color: #f59e0b; margin-top: 6px;
+  }
 </style>
 </head>
 <body>
@@ -1709,6 +1774,7 @@
       <span class="logo-text">Eqpet</span>
     </div>
     <div class="mobile-header-actions">
+      <span id="ecoin-badge" onclick="navigate('mission');setBottomNav('mission')">🪙 <span id="ecoin-badge-val">0</span></span>
       <span id="founder-counter-mobile" style="display:none;font-size:11px;color:#a78bfa;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);border-radius:20px;padding:3px 8px;white-space:nowrap;cursor:pointer" onclick="navigate('plan');closeSidebar()" title="Founderプランの残り枠"></span>
       <button id="mobile-admin-btn" style="display:none;background:none;border:none;cursor:pointer;font-size:18px;padding:6px;color:#a78bfa" onclick="navigate('admin');setBottomNav('admin')" aria-label="管理">⚙️</button>
       <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="メニュー">
@@ -1798,6 +1864,11 @@
       <span class="nav-label" data-i18n="nav_plan">プラン</span>
     </div>
 
+    <div class="nav-item" id="sidebar-mission-nav" style="display:none" data-screen="mission" onclick="navigate('mission');closeSidebar()">
+      <span class="nav-icon">🪙</span>
+      <span class="nav-label">ミッション</span>
+    </div>
+
     <div class="nav-item" id="desktop-notif-bell" onclick="handleNotifBell();closeSidebar()">
       <span class="nav-icon" style="position:relative">
         🔔
@@ -1819,6 +1890,11 @@
         </svg>
       </span>
       <span class="nav-label" data-i18n="nav_settings">設定</span>
+    </div>
+
+    <div id="ecoin-badge-sidebar" style="display:none" onclick="navigate('mission');closeSidebar()">
+      <span>🪙</span>
+      <span><span id="ecoin-sidebar-val">0</span> Eコイン</span>
     </div>
 
     <div class="lp-separator" style="margin-top:8px"></div>
@@ -2059,6 +2135,10 @@
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>
       <span data-i18n="bn_plan">プラン</span>
     </button>
+    <button class="bottom-nav-item" id="bn-mission" style="display:none" onclick="navigate('mission');setBottomNav('mission')">
+      <span style="font-size:22px">🪙</span>
+      <span>ミッション</span>
+    </button>
   </nav>
 
   <!-- Rapid Mode Timer -->
@@ -2091,6 +2171,14 @@
     </svg>
   </div>
 </div>
+    <!-- Mission Screen -->
+    <div class="screen" id="screen-mission">
+      <div class="page-header">🪙 Eコイン</div>
+      <div id="mission-content" style="padding:0 4px">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
 </div><!-- /#layout -->
 
 <!-- Auth Screen -->
@@ -2589,6 +2677,8 @@ let likedPosts = new Set();
 let _timelineObserver = null;
 let _timelineLoadingMore = false;
 let isGuest = false;
+let _likeSessionCount = 0;  // セッション内いいね数（ミッション用）
+let _stayTimer = null;       // 5分滞在タイマー
 
 // ── Utils ──────────────────────────────────────────────────────
 async function api(method, path, body) {
@@ -2703,9 +2793,12 @@ async function doLogin() {
   const username = document.getElementById('login-username').value.trim();
   if (!username) { toast('ユーザー名を入力してください'); return; }
   try {
-    currentUser = await api('POST', '/api/auth/login', { username });
+    const res = await api('POST', '/api/auth/login', { username });
+    const { loginBonus, ...user } = res;
+    currentUser = user;
     localStorage.setItem('user_id', currentUser.id);
     await afterLogin();
+    if (loginBonus > 0) setTimeout(() => toast(`🪙 ログインボーナス +${loginBonus} Eコイン`), 600);
   } catch (e) { toast('ログイン失敗: ' + e.message); }
 }
 
@@ -2867,6 +2960,13 @@ function showApp() {
   document.getElementById('app').style.display = 'flex';
   _toggleSidePanels(true);
   _initPanels();
+  // Eコインバッジ表示 + ミッションナビ表示
+  updateEcoinDisplay();
+  document.getElementById('sidebar-mission-nav').style.display = '';
+  document.getElementById('bn-mission').style.display = '';
+  // 5分滞在ミッション タイマー
+  if (_stayTimer) clearTimeout(_stayTimer);
+  _stayTimer = setTimeout(() => completeMissionClient('stayed5min'), 300000);
   const guestNav = document.getElementById('guest-login-nav');
   if (guestNav) guestNav.remove();
   if (currentUser && (currentUser.id === 'official' || currentUser.role === 'official')) {
@@ -2917,6 +3017,7 @@ function navigate(screen) {
   if (screen === 'plan') loadPlanScreen();
   if (screen === 'search') document.getElementById('search-input').focus();
   if (screen === 'admin') loadAdmin();
+  if (screen === 'mission') loadMissionScreen();
 }
 
 function historyBack() {
@@ -3132,6 +3233,8 @@ async function toggleLike(postId, btn) {
       res = await api('POST', `/api/posts/${postId}/like`);
       likedPosts.add(postId);
       btn.classList.add('liked');
+      _likeSessionCount++;
+      if (_likeSessionCount === 3) completeMissionClient('liked3');
     }
     btn.textContent = `❤️ ${res.likeCount}`;
   } catch(e) { toast(e.message); }
@@ -3738,6 +3841,7 @@ async function sendChatMessage() {
     document.getElementById(typingId)?.remove();
     container.innerHTML += renderChatBubble({ role: 'assistant', content: reply, timestamp: new Date().toISOString() });
     container.scrollTop = container.scrollHeight;
+    completeMissionClient('chatted');
   } catch(e) {
     document.getElementById(typingId)?.remove();
     container.innerHTML += `
@@ -4311,6 +4415,112 @@ function switchToRegister() {
   document.getElementById('guest-landing').style.display = 'none';
   document.getElementById('auth-screen').style.display = '';
   showRegister();
+}
+
+// ── Eコイン / ミッション ───────────────────────────────────────
+
+function updateEcoinDisplay() {
+  const coins = currentUser?.ecoins ?? 0;
+  const badge = document.getElementById('ecoin-badge');
+  const badgeVal = document.getElementById('ecoin-badge-val');
+  const sidebarBadge = document.getElementById('ecoin-badge-sidebar');
+  const sidebarVal = document.getElementById('ecoin-sidebar-val');
+  if (badge) { badge.style.display = 'flex'; if (badgeVal) badgeVal.textContent = coins; }
+  if (sidebarBadge) { sidebarBadge.style.display = 'flex'; if (sidebarVal) sidebarVal.textContent = coins; }
+}
+
+async function completeMissionClient(mission) {
+  if (!currentUser) return;
+  try {
+    const res = await api('POST', '/api/missions/complete', { mission });
+    if (res.granted > 0) {
+      currentUser.ecoins = res.ecoins;
+      if (res.missions) currentUser.dailyMissions = res.missions;
+      updateEcoinDisplay();
+      const labels = { liked3: 'いいね3回ミッション', stayed5min: '5分滞在ミッション', chatted: 'チャットミッション' };
+      toast(`🪙 ${labels[mission] || 'ミッション'} +${res.granted} Eコイン`);
+      // ミッション画面が開いていれば再描画
+      if (document.getElementById('screen-mission')?.classList.contains('active')) loadMissionScreen();
+    }
+  } catch(_) {}
+}
+
+async function loadMissionScreen() {
+  const el = document.getElementById('mission-content');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const s = await api('GET', '/api/missions/status');
+    if (currentUser) { currentUser.ecoins = s.ecoins; }
+    updateEcoinDisplay();
+    const m = s.missions;
+    const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month:'long', day:'numeric' });
+    const isPremium = currentUser?.plan === 'premium' || currentUser?.plan === 'founder';
+    const streak = s.loginStreak || 0;
+    const nextBonus = 7 - (streak % 7);
+
+    const missionRows = [
+      {
+        key: 'liked3', done: m?.liked3, icon: '❤️',
+        title: 'いいね 3回', desc: '投稿にいいねしよう', coins: 10,
+      },
+      {
+        key: 'stayed5min', done: m?.stayed5min, icon: '⏱️',
+        title: '5分滞在', desc: 'Eqpetに5分以上いよう', coins: 5,
+      },
+      ...(isPremium ? [{
+        key: 'chatted', done: m?.chatted, icon: '💬',
+        title: 'AIとチャット', desc: 'マイAIとチャットしよう', coins: 10,
+      }] : []),
+    ];
+
+    el.innerHTML = `
+      <div class="ecoin-total-card">
+        <div class="total-coin">🪙 ${s.ecoins}</div>
+        <div class="total-label">Eコイン残高</div>
+        ${streak > 0 ? `<div class="streak-badge">🔥 ${streak}日連続ログイン中（あと${nextBonus}日で+30ボーナス）</div>` : ''}
+      </div>
+
+      <div class="mission-card">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;color:var(--text2)">📅 ${today}のデイリーミッション</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px">全クリアで +10 Eコインボーナス</div>
+        ${missionRows.map(r => `
+          <div class="mission-row${r.done ? ' mission-done' : ''}">
+            <div class="mission-check">${r.done ? '✅' : '⬜'}</div>
+            <div class="mission-info">
+              <div class="mission-title">${r.icon} ${r.title}</div>
+              <div class="mission-desc">${r.desc}</div>
+            </div>
+            <div class="mission-coin">+${r.coins}🪙</div>
+          </div>`).join('')}
+        ${m?.allCleared ? `
+          <div style="margin-top:12px;text-align:center;font-size:13px;color:#f59e0b;font-weight:600">
+            🎉 全クリ！ +10 Eコイン獲得済み
+          </div>` : ''}
+      </div>
+
+      <div class="mission-card">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--text2)">📋 ログインボーナス</div>
+        <div class="mission-row">
+          <div class="mission-check">✅</div>
+          <div class="mission-info">
+            <div class="mission-title">🌅 今日のログイン</div>
+            <div class="mission-desc">毎日ログインで +10 Eコイン</div>
+          </div>
+          <div class="mission-coin">+10🪙</div>
+        </div>
+        <div class="mission-row">
+          <div class="mission-check">🔥</div>
+          <div class="mission-info">
+            <div class="mission-title">7日連続ログイン</div>
+            <div class="mission-desc">現在 ${streak} 日連続（あと ${nextBonus} 日）</div>
+          </div>
+          <div class="mission-coin">+30🪙</div>
+        </div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div style="text-align:center;color:var(--text3);padding:32px">読み込みに失敗しました</div>`;
+  }
 }
 
 // ── Plan / Stripe ─────────────────────────────────────────────
