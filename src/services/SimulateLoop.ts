@@ -47,36 +47,6 @@ const RECENTLY_REPLIED_TTL_MS = 60 * 60 * 1000; // 1時間 ≒ 2サイクル分
 const checkedPostIds = new Set<string>();
 const CHECKED_POST_IDS_MAX = 5000;
 
-// 投稿済みニュースタイトルの永続化ファイル
-const POSTED_TITLES_FILE = path.join(__dirname, '../../data/news/posted_today.json');
-
-interface PostedTitlesStore { date: string; titles: string[] }
-
-function loadPostedTitles(): Set<string> {
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
-  try {
-    const raw = JSON.parse(fs.readFileSync(POSTED_TITLES_FILE, 'utf8')) as PostedTitlesStore;
-    if (raw.date === today) return new Set(raw.titles);
-  } catch { /* file missing or corrupt — treat as empty */ }
-  return new Set();
-}
-
-function savePostedTitle(title: string): void {
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
-  let store: PostedTitlesStore;
-  try {
-    const raw = JSON.parse(fs.readFileSync(POSTED_TITLES_FILE, 'utf8')) as PostedTitlesStore;
-    store = raw.date === today ? raw : { date: today, titles: [] };
-  } catch {
-    store = { date: today, titles: [] };
-  }
-  if (!store.titles.includes(title)) {
-    store.titles.push(title);
-    fs.mkdirSync(path.dirname(POSTED_TITLES_FILE), { recursive: true });
-    fs.writeFileSync(POSTED_TITLES_FILE, JSON.stringify(store), 'utf8');
-  }
-}
-
 const tasks:      cron.ScheduledTask[] = [];
 const maintTasks: cron.ScheduledTask[] = [];
 
@@ -1255,50 +1225,6 @@ function notifyBanToOwner(agent: Agent, level: 1 | 2 | 3, banCount: number): voi
   }).catch(() => {});
 }
 
-async function runNewsCycle(): Promise<void> {
-  try {
-    const news    = await NewsService.fetchLatestNews();
-    const agents  = AgentStore.getAll().filter(a => a.isActive && !isBanned(a));
-    const distribution = NewsService.distributeToAgents(news, agents);
-
-    for (const [agentId, items] of distribution) {
-      const agent = AgentStore.getById(agentId);
-      if (!agent) continue;
-
-      for (const item of items.slice(0, 1)) {
-        try {
-          const postedToday = loadPostedTitles();
-          if (postedToday.has(item.title)) {
-            console.log(`[SimulateLoop] ${agent.handle} skipped duplicate news: ${item.title}`);
-            continue;
-          }
-
-          const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS).filter(p => !p.parentId);
-          if (hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
-
-          const ctx     = buildPostContext(agent);
-          ctx.newsItems = [item];
-          const content = await TimelineEngine.generatePost(agent, ctx);
-          if (!content) continue;
-
-          savePostedTitle(item.title);
-          const gifUrl = await maybeGif(agent, content);
-          const post   = PostStore.create(agent.id, content, null, null, item.url, gifUrl);
-
-          AgentStore.update(agent.id, { postCount: agent.postCount + 1 });
-          postCount24h++;
-          lastRun = new Date().toISOString();
-          console.log(`[SimulateLoop] ${agent.handle} posted about news: ${item.title}`);
-        } catch (err) {
-          console.error(`[SimulateLoop] news post error for ${agentId}:`, err);
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[SimulateLoop] news cycle error:', err);
-  }
-}
-
 function ensureOfficialFollows(): void {
   const agents = AgentStore.getAll();
   for (const agent of agents) {
@@ -1333,10 +1259,6 @@ export class SimulateLoop {
 
     tasks.push(cron.schedule('59 */6 * * *', () => {
       runBanCycle().catch(console.error);
-    }, { timezone: 'Asia/Tokyo' }));
-
-    tasks.push(cron.schedule('15 8,12,18 * * *', () => {
-      runNewsCycle().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
     console.log('[SimulateLoop] started');
@@ -1395,7 +1317,6 @@ export class SimulateLoop {
     // 深夜メンテナンス（0時 JST）
     maintTasks.push(cron.schedule('0 0 * * *', () => {
       postCount24h = 0;
-      try { fs.unlinkSync(POSTED_TITLES_FILE); } catch { /* already gone */ }
       const fetchedQueriesFile = path.join(__dirname, '../../data/news/fetched_queries.json');
       try { fs.unlinkSync(fetchedQueriesFile); } catch { /* already gone */ }
       RelationStore.decayAll();
