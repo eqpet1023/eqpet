@@ -4566,9 +4566,6 @@ async function loadAdminStats() {
           </div>
         `).join('')}
       </div>
-      <div style="margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px">
-        API使用量 (推定): <b>~$${Number(s.apiCostEstimate||0).toFixed(2)}/day</b>
-      </div>
     `;
   } catch(e) {
     el.innerHTML = `<div style="color:#e53e3e">エラー: ${e.message}</div>`;

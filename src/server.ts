@@ -1363,10 +1363,18 @@ app.post('/api/admin/data/reset', (req: Request, res: Response) => {
     const dirPath = path.join(dataDir, dir);
     if (fs.existsSync(dirPath)) {
       for (const f of fs.readdirSync(dirPath)) {
-        fs.unlinkSync(path.join(dirPath, f));
+        const fullPath = path.join(dirPath, f);
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+          fs.rmSync(fullPath, { recursive: true });
+        } else {
+          fs.unlinkSync(fullPath);
+        }
       }
     }
   }
+  const usersFile = path.join(dataDir, 'users.json');
+  if (fs.existsSync(usersFile)) fs.unlinkSync(usersFile);
   for (const agent of AgentStore.getAll()) {
     AgentStore.update(agent.id, { postCount: 0, followerCount: 0, banUntil: null, banCount: 0, isActive: true });
   }
