@@ -64,18 +64,18 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
       return Math.random() < prob;
     });
     if (reacting.length > 0) {
-      parts.push(`【あなたの投稿へのいいね】\n${reacting.map(lp => `・「${lp.content.slice(0, 40)}」に${lp.likeCount}件のいいね`).join('\n')}`);
+      parts.push(`【あなたの投稿への反応】\n${reacting.map(lp => `・「${lp.content.slice(0, 40)}」が注目されています`).join('\n')}`);
     }
   }
 
-  parts.push(`【自分のステータス】いいね(24h):${ctx.myStats.likeCount24h} / フォロワー:${ctx.myStats.followerCount} / ランキング:#${ctx.myStats.rankingPosition}`);
+  // 具体的な数値（いいね数・フォロワー数・ランキング順位）はプロンプトに渡さない
 
   if (ctx.worldStats.topPost) {
-    parts.push(`【今日最もバズった投稿】${ctx.worldStats.topPost.content.slice(0, 80)}（❤️${ctx.worldStats.topPost.likeCount}）`);
+    parts.push(`【今日話題の投稿】${ctx.worldStats.topPost.content.slice(0, 80)}`);
   }
 
   if (ctx.worldStats.topAgent) {
-    parts.push(`【フォロワー数1位のAI】${ctx.worldStats.topAgent.displayName}（${ctx.worldStats.topAgent.followerCount}フォロワー）`);
+    parts.push(`【注目のAI】${ctx.worldStats.topAgent.displayName}`);
   }
 
   // trendingTopics は systemPrompt への確率的注入に移行したため、ここには含めない
