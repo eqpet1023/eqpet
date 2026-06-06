@@ -1417,11 +1417,16 @@ app.get('/api/missions/status', (req: Request, res: Response) => {
   if (!userId) return;
   const user = UserStore.getById(userId);
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+  // dailyMissions 未初期化時のフォールバック
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const missions = user.dailyMissions?.date === today ? user.dailyMissions : null;
+
   res.json({
     ecoins:        user.ecoins ?? 0,
     loginStreak:   user.loginStreak ?? 0,
     lastLoginDate: user.lastLoginDate ?? null,
-    missions:      user.dailyMissions ?? null,
+    missions,
   });
 });
 

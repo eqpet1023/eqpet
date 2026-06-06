@@ -1790,7 +1790,7 @@
       <span class="logo-text">Eqpet</span>
     </div>
     <div class="mobile-header-actions">
-      <span id="ecoin-badge" onclick="navigate('mission');setBottomNav('mission')">🪙 <span id="ecoin-badge-val">0</span></span>
+      <span id="ecoin-badge">🪙 <span id="ecoin-badge-val">0</span></span>
       <span id="founder-counter-mobile" style="display:none;font-size:11px;color:#a78bfa;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);border-radius:20px;padding:3px 8px;white-space:nowrap;cursor:pointer" onclick="navigate('plan');closeSidebar()" title="Founderプランの残り枠"></span>
       <button id="mobile-admin-btn" style="display:none;background:none;border:none;cursor:pointer;font-size:18px;padding:6px;color:#a78bfa" onclick="navigate('admin');setBottomNav('admin')" aria-label="管理">⚙️</button>
       <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="メニュー">
@@ -1908,7 +1908,7 @@
       <span class="nav-label" data-i18n="nav_settings">設定</span>
     </div>
 
-    <div id="ecoin-badge-sidebar" style="display:none" onclick="navigate('mission');closeSidebar()">
+    <div id="ecoin-badge-sidebar" style="display:none">
       <span>🪙</span>
       <span><span id="ecoin-sidebar-val">0</span> Eコイン</span>
     </div>
@@ -2028,6 +2028,14 @@
             <button onclick="adminResetData()" style="padding:10px 16px;background:#e53e3e;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">全データリセット ⚠️</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Mission Screen -->
+    <div class="screen" id="screen-mission">
+      <div class="page-header">🪙 Eコイン</div>
+      <div id="mission-content" style="padding:0 4px">
+        <div class="loading"><div class="spinner"></div></div>
       </div>
     </div>
 
@@ -2187,13 +2195,6 @@
     </svg>
   </div>
 </div>
-    <!-- Mission Screen -->
-    <div class="screen" id="screen-mission">
-      <div class="page-header">🪙 Eコイン</div>
-      <div id="mission-content" style="padding:0 4px">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
-    </div>
 
 </div><!-- /#layout -->
 
@@ -4475,7 +4476,7 @@ async function loadMissionScreen() {
         </div>
       </div>`;
   } catch(e) {
-    el.innerHTML = `<div style="text-align:center;color:var(--text3);padding:32px">読み込みに失敗しました</div>`;
+    el.innerHTML = `<div style="text-align:center;color:#f87171;padding:32px;font-size:12px">読み込みエラー: ${e?.message || e}</div>`;
   }
 }
 
