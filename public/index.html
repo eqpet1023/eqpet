@@ -1853,8 +1853,9 @@
 
       <div id="timeline-feed"></div>
       <div id="timeline-loader" class="loading"><div class="spinner"></div></div>
-      <div id="timeline-more-wrap" style="display:none;text-align:center;padding:16px 0 24px">
-        <button id="timeline-more-btn" onclick="loadMoreTimeline()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:8px 24px;border-radius:20px;font-size:13px;cursor:pointer;font-family:inherit">もっと見る</button>
+      <div id="timeline-sentinel" style="display:none;text-align:center;padding:20px 0 32px" aria-live="polite">
+        <div id="timeline-more-spinner" class="spinner" style="display:none;margin:0 auto"></div>
+        <div id="timeline-end-msg" style="display:none;color:var(--text3);font-size:13px">これ以上投稿はありません</div>
       </div>
     </div>
 
@@ -2589,6 +2590,8 @@ let restoreTimelineScroll = false;
 let _suppressHistoryPush = false;
 let searchTimeout = null;
 let likedPosts = new Set();
+let _timelineObserver = null;
+let _timelineLoadingMore = false;
 let isGuest = false;
 
 // ── Utils ──────────────────────────────────────────────────────
@@ -2929,11 +2932,16 @@ function historyBack() {
 const TIMELINE_PAGE_SIZE = 20;
 
 async function loadTimeline() {
+  _teardownTimelineObserver();
   const shouldRestore = restoreTimelineScroll;
   restoreTimelineScroll = false;
   timelineCursor = null;
+  hasMorePosts = false;
   document.getElementById('timeline-loader').style.display = '';
-  document.getElementById('timeline-more-wrap').style.display = 'none';
+  const sentinel = document.getElementById('timeline-sentinel');
+  sentinel.style.display = 'none';
+  document.getElementById('timeline-more-spinner').style.display = 'none';
+  document.getElementById('timeline-end-msg').style.display = 'none';
   try {
     const items = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=all`);
     timelineItems = items;
@@ -2941,7 +2949,12 @@ async function loadTimeline() {
     if (items.length > 0) timelineCursor = items[items.length - 1].id;
     renderTimeline();
     hasMorePosts = items.length >= TIMELINE_PAGE_SIZE;
-    document.getElementById('timeline-more-wrap').style.display = hasMorePosts ? '' : 'none';
+    sentinel.style.display = '';
+    if (hasMorePosts) {
+      _setupTimelineObserver();
+    } else if (items.length > 0) {
+      document.getElementById('timeline-end-msg').style.display = '';
+    }
     if (shouldRestore) {
       const savedY = sessionStorage.getItem('timeline_scroll_y');
       if (savedY) requestAnimationFrame(() => window.scrollTo(0, parseInt(savedY, 10)));
@@ -2953,30 +2966,36 @@ async function loadTimeline() {
 }
 
 async function loadMoreTimeline() {
-  if (!timelineCursor) return;
-  const btn = document.getElementById('timeline-more-btn');
-  const wrap = document.getElementById('timeline-more-wrap');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></span>読み込み中...';
+  if (_timelineLoadingMore || !hasMorePosts || !timelineCursor) return;
+  _timelineLoadingMore = true;
+  document.getElementById('timeline-more-spinner').style.display = '';
   try {
     const items = await api('GET', `/api/timeline?limit=${TIMELINE_PAGE_SIZE}&feed=all&before=${timelineCursor}`);
     if (items.length > 0) {
-      timelineItems = timelineItems.concat(items);
-      likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
+      // 重複チェック（ID ベース）
+      const existingIds = new Set(timelineItems.map(i => i.id));
+      const newItems = items.filter(i => !existingIds.has(i.id));
+      // カーソルは API レスポンスの末尾で必ず更新
       timelineCursor = items[items.length - 1].id;
-      const moreFeed = document.getElementById('timeline-feed');
-      moreFeed.classList.add('bulk-load');
-      moreFeed.innerHTML = timelineItems.map(renderPostCard).join('');
-      requestAnimationFrame(() => moreFeed.classList.remove('bulk-load'));
+      if (newItems.length > 0) {
+        timelineItems = timelineItems.concat(newItems);
+        likedPosts = new Set(timelineItems.filter(i => i.likedByMe).map(i => i.id));
+        document.getElementById('timeline-feed').insertAdjacentHTML(
+          'beforeend',
+          newItems.map(renderPostCard).join('')
+        );
+      }
       hasMorePosts = items.length >= TIMELINE_PAGE_SIZE;
-      wrap.style.display = hasMorePosts ? '' : 'none';
     } else {
       hasMorePosts = false;
-      wrap.style.display = 'none';
     }
   } catch(e) { toast('読み込みエラー: ' + e.message); }
-  btn.disabled = false;
-  btn.textContent = 'もっと見る';
+  document.getElementById('timeline-more-spinner').style.display = 'none';
+  if (!hasMorePosts) {
+    document.getElementById('timeline-end-msg').style.display = '';
+    _teardownTimelineObserver();
+  }
+  _timelineLoadingMore = false;
 }
 
 async function refreshTimeline() {
@@ -2989,7 +3008,10 @@ async function refreshTimeline() {
       if (fresh.length > 0) timelineCursor = fresh[fresh.length - 1].id;
       renderTimeline();
       hasMorePosts = fresh.length >= TIMELINE_PAGE_SIZE;
-      document.getElementById('timeline-more-wrap').style.display = hasMorePosts ? '' : 'none';
+      const sentinel = document.getElementById('timeline-sentinel');
+      sentinel.style.display = '';
+      document.getElementById('timeline-end-msg').style.display = hasMorePosts ? 'none' : '';
+      if (hasMorePosts) _setupTimelineObserver(); else _teardownTimelineObserver();
       return;
     }
 
@@ -3018,6 +3040,25 @@ function renderTimeline() {
   feed.classList.add('bulk-load');
   feed.innerHTML = timelineItems.map(renderPostCard).join('');
   requestAnimationFrame(() => feed.classList.remove('bulk-load'));
+}
+
+function _setupTimelineObserver() {
+  _teardownTimelineObserver();
+  const sentinel = document.getElementById('timeline-sentinel');
+  if (!sentinel || !('IntersectionObserver' in window)) return;
+  _timelineObserver = new IntersectionObserver(entries => {
+    if (!entries[0].isIntersecting || _timelineLoadingMore || !hasMorePosts) return;
+    loadMoreTimeline();
+  }, { rootMargin: '0px 0px 300px 0px' });
+  _timelineObserver.observe(sentinel);
+}
+
+function _teardownTimelineObserver() {
+  if (_timelineObserver) {
+    _timelineObserver.disconnect();
+    _timelineObserver = null;
+  }
+  _timelineLoadingMore = false;
 }
 
 const _shareRegistry = new Map();
