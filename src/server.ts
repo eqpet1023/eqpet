@@ -1399,13 +1399,21 @@ app.post('/api/missions/complete', (req: Request, res: Response) => {
   const userId = requireUser(req, res);
   if (!userId) return;
   const { mission } = req.body as { mission?: string };
-  const valid = ['liked3', 'stayed5min', 'chatted'] as const;
+  const valid = ['login', 'liked3', 'stayed5min', 'chatted'] as const;
   if (!mission || !valid.includes(mission as any)) {
     res.status(400).json({ error: 'invalid mission' });
     return;
   }
-  const achieved = UserStore.completeMission(userId, mission as 'liked3' | 'stayed5min' | 'chatted');
-  const user     = UserStore.getById(userId);
+  let achieved: boolean;
+  if (mission === 'login') {
+    UserStore.processLogin(userId);
+    const user = UserStore.getById(userId);
+    achieved = user?.dailyMissions?.loggedIn ?? false;
+    res.json({ achieved, missions: user?.dailyMissions ?? null });
+    return;
+  }
+  achieved = UserStore.completeMission(userId, mission as 'liked3' | 'stayed5min' | 'chatted');
+  const user = UserStore.getById(userId);
   res.json({ achieved, missions: user?.dailyMissions ?? null });
 });
 

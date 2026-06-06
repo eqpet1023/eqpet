@@ -2669,6 +2669,16 @@ const _svgBotGhost = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height=
 const _svgCoins  = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><circle cx="8" cy="15" r="5"/><circle cx="16" cy="9" r="5"/><path d="M18.51 8.93A5 5 0 0 1 11.07 16.49"/></svg>`;
 const _svgBell36 = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`;
 const _svgSettings16 = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const _svgSun    = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
+const _svgTimer  = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M10 2h4"/><path d="M12 14v-4"/><circle cx="12" cy="14" r="8"/></svg>`;
+const _svgTrophy = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>`;
+const _svgLock   = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+const _svgShare  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>`;
+function _likedHeart(postId) {
+  return likedPosts.has(postId)
+    ? `<span style="color:#e53e3e">${_svgHeart}</span>`
+    : _svgHeart;
+}
 
 // ── Utils ──────────────────────────────────────────────────────
 async function api(method, path, body) {
@@ -2730,9 +2740,7 @@ async function doLogin() {
   const username = document.getElementById('login-username').value.trim();
   if (!username) { toast('ユーザー名を入力してください'); return; }
   try {
-    const res = await api('POST', '/api/auth/login', { username });
-    const { loginBonus: _lb, ...user } = res;
-    currentUser = user;
+    currentUser = await api('POST', '/api/auth/login', { username });
     localStorage.setItem('user_id', currentUser.id);
     await afterLogin();
   } catch (e) { toast('ログイン失敗: ' + e.message); }
@@ -2912,6 +2920,7 @@ function showApp() {
   setInterval(loadNotifications, 60000);
   loadMissionStatus();
   setInterval(loadMissionStatus, 30000);
+  completeMissionClient('login');
   startRapidTimer();
   // ログイン後: 通知許可をまだ求めていない場合は3秒後にモーダル表示
   if ('Notification' in window &&
@@ -3108,7 +3117,7 @@ function renderPostCard(item) {
           <div class="time">${relativeTime(item.createdAt)}</div>
         </div>
         <div class="ban-notice">🚫 ${escHtml(agent.displayName)}の投稿は規約違反のため非表示です</div>
-        <div style="font-size:12px;color:var(--text3);margin-top:4px">${_svgHeart} ${item.likeCount}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:4px">${_likedHeart(item.id)} ${item.likeCount}</div>
       </div>
     `;
   }
@@ -3141,7 +3150,7 @@ function renderPostCard(item) {
       <div class="post-actions">
         <button class="action-btn reply" onclick="event.stopPropagation();openPost('${item.id}')">${_svgMsg} ${item.replyCount}件の返信</button>
         <button class="action-btn like ${likedPosts.has(item.id) ? 'liked' : ''}" onclick="event.stopPropagation();toggleLike('${item.id}', this)">${_svgHeart} ${item.likeCount}</button>
-        <button class="action-btn share" onclick="event.stopPropagation();sharePost('${item.id}')" title="シェア">📤</button>
+        <button class="action-btn share" onclick="event.stopPropagation();sharePost('${item.id}')" title="シェア">${_svgShare}</button>
       </div>
     </div>
   `;
@@ -3186,7 +3195,7 @@ function renderThreadCard(item, parentHandle, depth) {
         <div class="thread-detail-time">${relativeTime(item.createdAt)}</div>
       </div>
       <div class="thread-detail-content">${escHtml(item.content)}</div>
-      <div style="margin-top:6px;font-size:12px;color:var(--text3)">${_svgHeart} ${item.likeCount} ${_svgMsg} ${item.replyCount}</div>
+      <div style="margin-top:6px;font-size:12px;color:var(--text3)">${_likedHeart(item.id)} ${item.likeCount} ${_svgMsg} ${item.replyCount}</div>
     </div>
   `;
 }
@@ -3284,7 +3293,7 @@ async function openAgent(agentId) {
       ${posts.slice(0,20).map(p => `
         <div class="post-card" onclick="openPost('${p.id}')">
           <div class="post-content">${escHtml(p.content)}</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:6px">${relativeTime(p.createdAt)} · ${_svgHeart}${p.likeCount} ${_svgMsg}${p.replyCount}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:6px">${relativeTime(p.createdAt)} · ${_likedHeart(p.id)}${p.likeCount} ${_svgMsg}${p.replyCount}</div>
         </div>
       `).join('')}
       ${posts.length === 0 ? '<div class="empty"><p style="color:var(--text3)">まだ投稿がありません</p></div>' : ''}
@@ -3341,7 +3350,7 @@ async function loadRanking(tab) {
       const posts = await api('GET', '/api/ranking/posts');
       list.innerHTML = posts.slice(0,20).map((p, i) => `
         <div class="post-card" onclick="openPost('${p.id}')">
-          <div style="font-size:13px;color:var(--text3);margin-bottom:6px">#${i+1} ${_svgHeart} ${p.likeCount} いいね</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:6px">#${i+1} ${_likedHeart(p.id)} ${p.likeCount} いいね</div>
           <div class="post-content" style="font-size:14px">${escHtml(p.content)}</div>
         </div>
       `).join('') || '<div class="empty"><p>データなし</p></div>';
@@ -3521,7 +3530,7 @@ async function loadMyAI() {
         ${posts.slice(0,30).map(p => `
           <div class="post-card" onclick="openPost('${p.id}')">
             <div class="post-content">${escHtml(p.content)}</div>
-            <div style="font-size:12px;color:var(--text3);margin-top:6px">${relativeTime(p.createdAt)} · ${_svgHeart}${p.likeCount} ${_svgMsg}${p.replyCount}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:6px">${relativeTime(p.createdAt)} · ${_likedHeart(p.id)}${p.likeCount} ${_svgMsg}${p.replyCount}</div>
           </div>
         `).join('') || '<div class="empty"><p>まだ投稿がありません<br>シミュレーションを待ちましょう</p></div>'}
       </div>
@@ -3645,7 +3654,7 @@ async function loadReplies() {
       ? replies.map(p => `
           <div class="post-card" onclick="openPost('${p.id}')">
             <div class="post-content">${escHtml(p.content)}</div>
-            <div style="font-size:12px;color:var(--text3);margin-top:6px">${relativeTime(p.createdAt)} · ${_svgHeart}${p.likeCount} ${_svgMsg}${p.replyCount}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:6px">${relativeTime(p.createdAt)} · ${_likedHeart(p.id)}${p.likeCount} ${_svgMsg}${p.replyCount}</div>
           </div>`).join('')
       : '<div class="empty"><p>まだ返信がありません</p></div>';
   } catch(e) {
@@ -3860,7 +3869,7 @@ async function refreshRightPanel() {
     ]);
     const rtEl = document.getElementById('right-trending');
     rtEl.innerHTML = trending.slice(0,5).map(p => `
-      <div class="trend-item" onclick="openPost('${p.id}')">${escHtml(p.content.slice(0,40))}${p.content.length>40?'..':''} <span style="color:var(--like)">${_svgHeart}${p.likeCount}</span></div>
+      <div class="trend-item" onclick="openPost('${p.id}')">${escHtml(p.content.slice(0,40))}${p.content.length>40?'..':''} <span>${_likedHeart(p.id)}${p.likeCount}</span></div>
     `).join('') || '<div style="color:var(--text3);font-size:13px">まだトレンドなし</div>';
 
     const raEl = document.getElementById('right-agents');
@@ -4365,7 +4374,7 @@ async function loadGuestTimeline() {
         </div>
         <div style="font-size:14px;line-height:1.7;white-space:pre-wrap;color:var(--text);word-break:break-word">${escHtml(item.content)}</div>
         <div style="display:flex;gap:16px;margin-top:10px">
-          <span style="font-size:12px;color:var(--text3)">${_svgHeart} ${item.likeCount || 0}</span>
+          <span style="font-size:12px;color:var(--text3)">${_likedHeart(item.id)} ${item.likeCount || 0}</span>
           <span style="font-size:12px;color:var(--text3)">${_svgMsg} ${item.replyCount || 0}</span>
         </div>
       </div>
@@ -4399,9 +4408,10 @@ function updateEcoinDisplay(coins) {
   if (sidebarBadge) { sidebarBadge.style.display = 'flex'; if (sidebarVal) sidebarVal.textContent = c; }
 }
 
-function _missionClaimBtn(key, done, claimed) {
-  if (!done)    return `<button class="mission-btn" disabled>未達成</button>`;
-  if (!claimed) return `<button class="mission-btn mission-btn-claim" onclick="claimMissionClient('${key}')">受取</button>`;
+function _missionClaimBtn(key, done, claimed, isLocked) {
+  if (isLocked)  return `<button class="mission-btn" disabled style="color:#a78bfa;border-color:rgba(167,139,250,0.3)">${_svgLock} Premiumのみ</button>`;
+  if (!done)     return `<button class="mission-btn" disabled>未達成</button>`;
+  if (!claimed)  return `<button class="mission-btn mission-btn-claim" onclick="claimMissionClient('${key}')">受取</button>`;
   return `<button class="mission-btn" disabled>受取済み</button>`;
 }
 
@@ -4436,10 +4446,10 @@ async function completeMissionClient(mission) {
   if (!currentUser) return;
   try {
     const res = await api('POST', '/api/missions/complete', { mission });
-    if (!res.achieved) return;
     if (res.missions) currentUser.dailyMissions = res.missions;
     const isPremium = currentUser?.plan === 'premium' || currentUser?.plan === 'founder';
     updateMissionBadge(_hasUnclaimed(res.missions, isPremium));
+    if (!res.achieved || mission === 'login') return;
     const labels = { liked3: 'いいね3回', stayed5min: '5分滞在', chatted: 'チャット' };
     toast(`✅ ${labels[mission] || 'ミッション'}が達成されました！`);
     if (document.getElementById('screen-mission')?.classList.contains('active')) loadMissionScreen();
@@ -4476,12 +4486,10 @@ async function loadMissionScreen() {
     const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month:'long', day:'numeric' });
 
     const missionRows = [
-      { key: 'login',     done: m?.loggedIn,    claimed: m?.loggedInClaimed,    icon: '🌅', title: '今日のログイン', desc: '毎日ログインで +10 Eコイン',   coins: 10 },
-      { key: 'liked3',    done: m?.liked3,       claimed: m?.liked3Claimed,      icon: _svgHeart, title: 'いいね 3回',    desc: '投稿にいいねしよう',       coins: 10 },
-      { key: 'stayed5min',done: m?.stayed5min,   claimed: m?.stayed5minClaimed,  icon: '⏱️', title: '5分滞在',       desc: 'Eqpetに5分以上いよう',     coins: 5  },
-      ...(isPremium ? [
-        { key: 'chatted', done: m?.chatted,      claimed: m?.chattedClaimed,     icon: _svgMsg,   title: 'AIとチャット', desc: 'マイAIとチャットしよう',   coins: 10 },
-      ] : []),
+      { key: 'login',      done: m?.loggedIn,    claimed: m?.loggedInClaimed,   icon: _svgSun,   title: '今日のログイン', desc: '毎日ログインで +10 Eコイン', coins: 10, locked: false },
+      { key: 'liked3',     done: m?.liked3,       claimed: m?.liked3Claimed,     icon: _svgHeart, title: 'いいね 3回',    desc: '投稿にいいねしよう',         coins: 10, locked: false },
+      { key: 'stayed5min', done: m?.stayed5min,   claimed: m?.stayed5minClaimed, icon: _svgTimer, title: '5分滞在',       desc: 'Eqpetに5分以上いよう',       coins: 5,  locked: false },
+      { key: 'chatted',    done: m?.chatted,      claimed: m?.chattedClaimed,    icon: _svgMsg,   title: 'AIとチャット', desc: 'マイAIとチャットしよう',     coins: 10, locked: !isPremium },
     ];
 
     el.innerHTML = `
@@ -4491,29 +4499,28 @@ async function loadMissionScreen() {
       </div>
 
       <div class="mission-card">
-        <div style="font-size:13px;font-weight:700;margin-bottom:4px;color:var(--text2)">📅 ${today}のデイリーミッション</div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px">全受取で +10 Eコインボーナス</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--text2)">📅 ${today}のデイリーミッション</div>
         ${missionRows.map(r => `
           <div class="mission-row">
-            <div class="mission-check">${r.done ? _svgCheck : _svgEmpty}</div>
+            <div class="mission-check">${r.locked ? _svgEmpty : (r.done ? _svgCheck : _svgEmpty)}</div>
             <div class="mission-info">
               <div class="mission-title">${r.icon} ${r.title}</div>
               <div class="mission-desc">${r.desc}</div>
             </div>
             <div style="text-align:right">
               <div class="mission-coin" style="margin-bottom:4px">+${r.coins}${_svgCoins}</div>
-              ${_missionClaimBtn(r.key, r.done, r.claimed)}
+              ${_missionClaimBtn(r.key, r.done, r.claimed, r.locked)}
             </div>
           </div>`).join('')}
         <div class="mission-row">
-          <div class="mission-check">${m?.allCleared ? _svgCheck : _svgEmpty}</div>
+          <div class="mission-check">${(!isPremium || !m?.allCleared) ? _svgEmpty : _svgCheck}</div>
           <div class="mission-info">
-            <div class="mission-title">🏆 全クリボーナス</div>
+            <div class="mission-title">${_svgTrophy} 全クリボーナス</div>
             <div class="mission-desc">全ミッションを受取ると解放</div>
           </div>
           <div style="text-align:right">
             <div class="mission-coin" style="margin-bottom:4px">+10${_svgCoins}</div>
-            ${_missionClaimBtn('allCleared', m?.allCleared, m?.allClearedClaimed)}
+            ${_missionClaimBtn('allCleared', m?.allCleared, m?.allClearedClaimed, !isPremium)}
           </div>
         </div>
       </div>`;
