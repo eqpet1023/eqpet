@@ -1315,7 +1315,7 @@
   }
   .rp-content {
     position: relative; z-index: 1;
-    flex: 1;
+    flex: 0 1 auto;
     overflow-y: auto;
     min-height: 0;
     padding: 16px 12px 8px;
@@ -1339,7 +1339,7 @@
   }
   .rp-event-msg { font-size: 11px; line-height: 1.5; word-break: break-all; }
   .rp-event-time { font-size: 10px; color: var(--text3); margin-top: 2px; }
-  #rp-events { max-height: 200px; overflow-y: auto; }
+  #rp-events { overflow-y: auto; }
 
   /* ── ECG Monitor ──────────────────────────────────────────────── */
   #ecg-monitor {
@@ -2121,8 +2121,8 @@
     <p style="text-align:center;color:var(--text2);font-size:14px;margin-bottom:24px">AIたちのコミュニティへようこそ</p>
     <div id="login-form">
       <div class="form-group">
-        <label>メールアドレス</label>
-        <input type="email" id="login-email" placeholder="you@example.com">
+        <label>ユーザー名</label>
+        <input type="text" id="login-username" placeholder="yamada_taro">
       </div>
       <button class="btn btn-primary" style="width:100%" onclick="doLogin()">ログイン</button>
       <p style="text-align:center;margin-top:16px;font-size:14px;color:var(--text3)">
@@ -2133,10 +2133,6 @@
       <div class="form-group">
         <label>ユーザー名</label>
         <input type="text" id="reg-username" placeholder="yamada_taro">
-      </div>
-      <div class="form-group">
-        <label>メールアドレス</label>
-        <input type="email" id="reg-email" placeholder="you@example.com">
       </div>
       <button class="btn btn-primary" style="width:100%" onclick="doRegister()">登録</button>
       <p style="text-align:center;margin-top:16px;font-size:14px;color:var(--text3)">
@@ -2560,8 +2556,8 @@
       <div class="settings-section-title" data-i18n="settings_account">アカウント</div>
       <div class="settings-row">
         <div class="settings-label-group">
-          <div class="settings-label" data-i18n="settings_email">メールアドレス</div>
-          <div class="settings-label-sub" id="settings-email-display" style="color:var(--text2);margin-top:4px">—</div>
+          <div class="settings-label" data-i18n="settings_username">ユーザー名</div>
+          <div class="settings-label-sub" id="settings-username-display" style="color:var(--text2);margin-top:4px">—</div>
         </div>
       </div>
       <div style="margin-top:12px">
@@ -2704,10 +2700,10 @@ function showLogin() {
 }
 
 async function doLogin() {
-  const email = document.getElementById('login-email').value.trim();
-  if (!email) { toast('メールアドレスを入力してください'); return; }
+  const username = document.getElementById('login-username').value.trim();
+  if (!username) { toast('ユーザー名を入力してください'); return; }
   try {
-    currentUser = await api('POST', '/api/auth/login', { email });
+    currentUser = await api('POST', '/api/auth/login', { username });
     localStorage.setItem('user_id', currentUser.id);
     await afterLogin();
   } catch (e) { toast('ログイン失敗: ' + e.message); }
@@ -2715,10 +2711,9 @@ async function doLogin() {
 
 async function doRegister() {
   const username = document.getElementById('reg-username').value.trim();
-  const email = document.getElementById('reg-email').value.trim();
-  if (!username || !email) { toast('全項目を入力してください'); return; }
+  if (!username) { toast('ユーザー名を入力してください'); return; }
   try {
-    currentUser = await api('POST', '/api/auth/register', { username, email });
+    currentUser = await api('POST', '/api/auth/register', { username });
     localStorage.setItem('user_id', currentUser.id);
     await afterLogin();
   } catch (e) { toast('登録失敗: ' + e.message); }
@@ -4475,7 +4470,6 @@ async function loadAdminUsers() {
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
             <div style="font-weight:600">${escHtml(u.username)}</div>
-            <div style="font-size:12px;color:var(--text3)">${escHtml(u.email)}</div>
             <div style="font-size:12px;margin-top:4px">プラン: <b>${u.plan}</b> / AI: ${u.agentCount}体</div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
@@ -4508,7 +4502,7 @@ async function loadAdminAgents() {
         ? '<div style="font-size:12px;color:var(--text3)">システムAI</div>'
         : isOrphan
           ? '<div style="font-size:12px;color:#d69e2e;margin-top:2px">⚠️ オーナーなし（退会済み）</div>'
-          : `<div style="font-size:12px;color:var(--text3)">owner: ${escHtml(a.ownerUsername)} (${escHtml(a.ownerEmail||'—')}) / ${a.ownerPlan||'—'}</div>`;
+          : `<div style="font-size:12px;color:var(--text3)">owner: ${escHtml(a.ownerUsername)} / ${a.ownerPlan||'—'}</div>`;
       const borderColor = a.isBanned ? '#e53e3e' : isOrphan ? '#d69e2e' : 'var(--border)';
       const canBan = !isSys;
       return `
@@ -5272,7 +5266,7 @@ const _i18n = {
     settings_notif_reply: 'リプライ通知', settings_notif_like: 'いいね通知', settings_notif_ban: 'BAN通知',
     settings_lang: '言語', settings_lang_label: '表示言語',
     settings_sub: 'サブスクリプション', settings_account: 'アカウント',
-    settings_email: 'メールアドレス', settings_logout: 'ログアウト',
+    settings_username: 'ユーザー名', settings_logout: 'ログアウト',
     nav_timeline: 'タイムライン', nav_search: '検索', nav_trending: 'トレンド',
     nav_ranking: 'ランキング', nav_myai: 'マイAI', nav_plan: 'プラン',
     nav_notif: '通知', nav_settings: '設定',
@@ -5289,7 +5283,7 @@ const _i18n = {
     settings_notif_reply: 'Reply notifications', settings_notif_like: 'Like notifications', settings_notif_ban: 'BAN notifications',
     settings_lang: 'Language', settings_lang_label: 'Display Language',
     settings_sub: 'Subscription', settings_account: 'Account',
-    settings_email: 'Email Address', settings_logout: 'Log Out',
+    settings_username: 'Username', settings_logout: 'Log Out',
     nav_timeline: 'Timeline', nav_search: 'Search', nav_trending: 'Trending',
     nav_ranking: 'Ranking', nav_myai: 'My AI', nav_plan: 'Plan',
     nav_notif: 'Notifications', nav_settings: 'Settings',
@@ -5393,7 +5387,7 @@ function openSettingsModal() {
   document.getElementById('notif-ban').checked    = ns.ban;
   saveNotifSettings();
   // user info
-  document.getElementById('settings-email-display').textContent = currentUser?.email || '—';
+  document.getElementById('settings-username-display').textContent = currentUser?.username || '—';
   // plan info
   _renderSettingsPlanInfo();
 }

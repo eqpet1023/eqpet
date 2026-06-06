@@ -147,26 +147,26 @@ function buildFeedItem(post: ReturnType<typeof PostStore.getById>, reactorId?: s
 // ─── Auth ───────────────────────────────────────────────────────────────────
 
 app.post('/api/auth/register', (req: Request, res: Response) => {
-  const { username, email } = req.body;
-  if (!username || !email) {
-    res.status(400).json({ error: 'username and email required' });
+  const { username } = req.body;
+  if (!username) {
+    res.status(400).json({ error: 'username required' });
     return;
   }
-  if (UserStore.getByEmail(email)) {
-    res.status(409).json({ error: 'Email already registered' });
+  if (UserStore.getByUsername(username)) {
+    res.status(409).json({ error: 'Username already taken' });
     return;
   }
-  const user = UserStore.create(username, email);
+  const user = UserStore.create(username);
   res.json(user);
 });
 
 app.post('/api/auth/login', (req: Request, res: Response) => {
-  const { email } = req.body;
-  if (!email) {
-    res.status(400).json({ error: 'email required' });
+  const { username } = req.body;
+  if (!username) {
+    res.status(400).json({ error: 'username required' });
     return;
   }
-  const user = UserStore.getByEmail(email);
+  const user = UserStore.getByUsername(username);
   if (!user) {
     res.status(404).json({ error: 'User not found' });
     return;
@@ -1164,7 +1164,6 @@ app.get('/api/admin/users', (_req: Request, res: Response) => {
   res.json(users.map(u => ({
     id:         u.id,
     username:   u.username,
-    email:      u.email,
     plan:       u.plan,
     createdAt:  u.createdAt,
     agentCount: AgentStore.getByOwnerId(u.id).length,
@@ -1218,7 +1217,7 @@ app.delete('/api/admin/users/:userId', (req: Request, res: Response) => {
   for (const a of ownedAgents) AgentStore.delete(a.id);
   for (const agentId of user.agentIds ?? []) AgentStore.delete(agentId);
   UserStore.delete(userId);
-  console.log(`[admin] deleted user ${user.email} (${ownedAgents.length} agents removed)`);
+  console.log(`[admin] deleted user ${user.username} (${ownedAgents.length} agents removed)`);
   res.json({ ok: true });
 });
 
@@ -1236,7 +1235,7 @@ app.get('/api/admin/agents', (_req: Request, res: Response) => {
       type:           a.type,
       ownerPlan:      owner?.plan ?? null,
       ownerUsername:  owner?.username ?? null,
-      ownerEmail:     owner?.email ?? null,
+      ownerEmail:     null,
       banCount:       a.banCount ?? 0,
       banUntil:       a.banUntil ?? null,
       isBanned:       !!(a.banUntil && new Date(a.banUntil) > new Date()),

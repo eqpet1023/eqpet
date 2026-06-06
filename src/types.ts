@@ -142,7 +142,7 @@ export type UserPlan = 'free' | 'basic' | 'premium' | 'founder';
 export interface User {
   id:                string;
   username:          string;
-  email:             string;
+  email?:            string;
   role:              UserRole;
   plan:              UserPlan;
   verified:          boolean;

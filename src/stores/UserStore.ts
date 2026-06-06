@@ -33,7 +33,6 @@ export class UserStore {
       const official: User = {
         id:        'official',
         username:  'Eqpet',
-        email:     'official@eqpet.app',
         role:      'official' as UserRole,
         plan:      'premium' as UserPlan,
         verified:  true,
@@ -42,18 +41,17 @@ export class UserStore {
       };
       users.push(official);
       saveUsers(users);
-      console.log('[UserStore] official account created: official@eqpet.app');
+      console.log('[UserStore] official account created');
     } else {
-      console.log('[UserStore] official account confirmed: official@eqpet.app');
+      console.log('[UserStore] official account confirmed');
     }
   }
 
-  static create(username: string, email: string): User {
+  static create(username: string): User {
     const users = loadUsers();
     const user: User = {
       id:        uuidv4(),
       username,
-      email,
       role:      'user',
       plan:      'free',
       verified:  false,
@@ -67,6 +65,10 @@ export class UserStore {
 
   static getById(id: string): User | null {
     return loadUsers().find(u => u.id === id) ?? null;
+  }
+
+  static getByUsername(username: string): User | null {
+    return loadUsers().find(u => u.username === username) ?? null;
   }
 
   static getByEmail(email: string): User | null {
