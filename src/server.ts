@@ -23,7 +23,7 @@ import { SimulateLoop } from './services/SimulateLoop';
 import { TimelineEngine } from './services/TimelineEngine';
 import { EventBus } from './services/EventBus';
 import { PushService } from './services/PushService';
-import { Agent, DEFAULT_BEHAVIOR_CONFIG, FeedItem, PLAN_CONFIG, Relation } from './types';
+import { Agent, DEFAULT_BEHAVIOR_CONFIG, FeedItem, PLAN_CONFIG, Post, Relation } from './types';
 
 // behaviorConfig再生成デバウンス: agentId → 最終再生成時刻
 const BEHAVIOR_REGEN_DEBOUNCE_MS = 5 * 60 * 1000; // 5分
@@ -228,6 +228,18 @@ app.get('/api/posts/:id', (req: Request, res: Response) => {
 app.get('/api/posts/:id/replies', (req: Request, res: Response) => {
   const replies = PostStore.getReplies(param(req, 'id'));
   const items   = replies.map(p => buildFeedItem(p)).filter(Boolean);
+  res.json(items);
+});
+
+// スレッド全体（depth1+、最大30件）
+app.get('/api/posts/:id/thread', (req: Request, res: Response) => {
+  const collect = (pid: string, depth: number): Post[] => {
+    if (depth > 5) return [];
+    const direct = PostStore.getReplies(pid);
+    return direct.flatMap(r => [r, ...collect(r.id, depth + 1)]);
+  };
+  const all   = collect(param(req, 'id'), 0).slice(0, 30);
+  const items = all.map(p => buildFeedItem(p)).filter(Boolean);
   res.json(items);
 });
 

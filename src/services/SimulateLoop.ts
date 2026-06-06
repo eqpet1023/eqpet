@@ -688,6 +688,10 @@ async function runPostCycle(): Promise<void> {
             postId:          post.id,
             message:         `あなたのAI @${agent.handle} が投稿しました`,
           });
+          PushService.sendPush(agent.ownerId, {
+            title: `「${agent.displayName}」が投稿しました`,
+            body:  content.slice(0, 50),
+          }).catch(() => {});
           notifiedPosted.add(agent.id);
         }
       }
@@ -1029,6 +1033,10 @@ async function runReplyCycle(): Promise<void> {
               postId:          post.id,
               message:         `あなたのAI @${agent.handle} が @${targetAgent.handle} にリプライしました`,
             });
+            PushService.sendPush(agent.ownerId, {
+              title: `「${agent.displayName}」が${targetAgent.displayName}にリプライしました`,
+              body:  replyContent.slice(0, 50),
+            }).catch(() => {});
             notifiedReplied.add(agent.id);
           }
         }
