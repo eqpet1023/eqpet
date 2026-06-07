@@ -588,6 +588,315 @@ a { color: inherit; text-decoration: none; }
   border-image: linear-gradient(90deg, var(--accent-cyan), var(--accent-pink), var(--accent-yellow)) 1;
 }
 
+/* ── Modals ──────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 400;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.modal-overlay.open { display: flex; }
+.modal-sheet {
+  width: 100%; max-width: 600px;
+  background: var(--bg-secondary);
+  border-radius: 20px 20px 0 0;
+  max-height: 92vh;
+  display: flex; flex-direction: column;
+  animation: slideUp 0.28s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.modal-title { font-family:'Orbitron',monospace; font-size:14px; font-weight:700; letter-spacing:1px; }
+.modal-close {
+  background:none; border:none; color:var(--text-muted); font-size:22px;
+  width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+  border-radius:6px; transition:all .15s;
+}
+.modal-close:hover { color:var(--text-primary); background:var(--bg-card); }
+.modal-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+
+/* ── Agent page ──────────────────────────────────────────────── */
+.agent-profile-header {
+  padding:20px; display:flex; align-items:flex-start; gap:16px;
+  border-bottom:1px solid var(--border);
+}
+.agent-avatar-lg {
+  width:72px; height:72px; border-radius:50%;
+  background:var(--bg-card); border:2px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden; flex-shrink:0;
+}
+.agent-avatar-lg canvas { width:72px; height:72px; image-rendering:pixelated; display:block; }
+.agent-profile-info { flex:1; min-width:0; }
+.agent-profile-name {
+  font-size:17px; font-weight:700; color:var(--text-primary);
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+}
+.agent-profile-handle { color:var(--text-muted); font-size:13px; margin-top:2px; }
+.agent-profile-bio { color:var(--text-primary); font-size:13px; margin-top:8px; line-height:1.65; }
+.agent-profile-stats { display:flex; gap:20px; margin-top:10px; }
+.agent-stat-val { font-family:'Orbitron',monospace; font-size:16px; font-weight:700; color:var(--text-primary); }
+.agent-stat-label { font-size:10px; color:var(--text-muted); letter-spacing:.5px; margin-top:2px; }
+.agent-page-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.follow-btn {
+  padding:8px 20px; border-radius:20px; font-size:13px; font-weight:700;
+  border:2px solid var(--accent-cyan); color:var(--accent-cyan); background:none;
+  transition:all .2s; white-space:nowrap;
+}
+.follow-btn.following { background:var(--accent-cyan); color:#000; }
+.follow-btn:hover { filter:brightness(1.1); }
+.chat-open-btn {
+  padding:8px 16px; border-radius:20px; font-size:13px; font-weight:700;
+  border:2px solid var(--accent-pink); color:var(--accent-pink); background:none;
+  transition:all .2s;
+}
+.chat-open-btn:hover { background:var(--accent-pink); color:#000; }
+
+.agent-tabs-bar {
+  display:flex; border-bottom:1px solid var(--border); flex-shrink:0;
+  position:sticky; top:0; background:var(--bg-secondary); z-index:2;
+}
+.agent-tab-btn {
+  flex:1; padding:12px 4px; background:none; border:none;
+  color:var(--text-muted); font-size:12px; font-weight:600; letter-spacing:.5px;
+  position:relative; transition:color .2s;
+}
+.agent-tab-btn.active { color:var(--accent-cyan); }
+.agent-tab-btn.active::after {
+  content:''; position:absolute; bottom:-1px; left:15%; right:15%;
+  height:2px; background:var(--accent-cyan); border-radius:2px;
+}
+
+.agent-list-item {
+  display:flex; align-items:center; gap:12px;
+  padding:12px 20px; border-bottom:1px solid var(--border);
+  cursor:pointer; transition:background .15s;
+}
+.agent-list-item:hover { background:var(--bg-card); }
+.agent-list-avatar {
+  width:42px; height:42px; border-radius:50%;
+  background:var(--bg-card); border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden; flex-shrink:0;
+}
+.agent-list-name { font-size:14px; font-weight:600; color:var(--text-primary); }
+.agent-list-handle { font-size:12px; color:var(--text-muted); }
+
+/* Relation stage badges */
+.relation-badge {
+  display:inline-block; padding:2px 8px; border-radius:10px;
+  font-size:11px; font-weight:700; letter-spacing:.5px;
+}
+.stage-hostile { background:rgba(255,45,120,.18); color:#ff2d78; }
+.stage-dislike { background:rgba(255,112,67,.18); color:#ff7043; }
+.stage-unknown { background:rgba(107,107,138,.18); color:#9090b0; }
+.stage-aware   { background:rgba(120,144,156,.18); color:#78909c; }
+.stage-engaged { background:rgba(66,165,245,.18);  color:#42a5f5; }
+.stage-bonded  { background:rgba(102,187,106,.18); color:#66bb6a; }
+.stage-iconic  { background:rgba(255,215,0,.18);   color:#ffd700; }
+
+.relation-item {
+  display:flex; align-items:center; gap:12px;
+  padding:12px 20px; border-bottom:1px solid var(--border);
+}
+.relation-value {
+  font-family:'Orbitron',monospace; font-size:14px; font-weight:700;
+  color:var(--text-muted); margin-left:auto; flex-shrink:0;
+}
+
+/* ── Chat ────────────────────────────────────────────────────── */
+.chat-messages {
+  flex:1; overflow-y:auto; padding:16px;
+  display:flex; flex-direction:column; gap:12px;
+  -webkit-overflow-scrolling:touch;
+}
+.chat-bubble-wrap { display:flex; align-items:flex-end; gap:8px; }
+.chat-bubble-wrap.user { flex-direction:row-reverse; }
+.chat-bubble {
+  max-width:75%; padding:10px 14px; border-radius:16px;
+  font-size:14px; line-height:1.6; word-break:break-word; white-space:pre-wrap;
+}
+.chat-bubble.ai {
+  background:var(--bg-card); border:1px solid var(--border);
+  color:var(--text-primary); border-bottom-left-radius:4px;
+}
+.chat-bubble.user {
+  background:linear-gradient(135deg,var(--accent-cyan),#0088ff);
+  color:#000; font-weight:500; border-bottom-right-radius:4px;
+}
+.chat-bubble-time { font-size:10px; color:var(--text-muted); margin-top:4px; text-align:right; }
+.chat-input-area {
+  padding:12px 16px; border-top:1px solid var(--border);
+  display:flex; gap:10px; align-items:flex-end; flex-shrink:0;
+}
+.chat-textarea {
+  flex:1; background:var(--bg-input); border:1px solid var(--border);
+  border-radius:20px; color:var(--text-primary); font-size:14px;
+  padding:10px 16px; outline:none; resize:none; max-height:100px;
+  transition:border-color .2s; font-family:inherit; line-height:1.5;
+}
+.chat-textarea:focus { border-color:var(--accent-cyan); }
+.chat-send-btn {
+  width:40px; height:40px; border-radius:50%; background:var(--accent-cyan);
+  border:none; color:#000; font-size:18px;
+  display:flex; align-items:center; justify-content:center;
+  transition:filter .2s; flex-shrink:0;
+}
+.chat-send-btn:hover { filter:brightness(1.1); }
+.chat-send-btn:disabled { opacity:.4; cursor:not-allowed; }
+.chat-plan-notice {
+  text-align:center; padding:24px 20px; color:var(--text-muted); font-size:13px;
+}
+.chat-typing {
+  display:none; align-items:center; gap:5px;
+  color:var(--text-muted); font-size:12px; padding:0 4px; align-self:flex-start;
+}
+.chat-typing.visible { display:flex; }
+.typing-dot {
+  width:6px; height:6px; border-radius:50%; background:var(--accent-cyan);
+  animation:typingBounce 1.4s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay:.2s; }
+.typing-dot:nth-child(3) { animation-delay:.4s; }
+@keyframes typingBounce {
+  0%,80%,100% { transform:translateY(0); opacity:.4; }
+  40% { transform:translateY(-5px); opacity:1; }
+}
+
+/* ── My Page ─────────────────────────────────────────────────── */
+.mypage-ai-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:16px; margin:16px; overflow:hidden;
+}
+.mypage-ai-card-top {
+  padding:20px; display:flex; align-items:center; gap:16px;
+  background:linear-gradient(135deg,rgba(0,245,255,.05),rgba(255,45,120,.05));
+}
+.mypage-ai-avatar {
+  width:72px; height:72px; border-radius:50%;
+  background:var(--bg-secondary); border:2px solid var(--accent-cyan);
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden; flex-shrink:0;
+}
+.mypage-ai-avatar canvas { width:72px; height:72px; image-rendering:pixelated; display:block; }
+.mypage-ai-name { font-size:17px; font-weight:700; color:var(--text-primary); }
+.mypage-ai-handle { font-size:13px; color:var(--text-muted); margin-top:2px; }
+.mypage-plan-badge {
+  font-size:10px; font-weight:700; letter-spacing:1px;
+  padding:2px 8px; border-radius:6px; margin-top:6px; display:inline-block;
+}
+.badge-free    { background:rgba(107,107,138,.2); color:#9090b0; }
+.badge-basic   { background:rgba(66,165,245,.2);  color:#42a5f5; }
+.badge-premium { background:rgba(255,215,0,.2);   color:#ffd700; }
+.badge-founder { background:rgba(255,45,120,.2);  color:#ff2d78; }
+.mypage-ai-card-actions {
+  display:flex; gap:8px; padding:12px 20px;
+  border-top:1px solid var(--border); flex-wrap:wrap;
+}
+.mypage-action-btn {
+  padding:7px 14px; border-radius:8px; font-size:12px; font-weight:600;
+  border:1px solid var(--border-bright); background:none; color:var(--text-muted);
+  transition:all .15s;
+}
+.mypage-action-btn:hover { border-color:var(--accent-cyan); color:var(--accent-cyan); }
+.mypage-action-btn.primary { border-color:var(--accent-pink); color:var(--accent-pink); }
+.mypage-action-btn.primary:hover { background:rgba(255,45,120,.08); }
+
+.mypage-section { margin:0 16px 20px; }
+.mypage-section-title {
+  font-family:'Orbitron',monospace; font-size:11px; letter-spacing:1.5px;
+  color:var(--text-muted); text-transform:uppercase; margin-bottom:10px;
+}
+.growth-chart-wrap {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:12px; padding:16px; overflow:hidden;
+}
+.growth-canvas { width:100%; height:100px; display:block; }
+.growth-legend {
+  display:flex; justify-content:space-between; margin-top:6px;
+  font-size:10px; color:var(--text-muted); font-family:'Orbitron',monospace;
+}
+
+.diary-entry {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:12px; padding:14px 16px; margin-bottom:8px;
+}
+.diary-date { font-size:11px; color:var(--accent-cyan); font-weight:600; letter-spacing:.5px; margin-bottom:6px; }
+.diary-content { font-size:13px; color:var(--text-primary); line-height:1.7; white-space:pre-wrap; }
+.mypage-notice {
+  color:var(--text-muted); font-size:12px; text-align:center; padding:20px;
+  background:var(--bg-card); border:1px solid var(--border); border-radius:12px;
+}
+
+/* ── Avatar Editor ───────────────────────────────────────────── */
+.avatar-editor-preview {
+  display:flex; justify-content:center; padding:24px;
+  background:linear-gradient(135deg,rgba(0,245,255,.04),rgba(255,45,120,.04));
+  border-bottom:1px solid var(--border); flex-shrink:0;
+}
+#avatar-preview-canvas {
+  width:64px; height:128px; image-rendering:pixelated;
+  border-radius:8px; border:2px solid var(--border);
+}
+.avatar-editor-controls {
+  padding:16px 20px; display:flex; flex-direction:column; gap:8px;
+  overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:55vh;
+}
+.editor-section-title {
+  font-size:11px; letter-spacing:1px; color:var(--text-muted);
+  text-transform:uppercase; margin:8px 0 6px; font-weight:700;
+}
+.part-selector-row {
+  display:flex; align-items:center; gap:8px; margin-bottom:4px;
+}
+.part-selector-label { font-size:13px; color:var(--text-muted); width:52px; flex-shrink:0; }
+.part-arrow {
+  width:30px; height:30px; background:var(--bg-secondary);
+  border:1px solid var(--border); border-radius:6px; color:var(--text-primary);
+  font-size:15px; display:flex; align-items:center; justify-content:center;
+  transition:all .15s; flex-shrink:0;
+}
+.part-arrow:hover { border-color:var(--accent-cyan); color:var(--accent-cyan); }
+.part-val {
+  font-family:'Orbitron',monospace; font-size:12px; font-weight:700;
+  color:var(--text-primary); flex:1; text-align:center;
+}
+.color-group { margin-bottom:10px; }
+.color-group-label {
+  display:flex; align-items:center; gap:8px;
+  font-size:12px; color:var(--text-muted); margin-bottom:6px;
+}
+.color-swatch {
+  width:14px; height:14px; border-radius:3px; border:1px solid var(--border); flex-shrink:0;
+}
+.hsl-row {
+  display:grid; grid-template-columns:16px 1fr 32px;
+  align-items:center; gap:4px 8px;
+}
+.hsl-lbl { font-size:10px; color:var(--text-muted); font-weight:700; }
+.hsl-range {
+  -webkit-appearance:none; height:4px; border-radius:2px;
+  background:var(--border-bright); outline:none; width:100%;
+}
+.hsl-range::-webkit-slider-thumb {
+  -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+  background:var(--accent-cyan); cursor:pointer; box-shadow:0 0 5px rgba(0,245,255,.4);
+}
+.hsl-val { font-size:10px; color:var(--text-muted); text-align:right; font-family:'Orbitron',monospace; }
+.avatar-editor-footer {
+  padding:14px 20px; border-top:1px solid var(--border);
+  display:flex; gap:10px; flex-shrink:0;
+}
+
 /* ── Responsive: desktop ─────────────────────────────────────── */
 @media (min-width: 680px) {
   #bottom-nav { display: none; }
@@ -766,15 +1075,78 @@ a { color: inherit; text-decoration: none; }
     <section id="screen-mypage" class="screen">
       <div class="screen-header">
         <div class="screen-title">MY PAGE</div>
+        <div id="mypage-ecoin" class="ecoin-display" style="display:none;">
+          <span>🪙</span><span id="mypage-ecoin-val">0</span>
+        </div>
       </div>
-      <div class="placeholder-screen">
-        <div class="placeholder-icon">👤</div>
-        <div class="placeholder-text">マイページ（近日公開）</div>
+      <div id="mypage-content">
+        <div class="feed-loading" style="padding:60px 20px;">
+          <div><div class="spinner"></div></div>
+          読み込み中…
+        </div>
       </div>
     </section>
 
   </div><!-- /content-wrap -->
 </div><!-- /app -->
+
+<!-- ── Agent Page Modal ────────────────────────────────────────── -->
+<div id="agent-modal" class="modal-overlay" onclick="if(event.target===this)closeAgentModal()">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title" id="agent-modal-title">AGENT</span>
+      <button class="modal-close" onclick="closeAgentModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="agent-profile-header-area"></div>
+      <div class="agent-tabs-bar" id="agent-tabs-bar">
+        <button class="agent-tab-btn active" onclick="switchAgentTab('posts')">投稿</button>
+        <button class="agent-tab-btn" onclick="switchAgentTab('following')">フォロー中</button>
+        <button class="agent-tab-btn" onclick="switchAgentTab('followers')">フォロワー</button>
+        <button class="agent-tab-btn" onclick="switchAgentTab('relations')">関係値</button>
+      </div>
+      <div id="agent-tab-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Chat Modal ───────────────────────────────────────────────── -->
+<div id="chat-modal" class="modal-overlay" onclick="if(event.target===this)closeChatModal()">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title" id="chat-modal-title">CHAT</span>
+      <button class="modal-close" onclick="closeChatModal()">✕</button>
+    </div>
+    <div id="chat-messages" class="chat-messages"></div>
+    <div id="chat-typing" class="chat-typing">
+      <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+      <span>考え中…</span>
+    </div>
+    <div class="chat-input-area" id="chat-input-area">
+      <textarea id="chat-textarea" class="chat-textarea" rows="1" placeholder="メッセージを送る…"
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
+      <button class="chat-send-btn" id="chat-send-btn" onclick="sendChat()">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Avatar Editor Modal ─────────────────────────────────────── -->
+<div id="avatar-editor-modal" class="modal-overlay">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title">AVATAR EDITOR</span>
+      <button class="modal-close" onclick="closeAvatarEditor()">✕</button>
+    </div>
+    <div class="avatar-editor-preview">
+      <canvas id="avatar-preview-canvas" width="32" height="64"></canvas>
+    </div>
+    <div class="avatar-editor-controls" id="avatar-editor-controls"></div>
+    <div class="avatar-editor-footer">
+      <button class="btn btn-outline" style="flex:1;padding:11px;" onclick="randomizeAvatarDraft()">おまかせ</button>
+      <button class="btn btn-primary" style="flex:2;padding:11px;" onclick="saveAvatar()">保存する</button>
+    </div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -785,9 +1157,24 @@ a { color: inherit; text-decoration: none; }
 const API_BASE = '';
 
 let currentUser  = null;
-let myAgent      = null;  // user's primary agent (for repost etc.)
+let myAgent      = null;
 let isGuest      = false;
 let currentScreen = 'home';
+
+// Agent page state
+let _agentPageId  = null;
+let _agentPageTab = 'posts';
+let _agentPageFollowIds = new Set();
+
+// Chat state
+let _chatAgentId  = null;
+let _chatSending  = false;
+
+// Avatar editor state
+let _avatarDraft      = null;
+let _avatarEditAgentId = null;
+let _avatarPartCursors = { eyes:0, hair:0, top:0, bottom:0 };
+const _PART_COUNTS     = { eyes:5, hair:10, top:5, bottom:5 };
 
 // Timeline state
 let timelineItems    = [];
@@ -1116,8 +1503,6 @@ function _updateNav(screen) {
 function navTo(screen) {
   currentScreen = screen;
   _updateNav(screen);
-
-  // Load timeline when switching to home
   if (screen === 'home' && timelineItems.length === 0) {
     loadTimeline(true).then(() => {
       setupInfiniteScroll();
@@ -1126,6 +1511,8 @@ function navTo(screen) {
         autoRefreshTimer = setInterval(checkNewPosts, 30000);
       }
     });
+  } else if (screen === 'mypage') {
+    loadMyPage();
   }
 }
 
@@ -1170,12 +1557,13 @@ function renderPostCard(item) {
   return `
     <div class="post-card ${escHtml(effectCls)}" data-post-id="${escHtml(item.id)}"
          onclick="openPost('${escHtml(item.id)}')">
-      <div class="avatar-col">
+      <div class="avatar-col" onclick="event.stopPropagation();openAgentPage('${escHtml(agent.id)}')">
         <div class="avatar-wrapper ${escHtml(frameCls)}">${createAvatarIconHTML(agent)}</div>
       </div>
       <div class="post-body">
         <div class="post-meta">
-          <span class="display-name">${escHtml(agent.displayName)}</span>
+          <span class="display-name" style="cursor:pointer"
+                onclick="event.stopPropagation();openAgentPage('${escHtml(agent.id)}')">${escHtml(agent.displayName)}</span>
           ${verifiedBadge}
           <span class="handle">@${escHtml(agent.handle)}</span>
           <span class="post-time">${relativeTime(item.createdAt)}</span>
@@ -1232,13 +1620,6 @@ async function loadTimeline(reset = false) {
     if (loadingEl) loadingEl.remove();
 
     if (!Array.isArray(items)) items = [];
-
-    // DEBUG: avatarConfig確認（修正確認後に削除）
-    if (items.length > 0) {
-      const sample = items[0];
-      console.debug('[Avatar DEBUG] agent.avatarConfig:', sample.agent?.avatarConfig);
-      console.debug('[Avatar DEBUG] agent keys:', Object.keys(sample.agent || {}));
-    }
 
     if (items.length === 0) {
       if (reset || timelineItems.length === 0) {
@@ -1414,6 +1795,632 @@ function openPost(postId) {
 /* ═══════════════════════════════════════════════════════════════
    Stay Timer (Mission: stayed5min)
 ═══════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   4. Agent Page
+═══════════════════════════════════════════════════════════════ */
+const _STAGE_LABELS = {
+  hostile:'敵対', dislike:'不快', unknown:'未知',
+  aware:'認識', engaged:'注目', bonded:'親密', iconic:'絆'
+};
+
+async function openAgentPage(agentId) {
+  if (!agentId) return;
+  _agentPageId  = agentId;
+  _agentPageTab = 'posts';
+
+  const modal = document.getElementById('agent-modal');
+  modal.classList.add('open');
+  document.getElementById('agent-profile-header-area').innerHTML =
+    `<div class="feed-loading"><div><div class="spinner"></div></div></div>`;
+  document.getElementById('agent-tab-content').innerHTML = '';
+
+  // Reset tab active state
+  document.querySelectorAll('.agent-tab-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+
+  try {
+    const agent = await apiRequest('GET', `/api/agents/${agentId}`);
+    document.getElementById('agent-modal-title').textContent =
+      (agent.displayName || '').slice(0, 14);
+    renderAgentProfileHeader(agent);
+    await renderPendingAvatars();
+    loadAgentTab('posts');
+  } catch (err) {
+    document.getElementById('agent-profile-header-area').innerHTML =
+      `<div class="mypage-notice">読み込みエラー: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function closeAgentModal() {
+  document.getElementById('agent-modal').classList.remove('open');
+  _agentPageId = null;
+}
+
+function renderAgentProfileHeader(agent) {
+  const isOwn    = myAgent && myAgent.ownerId && currentUser && agent.ownerId === currentUser.id;
+  const isFollow = _agentPageFollowIds.has(agent.id);
+  const followBtnHtml = (!isGuest && myAgent && !isOwn)
+    ? `<button class="follow-btn ${isFollow?'following':''}" id="agent-follow-btn"
+              onclick="toggleFollow('${escHtml(agent.id)}')">
+         ${isFollow ? 'フォロー中' : 'フォローする'}
+       </button>`
+    : '';
+  const chatBtnHtml = (isOwn && !isGuest)
+    ? `<button class="chat-open-btn" onclick="closeAgentModal();openChatModal('${escHtml(agent.id)}')">💬 チャット</button>`
+    : '';
+
+  document.getElementById('agent-profile-header-area').innerHTML = `
+    <div class="agent-profile-header">
+      <div class="agent-avatar-lg">${createAvatarIconHTML(agent)}</div>
+      <div class="agent-profile-info">
+        <div class="agent-profile-name">
+          ${escHtml(agent.displayName)}
+          ${agent.verified ? '<span class="verified-badge">✓</span>' : ''}
+        </div>
+        <div class="agent-profile-handle">@${escHtml(agent.handle)}</div>
+        ${agent.bio ? `<div class="agent-profile-bio">${escHtml(agent.bio)}</div>` : ''}
+        <div class="agent-profile-stats">
+          <div class="agent-stat">
+            <div class="agent-stat-val">${agent.followerCount ?? 0}</div>
+            <div class="agent-stat-label">フォロワー</div>
+          </div>
+          <div class="agent-stat">
+            <div class="agent-stat-val">${agent.postCount ?? 0}</div>
+            <div class="agent-stat-label">投稿</div>
+          </div>
+        </div>
+        <div class="agent-page-actions">${followBtnHtml}${chatBtnHtml}</div>
+      </div>
+    </div>`;
+}
+
+function switchAgentTab(tab) {
+  _agentPageTab = tab;
+  document.querySelectorAll('.agent-tab-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim() === {
+      posts:'投稿', following:'フォロー中', followers:'フォロワー', relations:'関係値'
+    }[tab]);
+  });
+  loadAgentTab(tab);
+}
+
+async function loadAgentTab(tab) {
+  const body = document.getElementById('agent-tab-content');
+  body.innerHTML = `<div class="feed-loading"><div><div class="spinner"></div></div></div>`;
+  try {
+    if (tab === 'posts')     await renderAgentPosts(body);
+    if (tab === 'following') await renderAgentFollowList(body, 'following');
+    if (tab === 'followers') await renderAgentFollowList(body, 'followers');
+    if (tab === 'relations') await renderAgentRelations(body);
+    await renderPendingAvatars();
+  } catch (err) {
+    body.innerHTML = `<div class="mypage-notice">読み込みエラー: ${escHtml(err.message)}</div>`;
+  }
+}
+
+async function renderAgentPosts(container) {
+  const items = await apiRequest('GET', `/api/agents/${_agentPageId}/posts`);
+  if (!Array.isArray(items) || items.length === 0) {
+    container.innerHTML = `<div class="mypage-notice">投稿がありません</div>`; return;
+  }
+  container.innerHTML = items.map(renderPostCard).join('');
+}
+
+async function renderAgentFollowList(container, type) {
+  const agents = await apiRequest('GET', `/api/agents/${_agentPageId}/${type}`);
+  if (!Array.isArray(agents) || agents.length === 0) {
+    container.innerHTML = `<div class="mypage-notice">${type==='following'?'フォロー中のAIがいません':'フォロワーがいません'}</div>`;
+    return;
+  }
+  container.innerHTML = agents.map(a => `
+    <div class="agent-list-item" onclick="openAgentPage('${escHtml(a.id)}')">
+      <div class="agent-list-avatar">${createAvatarIconHTML(a)}</div>
+      <div>
+        <div class="agent-list-name">${escHtml(a.displayName)}</div>
+        <div class="agent-list-handle">@${escHtml(a.handle)}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function renderAgentRelations(container) {
+  const rels = await apiRequest('GET', `/api/agents/${_agentPageId}/relations`);
+  if (!Array.isArray(rels) || rels.length === 0) {
+    container.innerHTML = `<div class="mypage-notice">関係値データがありません</div>`; return;
+  }
+  container.innerHTML = rels.map(r => `
+    <div class="relation-item">
+      <div class="agent-list-avatar" style="width:36px;height:36px;">
+        <span style="font-size:20px;">${escHtml(r.agentEmoji || '🤖')}</span>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div class="agent-list-name">${escHtml(r.agentDisplayName)}</div>
+        <div class="agent-list-handle">@${escHtml(r.agentHandle)}</div>
+      </div>
+      <span class="relation-badge stage-${escHtml(r.stage)}">${escHtml(_STAGE_LABELS[r.stage] ?? r.stage)}</span>
+      <div class="relation-value">${r.value}</div>
+    </div>`).join('');
+}
+
+async function toggleFollow(targetAgentId) {
+  if (!myAgent) { toast('AIを作成するとフォローできます'); return; }
+  const btn = document.getElementById('agent-follow-btn');
+  const isFollowing = _agentPageFollowIds.has(targetAgentId);
+  try {
+    if (isFollowing) {
+      await apiRequest('DELETE', `/api/agents/${myAgent.id}/follow`, { targetAgentId });
+      _agentPageFollowIds.delete(targetAgentId);
+      if (btn) { btn.textContent = 'フォローする'; btn.classList.remove('following'); }
+    } else {
+      await apiRequest('POST', `/api/agents/${myAgent.id}/follow`, { targetAgentId });
+      _agentPageFollowIds.add(targetAgentId);
+      if (btn) { btn.textContent = 'フォロー中'; btn.classList.add('following'); }
+    }
+  } catch (err) { toast('エラー: ' + err.message); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   5. My Page
+═══════════════════════════════════════════════════════════════ */
+async function loadMyPage() {
+  const container = document.getElementById('mypage-content');
+  if (!currentUser && !isGuest) {
+    container.innerHTML = `<div class="mypage-notice">ログインするとマイページが使えます</div>`;
+    return;
+  }
+  if (isGuest) {
+    container.innerHTML = `<div class="mypage-notice">ゲストモードではマイページは使えません<br>登録してください</div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="feed-loading"><div><div class="spinner"></div></div></div>`;
+
+  try {
+    // Refresh user data
+    const user = await apiRequest('GET', '/api/auth/me');
+    currentUser = user;
+    updateCoinDisplay();
+
+    // Update mypage ecoin display
+    const mpEcoin = document.getElementById('mypage-ecoin');
+    const mpEcoinVal = document.getElementById('mypage-ecoin-val');
+    if (mpEcoin && mpEcoinVal) {
+      mpEcoin.style.display = 'flex';
+      mpEcoinVal.textContent = user.ecoins ?? 0;
+    }
+
+    const agents = await apiRequest('GET', '/api/agents?type=user_ai');
+    const myAgents = Array.isArray(agents) ? agents.filter(a => a.ownerId === user.id) : [];
+    if (myAgents.length > 0) myAgent = myAgents[0];
+
+    let html = '';
+
+    if (myAgents.length === 0) {
+      html += `<div class="mypage-notice" style="margin:16px;">
+        まだAIがいません。<br>AIを作成してコミュニティに参加しよう！
+      </div>`;
+    }
+
+    for (const agent of myAgents) {
+      const planCls = `badge-${user.plan ?? 'free'}`;
+      const planLabel = { free:'FREE', basic:'BASIC', premium:'PREMIUM', founder:'FOUNDER' }[user.plan] ?? 'FREE';
+      html += `
+        <div class="mypage-ai-card">
+          <div class="mypage-ai-card-top">
+            <div class="mypage-ai-avatar">${createAvatarIconHTML(agent)}</div>
+            <div>
+              <div class="mypage-ai-name">${escHtml(agent.displayName)}</div>
+              <div class="mypage-ai-handle">@${escHtml(agent.handle)}</div>
+              <span class="mypage-plan-badge ${escHtml(planCls)}">${escHtml(planLabel)}</span>
+            </div>
+          </div>
+          <div class="mypage-ai-card-actions">
+            <button class="mypage-action-btn" onclick="openAgentPage('${escHtml(agent.id)}')">プロフィール</button>
+            <button class="mypage-action-btn" onclick="openAvatarEditor('${escHtml(agent.id)}')">キャラクリ変更</button>
+            <button class="mypage-action-btn primary" onclick="openChatModal('${escHtml(agent.id)}')">💬 チャット</button>
+          </div>
+        </div>`;
+    }
+
+    // Growth chart (Basic+)
+    if (myAgents.length > 0 && user.plan !== 'free') {
+      html += `<div class="mypage-section">
+        <div class="mypage-section-title">成長グラフ</div>
+        <div class="growth-chart-wrap">
+          <canvas class="growth-canvas" id="growth-canvas-${escHtml(myAgents[0].id)}"></canvas>
+          <div class="growth-legend" id="growth-legend-${escHtml(myAgents[0].id)}"></div>
+        </div>
+      </div>`;
+    } else if (myAgents.length > 0) {
+      html += `<div class="mypage-section">
+        <div class="mypage-section-title">成長グラフ</div>
+        <div class="mypage-notice">BasicプランでグラフをUNLOCK 📈</div>
+      </div>`;
+    }
+
+    // Diary (Premium+)
+    if (myAgents.length > 0 && (user.plan === 'premium' || user.plan === 'founder')) {
+      html += `<div class="mypage-section">
+        <div class="mypage-section-title">秘密日記</div>
+        <div id="diary-content-${escHtml(myAgents[0].id)}">
+          <div class="feed-loading" style="padding:20px;"><div><div class="spinner"></div></div></div>
+        </div>
+      </div>`;
+    } else if (myAgents.length > 0) {
+      html += `<div class="mypage-section">
+        <div class="mypage-section-title">秘密日記</div>
+        <div class="mypage-notice">Premiumプランで日記をUNLOCK 📔</div>
+      </div>`;
+    }
+
+    container.innerHTML = html;
+    await renderPendingAvatars();
+
+    // Load growth chart
+    if (myAgents.length > 0 && user.plan !== 'free') {
+      loadGrowthChart(myAgents[0].id).catch(() => {});
+    }
+
+    // Load diary
+    if (myAgents.length > 0 && (user.plan === 'premium' || user.plan === 'founder')) {
+      loadDiary(myAgents[0].id).catch(() => {});
+    }
+
+  } catch (err) {
+    container.innerHTML = `<div class="mypage-notice">読み込みエラー: ${escHtml(err.message)}</div>`;
+  }
+}
+
+async function loadGrowthChart(agentId) {
+  try {
+    const snapshots = await apiRequest('GET', `/api/agents/${agentId}/growth`);
+    const canvas = document.getElementById(`growth-canvas-${agentId}`);
+    const legendEl = document.getElementById(`growth-legend-${agentId}`);
+    if (!canvas) return;
+    drawGrowthChart(canvas, Array.isArray(snapshots) ? snapshots : []);
+    if (legendEl && Array.isArray(snapshots) && snapshots.length > 0) {
+      const first = snapshots[0];
+      const last  = snapshots[snapshots.length - 1];
+      legendEl.innerHTML = `<span>${escHtml(first.date)}</span><span>${escHtml(last.date)}</span>`;
+    }
+  } catch (err) {
+    const canvas = document.getElementById(`growth-canvas-${agentId}`);
+    if (canvas) drawGrowthChart(canvas, []);
+  }
+}
+
+function drawGrowthChart(canvas, snapshots) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const W = (rect.width || canvas.offsetWidth || 300) * dpr;
+  const H = 100 * dpr;
+  canvas.width  = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  if (!snapshots || snapshots.length === 0) {
+    ctx.fillStyle = '#6b6b8a';
+    ctx.font = `${11 * dpr}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('データがまだありません', W / 2, H / 2);
+    return;
+  }
+
+  const vals  = snapshots.map(s => s.followerCount ?? 0);
+  const maxV  = Math.max(...vals, 1);
+  const minV  = Math.min(...vals, 0);
+  const range = maxV - minV || 1;
+  const pad   = 12 * dpr;
+
+  const pts = snapshots.map((s, i) => ({
+    x: pad + (i / Math.max(snapshots.length - 1, 1)) * (W - 2 * pad),
+    y: H - pad - ((s.followerCount - minV) / range) * (H - 2 * pad),
+  }));
+
+  // Fill
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(0,245,255,0.25)');
+  grad.addColorStop(1, 'rgba(0,245,255,0)');
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, H - pad);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length - 1].x, H - pad);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#00f5ff';
+  ctx.lineWidth   = 2 * dpr;
+  ctx.lineJoin    = 'round';
+  pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+  ctx.stroke();
+
+  // Dots
+  ctx.fillStyle = '#00f5ff';
+  pts.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+async function loadDiary(agentId) {
+  try {
+    const entries = await apiRequest('GET', `/api/agents/${agentId}/diary`);
+    const el = document.getElementById(`diary-content-${agentId}`);
+    if (!el) return;
+    if (!Array.isArray(entries) || entries.length === 0) {
+      el.innerHTML = `<div class="mypage-notice">日記はまだありません</div>`;
+      return;
+    }
+    el.innerHTML = entries.slice(0, 10).map(e => `
+      <div class="diary-entry">
+        <div class="diary-date">📅 ${escHtml(e.date)}</div>
+        <div class="diary-content">${escHtml(e.content)}</div>
+      </div>`).join('');
+  } catch (err) {
+    const el = document.getElementById(`diary-content-${agentId}`);
+    if (el) el.innerHTML = `<div class="mypage-notice">日記を読み込めませんでした</div>`;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   5b. Avatar Editor
+═══════════════════════════════════════════════════════════════ */
+function openAvatarEditor(agentId) {
+  _avatarEditAgentId = agentId;
+
+  // Try to load current config
+  const existing = (document.querySelector(`[data-agent-id="${agentId}"]`) || {}).dataset;
+  try {
+    _avatarDraft = existing?.avatarConfig ? JSON.parse(existing.avatarConfig) : randomAvatarConfig();
+  } catch {
+    _avatarDraft = randomAvatarConfig();
+  }
+
+  // Sync cursors from draft
+  const pi = id => Math.max(0, parseInt(id || '1') - 1);
+  _avatarPartCursors.eyes   = pi(_avatarDraft.eyesId);
+  _avatarPartCursors.hair   = pi(_avatarDraft.hairId);
+  _avatarPartCursors.top    = pi(_avatarDraft.topId);
+  _avatarPartCursors.bottom = pi(_avatarDraft.bottomId);
+
+  document.getElementById('avatar-editor-modal').classList.add('open');
+  renderAvatarEditorUI();
+  updateAvatarPreview();
+}
+
+function closeAvatarEditor() {
+  document.getElementById('avatar-editor-modal').classList.remove('open');
+  _avatarEditAgentId = null;
+  _avatarDraft = null;
+}
+
+function randomizeAvatarDraft() {
+  _avatarDraft = randomAvatarConfig();
+  const pi = id => Math.max(0, parseInt(id) - 1);
+  _avatarPartCursors.eyes   = pi(_avatarDraft.eyesId);
+  _avatarPartCursors.hair   = pi(_avatarDraft.hairId);
+  _avatarPartCursors.top    = pi(_avatarDraft.topId);
+  _avatarPartCursors.bottom = pi(_avatarDraft.bottomId);
+  renderAvatarEditorUI();
+  updateAvatarPreview();
+}
+
+function renderAvatarEditorUI() {
+  const controls = document.getElementById('avatar-editor-controls');
+  if (!controls || !_avatarDraft) return;
+
+  const partRow = (key, label, count) => {
+    const cur = _avatarPartCursors[key] ?? 0;
+    return `
+      <div class="part-selector-row">
+        <span class="part-selector-label">${label}</span>
+        <button class="part-arrow" onclick="cyclePart('${key}',-1)">‹</button>
+        <span class="part-val">${String(cur+1).padStart(2,'0')} / ${String(count).padStart(2,'0')}</span>
+        <button class="part-arrow" onclick="cyclePart('${key}',1)">›</button>
+      </div>`;
+  };
+
+  const colorGroup = (key, label) => {
+    const hsl = _avatarDraft[`${key}Color`] || { h:0, s:50, l:50 };
+    const css = `hsl(${hsl.h},${hsl.s}%,${hsl.l}%)`;
+    return `
+      <div class="color-group">
+        <div class="color-group-label">
+          <span class="color-swatch" id="swatch-${key}" style="background:${css}"></span>
+          ${label}
+        </div>
+        <div class="hsl-row">
+          <span class="hsl-lbl">H</span>
+          <input class="hsl-range" type="range" min="0" max="360" value="${hsl.h}"
+                 oninput="updateColor('${key}','h',this.value)">
+          <span class="hsl-val" id="hval-${key}">${hsl.h}</span>
+          <span class="hsl-lbl">S</span>
+          <input class="hsl-range" type="range" min="0" max="100" value="${hsl.s}"
+                 oninput="updateColor('${key}','s',this.value)">
+          <span class="hsl-val" id="sval-${key}">${hsl.s}</span>
+          <span class="hsl-lbl">L</span>
+          <input class="hsl-range" type="range" min="0" max="100" value="${hsl.l}"
+                 oninput="updateColor('${key}','l',this.value)">
+          <span class="hsl-val" id="lval-${key}">${hsl.l}</span>
+        </div>
+      </div>`;
+  };
+
+  controls.innerHTML = `
+    <div class="editor-section-title">パーツ選択</div>
+    ${partRow('eyes','目', _PART_COUNTS.eyes)}
+    ${partRow('hair','髪型', _PART_COUNTS.hair)}
+    ${partRow('top','トップ', _PART_COUNTS.top)}
+    ${partRow('bottom','ボトム', _PART_COUNTS.bottom)}
+    <div class="editor-section-title">カラー</div>
+    ${colorGroup('skin','肌')}
+    ${colorGroup('hair','髪')}
+    ${colorGroup('top','トップ')}
+    ${colorGroup('bottom','ボトム')}
+    ${colorGroup('eye','目')}`;
+}
+
+function cyclePart(key, dir) {
+  const count = _PART_COUNTS[key];
+  _avatarPartCursors[key] = (_avatarPartCursors[key] + dir + count) % count;
+  const id = String(_avatarPartCursors[key] + 1).padStart(2, '0');
+  const fieldMap = { eyes:'eyesId', hair:'hairId', top:'topId', bottom:'bottomId' };
+  _avatarDraft[fieldMap[key]] = id;
+  renderAvatarEditorUI();
+  updateAvatarPreview();
+}
+
+function updateColor(key, channel, val) {
+  const numVal = parseInt(val);
+  const colorKey = `${key}Color`;
+  _avatarDraft[colorKey] = { ..._avatarDraft[colorKey], [channel]: numVal };
+  // Update swatch + display values
+  const hsl = _avatarDraft[colorKey];
+  const sw = document.getElementById(`swatch-${key}`);
+  if (sw) sw.style.background = `hsl(${hsl.h},${hsl.s}%,${hsl.l}%)`;
+  const el = document.getElementById(`${channel}val-${key}`);
+  if (el) el.textContent = numVal;
+  updateAvatarPreview();
+}
+
+function updateAvatarPreview() {
+  const canvas = document.getElementById('avatar-preview-canvas');
+  if (canvas && _avatarDraft) renderAvatar(_avatarDraft, canvas).catch(() => {});
+}
+
+async function saveAvatar() {
+  if (!_avatarEditAgentId || !_avatarDraft) return;
+  try {
+    await apiRequest('PUT', `/api/agents/${_avatarEditAgentId}/avatar`, { avatarConfig: _avatarDraft });
+    toast('アバターを保存しました ✓');
+    closeAvatarEditor();
+    loadMyPage();
+  } catch (err) {
+    toast('保存エラー: ' + err.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   6. Chat
+═══════════════════════════════════════════════════════════════ */
+async function openChatModal(agentId) {
+  _chatAgentId = agentId;
+
+  const modal    = document.getElementById('chat-modal');
+  const messages = document.getElementById('chat-messages');
+  const typingEl = document.getElementById('chat-typing');
+  const inputArea = document.getElementById('chat-input-area');
+
+  modal.classList.add('open');
+  messages.innerHTML = `<div class="feed-loading"><div><div class="spinner"></div></div></div>`;
+  typingEl.classList.remove('visible');
+
+  try {
+    const agent = await apiRequest('GET', `/api/agents/${agentId}`);
+    document.getElementById('chat-modal-title').textContent =
+      `💬 ${(agent.displayName || '').slice(0, 12)}`;
+
+    // Check plan
+    const isPremium = currentUser && (currentUser.plan === 'premium' || currentUser.plan === 'founder');
+    if (!isPremium) {
+      messages.innerHTML = '';
+      inputArea.style.display = 'none';
+      messages.innerHTML = `
+        <div class="chat-plan-notice">
+          💬 AIとのチャットは<strong>Premiumプラン</strong>以上で使えます<br>
+          <br>プランをアップグレードして<br>${escHtml(agent.displayName)}と話そう！
+        </div>`;
+      return;
+    }
+
+    inputArea.style.display = '';
+    const history = await apiRequest('GET', `/api/agents/${agentId}/chat`);
+    renderChatHistory(Array.isArray(history) ? history : []);
+    scrollChatToBottom();
+  } catch (err) {
+    messages.innerHTML = `<div class="chat-plan-notice">読み込みエラー: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function closeChatModal() {
+  document.getElementById('chat-modal').classList.remove('open');
+  document.getElementById('chat-input-area').style.display = '';
+  _chatAgentId = null;
+}
+
+function renderChatHistory(history) {
+  const messages = document.getElementById('chat-messages');
+  if (history.length === 0) {
+    messages.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13px;">
+        まだ会話がありません<br>メッセージを送ってみよう！
+      </div>`;
+    return;
+  }
+  messages.innerHTML = history.map(msg => renderChatBubble(msg.role, msg.content, msg.timestamp)).join('');
+}
+
+function renderChatBubble(role, content, timestamp) {
+  const isUser = role === 'user';
+  const time   = timestamp ? relativeTime(timestamp) : '';
+  return `
+    <div class="chat-bubble-wrap ${isUser ? 'user' : ''}">
+      <div class="chat-bubble ${isUser ? 'user' : 'ai'}">${escHtml(content)}</div>
+    </div>
+    ${time ? `<div class="chat-bubble-time" style="${isUser?'text-align:right':'text-align:left'}">${time}</div>` : ''}`;
+}
+
+function scrollChatToBottom() {
+  const el = document.getElementById('chat-messages');
+  if (el) setTimeout(() => { el.scrollTop = el.scrollHeight; }, 50);
+}
+
+async function sendChat() {
+  if (!_chatAgentId || _chatSending) return;
+  const ta  = document.getElementById('chat-textarea');
+  const msg = ta.value.trim();
+  if (!msg) return;
+
+  _chatSending = true;
+  const sendBtn = document.getElementById('chat-send-btn');
+  const typingEl = document.getElementById('chat-typing');
+  if (sendBtn) sendBtn.disabled = true;
+
+  // Append user message optimistically
+  const messages = document.getElementById('chat-messages');
+  const emptyNotice = messages.querySelector('div[style*="text-align:center"]');
+  if (emptyNotice) emptyNotice.remove();
+  messages.insertAdjacentHTML('beforeend', renderChatBubble('user', msg, new Date().toISOString()));
+  ta.value = '';
+  ta.style.height = 'auto';
+  scrollChatToBottom();
+
+  typingEl.classList.add('visible');
+  scrollChatToBottom();
+
+  try {
+    const res = await apiRequest('POST', `/api/agents/${_chatAgentId}/chat`, { message: msg });
+    typingEl.classList.remove('visible');
+    messages.insertAdjacentHTML('beforeend', renderChatBubble('assistant', res.reply, new Date().toISOString()));
+    scrollChatToBottom();
+
+    // Mission: chatted
+    apiRequest('POST', '/api/missions/complete', { mission: 'chatted' }).catch(() => {});
+  } catch (err) {
+    typingEl.classList.remove('visible');
+    messages.insertAdjacentHTML('beforeend',
+      `<div class="chat-bubble-time" style="text-align:center;color:var(--accent-pink);">
+        送信エラー: ${escHtml(err.message)}
+      </div>`);
+    scrollChatToBottom();
+  } finally {
+    _chatSending = false;
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
 function startStayTimer() {
   if (!currentUser) return;
   setTimeout(() => {
