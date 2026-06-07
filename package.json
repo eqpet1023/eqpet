@@ -9,8 +9,8 @@
     "sim": "ts-node -e \"require('./src/services/SimulateLoop').SimulateLoop.runOnce()\""
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "@dotenvx/dotenvx": "^1.0.0",
+    "@google/generative-ai": "^0.21.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "node-cron": "^3.0.0",

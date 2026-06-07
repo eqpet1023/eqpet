@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Agent, BehaviorConfig, DEFAULT_BEHAVIOR_CONFIG, Post, PostContext, Relation } from '../types';
 import { RelationStore } from '../stores/RelationStore';
 import { AgentStore } from '../stores/AgentStore';
@@ -8,7 +8,24 @@ function randomInt(min: number, max: number): number {
 }
 
 function sanitizeString(str: string): string {
-  return str.replace(/[\uD800-\uDFFF]/g, '');
+  // Remove only unpaired surrogates; valid emoji (surrogate pairs) must be preserved
+  return str.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+}
+
+function filterAIRefusal(text: string): string {
+  const refusalPatterns = [
+    /^I('m| am) (sorry|unable|not able)/i,
+    /^I cannot/i,
+    /^As an AI/i,
+    /^I don't feel comfortable/i,
+    /このリクエストには応答できません/,
+    /申し訳ありませんが/,
+    /お役に立てません/,
+  ];
+  for (const pattern of refusalPatterns) {
+    if (pattern.test(text.trim())) return '';
+  }
+  return text;
 }
 
 // GIF・画像に関するメタ発言（APIの限界への言及）を検出する
@@ -23,6 +40,22 @@ function isMetaResponse(text: string): boolean {
     /(AIのため|私には|自分には).{0,20}(GIF|画像).{0,20}(見え|確認|わから)/,
   ];
   return patterns.some(p => p.test(text));
+}
+
+function isSafetyError(e: any): boolean {
+  return (
+    e?.message?.includes('SAFETY') ||
+    e?.message?.includes('blocked') ||
+    String(e?.status) === 'SAFETY'
+  );
+}
+
+function safeResponseText(result: any): string {
+  try {
+    return result.response.text();
+  } catch {
+    return '';
+  }
 }
 
 function getToneInstruction(relation: Relation): string {
@@ -93,8 +126,9 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
   return parts.join('\n\n');
 }
 
-const client = new Anthropic({ apiKey: process.env.EQPET_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
+const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20';
 const OUTPUT_RULE  = '\n\n投稿文のみを出力すること。「投稿案：」「---」などの前置きや記号は一切含めないこと。マークダウン記法も使わないこと。必ず文章を最後まで完結させること。文の途中で終わらないこと。';
 const COMMON_RULES = 'あなたのキャラクターと口調を一貫して維持してください。日本語で自然に会話してください。マークダウン記法は使わないこと。';
 
@@ -119,11 +153,7 @@ const LENGTH_MAX_TOKENS: Record<'short' | 'medium' | 'long', number> = {
   long:   250,
 };
 
-function chooseModel(_agent: Agent): string {
-  return 'claude-haiku-4-5-20251001';
-}
-
-function systemPrompt(agent: Agent): string {
+function agentSystemPrompt(agent: Agent): string {
   return sanitizeString(agent.systemPrompt + OUTPUT_RULE);
 }
 
@@ -137,7 +167,7 @@ async function callApiWithRetry<T>(
     } catch (err) {
       const status =
         typeof err === 'object' && err !== null && 'status' in err
-          ? (err as { status: number }).status
+          ? Number((err as { status: unknown }).status)
           : 0;
       const shouldRetry = status === 529 || status === 429;
       if (attempt < maxRetries && shouldRetry) {
@@ -210,21 +240,17 @@ export class TimelineEngine {
     }
 
     try {
-      const response = await callApiWithRetry(() => client.messages.create({
-        model:      chooseModel(agent),
-        max_tokens: LENGTH_MAX_TOKENS[lengthTier],
-        system: [
-          { type: 'text', text: systemPrompt(agent), cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: dynamicSys },
-        ],
-        messages:   [{ role: 'user', content: sanitizeString(prompt) }],
-      }));
-
-      const block = response.content[0];
-      if (block.type !== 'text') return '';
-      return block.text.trim().slice(0, 200);
-    } catch (err) {
-      console.error(`[TimelineEngine] generatePost error for ${agent.handle}:`, err);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        systemInstruction: agentSystemPrompt(agent) + dynamicSys,
+        generationConfig: { maxOutputTokens: LENGTH_MAX_TOKENS[lengthTier] },
+      });
+      const result = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
+      const text = safeResponseText(result).trim().slice(0, 200);
+      return filterAIRefusal(text);
+    } catch (e: any) {
+      if (isSafetyError(e)) return '';
+      console.error(`[TimelineEngine] generatePost error for ${agent.handle}:`, e);
       return '';
     }
   }
@@ -249,7 +275,7 @@ export class TimelineEngine {
       if (ctxParts.length > 0) contextStr = '\n\n' + ctxParts.join('\n');
     }
 
-    // GIF付き投稿へのヒント: gifUrlがある、またはcontent が極端に短い場合に付与
+    // GIF付き投稿へのヒント
     const hasGif  = !!targetPost.gifUrl;
     const gifNote = hasGif
       ? (!targetPost.content || targetPost.content.trim().length < 10)
@@ -262,26 +288,21 @@ export class TimelineEngine {
     const lengthTier   = pickPostLength(behaviorCfg.postLengthRatio);
 
     try {
-      const response = await callApiWithRetry(() => client.messages.create({
-        model:      chooseModel(agent),
-        max_tokens: LENGTH_MAX_TOKENS[lengthTier],
-        system: [
-          { type: 'text', text: systemPrompt(agent), cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: `\n\n${LENGTH_INSTRUCTION[lengthTier]}` },
-        ],
-        messages:   [{ role: 'user', content: sanitizeString(prompt) }],
-      }));
-
-      const block = response.content[0];
-      if (block.type !== 'text') return '';
-      const text = block.text.trim().slice(0, 200);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        systemInstruction: agentSystemPrompt(agent) + `\n\n${LENGTH_INSTRUCTION[lengthTier]}`,
+        generationConfig: { maxOutputTokens: LENGTH_MAX_TOKENS[lengthTier] },
+      });
+      const result = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
+      const text = safeResponseText(result).trim().slice(0, 200);
       if (isMetaResponse(text)) {
         console.warn(`[TimelineEngine] generateReply meta-response skipped for ${agent.handle}: "${text.slice(0, 60)}"`);
         return '';
       }
-      return text;
-    } catch (err) {
-      console.error(`[TimelineEngine] generateReply error for ${agent.handle}:`, err);
+      return filterAIRefusal(text);
+    } catch (e: any) {
+      if (isSafetyError(e)) return '';
+      console.error(`[TimelineEngine] generateReply error for ${agent.handle}:`, e);
       return '';
     }
   }
@@ -289,17 +310,16 @@ export class TimelineEngine {
   static async generateSelfReply(agent: Agent, originalPost: Post): Promise<string> {
     const prompt = `あなたは今の自分の投稿に補足・続きを短いリプライとして追加してください。新しい話題は出さず、今の投稿の続きや言い足りなかったことを1〜2文で自然に追記する形にしてください。\n\n元の投稿：「${originalPost.content}」`;
     try {
-      const response = await callApiWithRetry(() => client.messages.create({
-        model:      chooseModel(agent),
-        max_tokens: 200,
-        system:     [{ type: 'text', text: systemPrompt(agent), cache_control: { type: 'ephemeral' } }],
-        messages:   [{ role: 'user', content: sanitizeString(prompt) }],
-      }));
-      const block = response.content[0];
-      if (block.type !== 'text') return '';
-      return block.text.trim().slice(0, 200);
-    } catch (err) {
-      console.error(`[TimelineEngine] generateSelfReply error for ${agent.handle}:`, err);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        systemInstruction: agentSystemPrompt(agent),
+        generationConfig: { maxOutputTokens: 200 },
+      });
+      const result = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
+      return safeResponseText(result).trim().slice(0, 200);
+    } catch (e: any) {
+      if (isSafetyError(e)) return '';
+      console.error(`[TimelineEngine] generateSelfReply error for ${agent.handle}:`, e);
       return '';
     }
   }
@@ -308,19 +328,24 @@ export class TimelineEngine {
     agent:    Agent,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   ): Promise<string> {
+    if (messages.length === 0) return '';
     const sanitizedMessages = messages.map(m => ({ ...m, content: sanitizeString(m.content) }));
-    const response = await callApiWithRetry(() => client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 500,
-      system: [
-        { type: 'text', text: sanitizeString(agent.systemPrompt), cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: sanitizeString(COMMON_RULES) },
-      ],
-      messages: sanitizedMessages,
+
+    const model = genAI.getGenerativeModel({
+      model: GEMINI_MODEL,
+      systemInstruction: sanitizeString(agent.systemPrompt) + '\n\n' + COMMON_RULES,
+      generationConfig: { maxOutputTokens: 500 },
+    });
+
+    const history = sanitizedMessages.slice(0, -1).map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user' as const,
+      parts: [{ text: m.content }],
     }));
-    const block = response.content[0];
-    if (block.type !== 'text') return '';
-    return block.text.trim();
+    const lastMessage = sanitizedMessages[sanitizedMessages.length - 1].content;
+
+    const chatSession = model.startChat({ history });
+    const result = await callApiWithRetry(() => chatSession.sendMessage(lastMessage));
+    return safeResponseText(result).trim();
   }
 
   static async generateComebackPost(agent: Agent, banCount: number): Promise<string> {
@@ -336,18 +361,17 @@ BAN明けの最初の投稿として「釈明・復帰宣言」を1つ投稿し�
 【必須】キャラクターの一人称・口調・語尾を完全に維持すること。投稿文のみ出力すること。`;
 
     try {
-      const response = await callApiWithRetry(() => client.messages.create({
-        model:      chooseModel(agent),
-        max_tokens: 200,
-        system: [{ type: 'text', text: systemPrompt(agent), cache_control: { type: 'ephemeral' } }],
-        messages:   [{ role: 'user', content: sanitizeString(prompt) }],
-      }));
-
-      const block = response.content[0];
-      if (block.type !== 'text') return '';
-      return block.text.trim().slice(0, 200);
-    } catch (err) {
-      console.error(`[TimelineEngine] generateComebackPost error for ${agent.handle}:`, err);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        systemInstruction: agentSystemPrompt(agent),
+        generationConfig: { maxOutputTokens: 200 },
+      });
+      const result = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
+      const text = safeResponseText(result).trim().slice(0, 200);
+      return filterAIRefusal(text);
+    } catch (e: any) {
+      if (isSafetyError(e)) return '';
+      console.error(`[TimelineEngine] generateComebackPost error for ${agent.handle}:`, e);
       return '';
     }
   }
@@ -397,14 +421,13 @@ ${sysPrompt}
 - 「分析的」「知的」→ postLengthRatio高め、toneSeriousness高め`;
 
     try {
-      const response = await callApiWithRetry(() => client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 300,
-        messages:   [{ role: 'user', content: prompt }],
-      }));
-      const block = response.content[0];
-      if (block.type !== 'text') return DEFAULT_BEHAVIOR_CONFIG;
-      const match = block.text.match(/\{[\s\S]*\}/);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        generationConfig: { maxOutputTokens: 300 },
+      });
+      const result = await callApiWithRetry(() => model.generateContent(prompt));
+      const text = safeResponseText(result);
+      const match = text.match(/\{[\s\S]*\}/);
       if (!match) return DEFAULT_BEHAVIOR_CONFIG;
       const parsed = JSON.parse(match[0]) as Partial<BehaviorConfig>;
       const requiredNumbers: (keyof BehaviorConfig)[] = [
@@ -437,17 +460,16 @@ ${replySummary}
 - 投稿文のみ出力すること`;
 
     try {
-      const response = await callApiWithRetry(() => client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 400,
-        system: [{ type: 'text', text: sanitizeString(agent.systemPrompt), cache_control: { type: 'ephemeral' } }],
-        messages:   [{ role: 'user', content: sanitizeString(prompt) }],
-      }));
-      const block = response.content[0];
-      if (block.type !== 'text') return '';
-      return block.text.trim().slice(0, 200);
-    } catch (err) {
-      console.error(`[TimelineEngine] generateDiaryEntry error for ${agent.handle}:`, err);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        systemInstruction: sanitizeString(agent.systemPrompt),
+        generationConfig: { maxOutputTokens: 400 },
+      });
+      const result = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
+      return safeResponseText(result).trim().slice(0, 200);
+    } catch (e: any) {
+      if (isSafetyError(e)) return '';
+      console.error(`[TimelineEngine] generateDiaryEntry error for ${agent.handle}:`, e);
       return '';
     }
   }
@@ -480,19 +502,18 @@ ${replySummary}
       `投稿：「${content.slice(0, 200)}」`;
 
     try {
-      const res = await callApiWithRetry(() => client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 80,
-        messages: [{ role: 'user', content: sanitizeString(prompt) }],
-      }));
-      const block = res.content[0];
-      if (block.type !== 'text') return { level: null, reason: null };
-      const match = block.text.match(/\{[\s\S]*?\}/);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        generationConfig: { maxOutputTokens: 80 },
+      });
+      const res = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
+      const text = safeResponseText(res);
+      const match = text.match(/\{[\s\S]*?\}/);
       if (!match) return { level: null, reason: null };
       const parsed = JSON.parse(match[0]) as { level: 1 | 2 | 3 | null; reason: string | null };
       return parsed;
     } catch (err) {
-      const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
+      const status = typeof err === 'object' && err !== null && 'status' in err ? Number((err as { status: unknown }).status) : 0;
       if (status === 429) throw err;
       return { level: null, reason: null };
     }
@@ -514,19 +535,18 @@ ${replySummary}
       `JSON形式で返答（他のテキスト不要）：{"level": 1|null, "reason": "理由"|null}`;
 
     try {
-      const res = await callApiWithRetry(() => client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 80,
-        messages: [{ role: 'user', content: sanitizeString(prompt) }],
-      }));
-      const block = res.content[0];
-      if (block.type !== 'text') return { level: null, reason: null };
-      const match = block.text.match(/\{[\s\S]*?\}/);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        generationConfig: { maxOutputTokens: 80 },
+      });
+      const res = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
+      const text = safeResponseText(res);
+      const match = text.match(/\{[\s\S]*?\}/);
       if (!match) return { level: null, reason: null };
       const parsed = JSON.parse(match[0]) as { level: 1 | null; reason: string | null };
       return parsed;
     } catch (err) {
-      const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
+      const status = typeof err === 'object' && err !== null && 'status' in err ? Number((err as { status: unknown }).status) : 0;
       if (status === 429) throw err;
       return { level: null, reason: null };
     }
@@ -538,16 +558,14 @@ ${replySummary}
     targetAgent: Agent,
   ): Promise<number> {
     try {
-      const res = await callApiWithRetry(() => client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 10,
-        messages: [{
-          role:    'user',
-          content: sanitizeString(`次の返信の感情トーンを1単語で答えてください。日本語SNSの通常のリプライはほとんどが「好意」か「普通」です。\n「共感」(強い共感・称賛) / 「好意」(友好的・ポジティブ) / 「普通」(中立的な会話) / 「批判」(明確な批判・否定) / 「攻撃」(侮辱・暴言)\n返信:「${reply.slice(0, 150)}」`),
-        }],
-      }));
-      const block = res.content[0];
-      const tone  = block.type === 'text' ? block.text.trim() : '普通';
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        generationConfig: { maxOutputTokens: 10 },
+      });
+      const res = await callApiWithRetry(() => model.generateContent(
+        sanitizeString(`次の返信の感情トーンを1単語で答えてください。日本語SNSの通常のリプライはほとんどが「好意」か「普通」です。\n「共感」(強い共感・称賛) / 「好意」(友好的・ポジティブ) / 「普通」(中立的な会話) / 「批判」(明確な批判・否定) / 「攻撃」(侮辱・暴言)\n返信:「${reply.slice(0, 150)}」`)
+      ));
+      const tone = safeResponseText(res).trim() || '普通';
 
       let delta: number;
       if (tone.includes('共感'))      delta = randomInt(4, 8);

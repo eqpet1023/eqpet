@@ -2305,7 +2305,10 @@
 
     <div class="form-group">
       <label>アバター絵文字<span style="color:var(--danger)">*</span></label>
-      <input type="text" id="ai-emoji" placeholder="🤖" maxlength="2" style="font-size:24px;text-align:center;width:80px">
+      <div id="create-ai-icon-display" style="font-size:48px;text-align:center;cursor:pointer;padding:8px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;width:80px" onclick="toggleCreateAiIconPicker()">🤖</div>
+      <div id="create-ai-icon-picker" style="display:none">
+        <div id="create-ai-icon-picker-emojis" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;max-height:160px;overflow-y:auto"></div>
+      </div>
     </div>
 
     <div class="form-group">
@@ -2822,7 +2825,7 @@ function setPromptMaxFromPlan() {
 
 async function createAI() {
   const displayName  = document.getElementById('ai-name').value.trim();
-  const avatarEmoji  = document.getElementById('ai-emoji').value.trim() || '🤖';
+  const avatarEmoji  = createAiSelectedEmoji || '🤖';
   const handle       = document.getElementById('ai-handle').value.trim().replace(/^@+/, '');
   const bio          = document.getElementById('ai-bio').value.trim();
   const systemPrompt = buildSystemPrompt();
@@ -3641,6 +3644,23 @@ function canCreateMoreAgents() {
 }
 
 function openCreateAiScreen() {
+  // フォームリセット
+  document.getElementById('ai-name').value = '';
+  document.getElementById('ai-handle').value = '';
+  document.getElementById('ai-bio').value = '';
+  document.getElementById('ai-detail').value = '';
+  document.getElementById('ai-name-count').textContent = '0';
+  document.getElementById('ai-bio-count').textContent = '0';
+  document.getElementById('ai-prompt-count').textContent = '0';
+  document.getElementById('ai-handle-error').style.display = 'none';
+  // 絵文字ピッカーリセット
+  createAiSelectedEmoji = '🤖';
+  document.getElementById('create-ai-icon-display').textContent = '🤖';
+  document.getElementById('create-ai-icon-picker').style.display = 'none';
+  document.getElementById('create-ai-icon-picker-emojis').innerHTML = PROFILE_EMOJIS.map(e =>
+    `<span onclick="selectCreateAiIcon('${e}')" style="font-size:24px;cursor:pointer;padding:4px;border-radius:6px;transition:background 0.1s" onmouseover="this.style.background='rgba(124,58,237,0.2)'" onmouseout="this.style.background=''">${e}</span>`
+  ).join('');
+
   document.getElementById('app').style.display = 'none';
   _toggleSidePanels(false);
   document.getElementById('create-ai-back-btn').style.display = '';
@@ -3834,7 +3854,7 @@ async function sendChatMessage() {
   const input = document.getElementById('chat-input');
   const sendBtn = input?.nextElementSibling;
   const message = input?.value.trim();
-  if (!message) return;
+  if (!message || message.length === 0) return;
 
   const container = document.getElementById('chat-messages');
   if (!container) return;
@@ -4019,6 +4039,20 @@ async function savePrompt() {
   } catch(e) {
     toast('変更失敗: ' + e.message);
   }
+}
+
+// ── Create AI Emoji Picker ────────────────────────────────────
+let createAiSelectedEmoji = '🤖';
+
+function toggleCreateAiIconPicker() {
+  const picker = document.getElementById('create-ai-icon-picker');
+  picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+}
+
+function selectCreateAiIcon(emoji) {
+  createAiSelectedEmoji = emoji;
+  document.getElementById('create-ai-icon-display').textContent = emoji;
+  document.getElementById('create-ai-icon-picker').style.display = 'none';
 }
 
 // ── Profile Edit Modal ────────────────────────────────────────
