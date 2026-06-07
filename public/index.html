@@ -4554,7 +4554,7 @@ function _hasUnclaimed(m, isPremium) {
          (m.liked3 && !m.liked3Claimed) ||
          (m.stayed5min && !m.stayed5minClaimed) ||
          (isPremium && m.chatted && !m.chattedClaimed) ||
-         (m.allCleared && !m.allClearedClaimed);
+         (isPremium && m.allCleared && !m.allClearedClaimed);
 }
 
 function updateMissionBadge(hasUnclaimed) {
