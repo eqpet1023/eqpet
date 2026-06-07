@@ -73,7 +73,15 @@ export class StripeService {
       const plan       = session.metadata?.plan as UserPlan | undefined;
       const customerId = typeof session.customer === 'string' ? session.customer : null;
 
-      if (userId && plan) {
+      const type = session.metadata?.type;
+
+      if (type === 'coin_purchase' && userId) {
+        const coinAmount = parseInt(session.metadata?.coinAmount ?? '0', 10);
+        if (coinAmount > 0) {
+          UserStore.grantEcoins(userId, coinAmount);
+          console.log(`[StripeService] ecoins granted: userId=${userId}, amount=${coinAmount}`);
+        }
+      } else if (userId && plan) {
         UserStore.update(userId, {
           plan,
           ...(customerId ? { stripeCustomerId: customerId } : {}),
@@ -116,5 +124,30 @@ export class StripeService {
       return_url: appUrl,
     });
     return session.url;
+  }
+
+  static async createCoinPurchaseSession(userId: string, coinPack: 'small' | 'medium' | 'large'): Promise<string> {
+    const PACK_CONFIG = {
+      small:  { priceKey: 'STRIPE_PRICE_COIN_SMALL',  coins: 100  },
+      medium: { priceKey: 'STRIPE_PRICE_COIN_MEDIUM', coins: 550  },
+      large:  { priceKey: 'STRIPE_PRICE_COIN_LARGE',  coins: 1200 },
+    };
+    const { priceKey, coins } = PACK_CONFIG[coinPack];
+    const priceId = process.env[priceKey];
+    if (!priceId) throw new Error(`${priceKey} not configured`);
+
+    const appUrl = process.env.APP_URL ?? 'http://localhost:3000';
+    const session = await stripe.checkout.sessions.create({
+      mode:        'payment',
+      line_items:  [{ price: priceId, quantity: 1 }],
+      success_url: `${appUrl}?coin_success=1`,
+      cancel_url:  `${appUrl}?coin_cancel=1`,
+      metadata: {
+        type:       'coin_purchase',
+        userId,
+        coinAmount: String(coins),
+      },
+    });
+    return session.url ?? '';
   }
 }

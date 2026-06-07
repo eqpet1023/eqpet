@@ -127,7 +127,7 @@ export class AgentStore {
   }
 
   static getSystemAgents(): Agent[] {
-    return AgentStore.getAll().filter(a => a.type === 'system');
+    return AgentStore.getAll().filter(a => a.ownerId === 'official');
   }
 
   static update(id: string, patch: Partial<Agent>): Agent | null {

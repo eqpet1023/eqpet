@@ -187,42 +187,6 @@ function buildPostContext(agent: Agent): PostContext {
     }
   }
 
-  // P4: interests keyword match in last 1.5h (max 1, random pick)
-  if (selected.length < 5 && agent.interests.length > 0) {
-    const posts3h = PostStore.getRecentPosts(90 * 60 * 1000);
-    const matched = posts3h.filter(p =>
-      !p.isBanned && !seenIds.has(p.id) && !seenAgentIds.has(p.agentId) &&
-      agent.interests.some(kw => p.content.includes(kw))
-    );
-    // topicDiversity高=多様性重視=除外閾値低め、低=1話題特化=除外閾値高め
-    const topicDiv        = agent.behaviorConfig?.topicDiversity ?? DEFAULT_BEHAVIOR_CONFIG.topicDiversity;
-    const diversifyThresh = Math.max(2, Math.round(4 - topicDiv * 2));
-    const diversified = diversifyPosts(matched, diversifyThresh);
-
-    // 直近24h投稿から過剰トピック上位3件を特定し除外
-    const posts24h = PostStore.getRecentPosts(24 * 60 * 60 * 1000);
-    const kwFreq = new Map<string, number>();
-    for (const p of posts24h) {
-      const kw = extractKeyword(p.content);
-      if (kw) kwFreq.set(kw, (kwFreq.get(kw) ?? 0) + 1);
-    }
-    const overTopics = new Set(
-      [...kwFreq.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([kw]) => kw)
-    );
-    const filtered = diversified.filter(p => {
-      const kw = extractKeyword(p.content);
-      return !kw || !overTopics.has(kw);
-    });
-    const p4candidates = filtered.length > 0 ? filtered : diversified;
-
-    if (p4candidates.length > 0) {
-      addPost(p4candidates[Math.floor(Math.random() * p4candidates.length)]);
-    }
-  }
-
   // P5: random fallback (max 2)
   for (let i = 0; i < 2 && selected.length < 5; i++) {
     const candidates = recent30m.filter(p => !seenIds.has(p.id) && !seenAgentIds.has(p.agentId));
@@ -604,7 +568,7 @@ async function runPostCycle(): Promise<void> {
     agents.map(a => [a.id, PostStore.getPostsInWindow(a.id, POST_WINDOW_MS).filter(p => !p.parentId).length])
   );
   const eligible = agents.filter(a =>
-    a.type === 'system' || (hourlyCountMap.get(a.id) ?? 0) < MAX_HOURLY_PER_AGENT
+    a.ownerId === 'official' || (hourlyCountMap.get(a.id) ?? 0) < MAX_HOURLY_PER_AGENT
   );
   if (eligible.length === 0) return;
 
@@ -637,7 +601,7 @@ async function runPostCycle(): Promise<void> {
   for (const agent of selected) {
     try {
       const hourlyPosts = PostStore.getPostsInWindow(agent.id, POST_WINDOW_MS).filter(p => !p.parentId);
-      if (agent.type !== 'system' && hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
+      if (agent.ownerId !== 'official' && hourlyPosts.length >= MAX_POSTS_PER_HOUR) continue;
 
       // BAN明け判定: banUntil が設定されていて、かつ期限切れ（まだ null にリセットされていない）
       const isComebackState = !!(agent.banUntil && new Date(agent.banUntil) <= new Date());
@@ -714,13 +678,11 @@ async function runPostCycle(): Promise<void> {
 
       await sleep(randomInt(2000, 3000));
 
-      // Instant follow by interest match
+      // Instant follow by random chance
       for (const other of shuffle(agents)) {
         if (other.id === agent.id) continue;
         if (FollowStore.isFollowing(agent.id, other.id)) continue;
-        const shared = agent.interests.filter(i => other.interests.includes(i));
-        if (shared.length === 0) continue;
-        if (Math.random() >= 0.20) continue;
+        if (Math.random() >= 0.05) continue;
         const followed = FollowStore.follow(agent.id, other.id);
         if (followed) {
           const fresh = AgentStore.getById(other.id);
@@ -876,7 +838,7 @@ async function runReplyCycle(): Promise<void> {
         if (!targetAgent) continue;
 
         // 同一ペア24hハードリミット（replyBack含む）
-        const pairLimit24h = agent.type === 'system' ? PAIR_REPLY_LIMIT_SYSTEM : PAIR_REPLY_LIMIT_USER_AI;
+        const pairLimit24h = agent.ownerId === 'official' ? PAIR_REPLY_LIMIT_SYSTEM : PAIR_REPLY_LIMIT_USER_AI;
         const pair24hCount = pairReplyCount24h.get(agent.id)?.get(post.agentId) ?? 0;
         if (pair24hCount >= pairLimit24h) {
           console.log(`[SimulateLoop] ${agent.handle} → ${targetAgent.handle} pair limit reached (${pair24hCount}/${pairLimit24h})`);
@@ -1348,7 +1310,42 @@ export class SimulateLoop {
       generateDailySummary().catch(console.error);
     }, { timezone: 'Asia/Tokyo' }));
 
+    // コールバック通知（毎時0分）: 24h/48h/72h未ログインユーザーへAIからの呼びかけ
+    maintTasks.push(cron.schedule('0 * * * *', () => {
+      runCallbackCycle().catch(console.error);
+    }, { timezone: 'Asia/Tokyo' }));
+
     console.log('[SimulateLoop] maintenance crons started');
   }
 
+}
+
+async function runCallbackCycle(): Promise<void> {
+  const users = UserStore.getAll();
+  const now   = Date.now();
+
+  for (const user of users) {
+    if (!user.lastLoginDate || user.role === 'official') continue;
+    const elapsed = now - new Date(user.lastLoginDate).getTime();
+    const hours   = elapsed / (1000 * 60 * 60);
+
+    const isCallbackHour = [24, 48, 72].some(h => hours >= h && hours < h + 1);
+    if (!isCallbackHour) continue;
+
+    const agentIds = user.agentIds ?? [];
+    if (agentIds.length === 0) continue;
+
+    const agentId = agentIds[Math.floor(Math.random() * agentIds.length)];
+    const agent   = AgentStore.getById(agentId);
+    if (!agent || agent.deleted) continue;
+
+    const message = await TimelineEngine.generateCallbackMessage(agent);
+    if (!message) continue;
+
+    await PushService.sendPush(user.id, {
+      title: `${agent.displayName} からのメッセージ`,
+      body:  message,
+      icon:  '/icon-192.png',
+    });
+  }
 }

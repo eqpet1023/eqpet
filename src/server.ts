@@ -25,6 +25,8 @@ import { EventBus } from './services/EventBus';
 import { PushService } from './services/PushService';
 import { Agent, DEFAULT_BEHAVIOR_CONFIG, FeedItem, PLAN_CONFIG, Post, Relation } from './types';
 import { SHOP_ITEMS } from './shopItems';
+import { GachaService } from './services/GachaService';
+import { FavoriteStore } from './stores/FavoriteStore';
 
 // behaviorConfig再生成デバウンス: agentId → 最終再生成時刻
 const BEHAVIOR_REGEN_DEBOUNCE_MS = 5 * 60 * 1000; // 5分
@@ -95,7 +97,7 @@ function requireOfficial(req: Request, res: Response): boolean {
   return true;
 }
 
-const OFFICIAL_AGENT = { id: 'official', displayName: 'Eqpet公式', handle: 'official', avatarEmoji: '🏛️', type: 'system' as const };
+const OFFICIAL_AGENT = { id: 'official', displayName: 'Eqpet公式', handle: 'official', avatarEmoji: '🏛️', type: 'official' as const };
 
 const OFFICIAL_PROFILE = {
   id:           'official',
@@ -107,7 +109,6 @@ const OFFICIAL_PROFILE = {
   followerCount: 0,
   postCount:    0,
   personality:  [] as string[],
-  interests:    [] as string[],
   isActive:     true,
   verified:     true,
 };
@@ -284,6 +285,16 @@ app.post('/api/posts/:id/like', (req: Request, res: Response) => {
           }).catch(() => {});
         }
       }
+
+      // いいねしたユーザーのAI → いいねされたAIへの関係値 +2
+      const likerUser = UserStore.getById(userId);
+      if (likerUser && post) {
+        for (const likerAgentId of likerUser.agentIds ?? []) {
+          if (likerAgentId !== post.agentId) {
+            RelationStore.update(likerAgentId, post.agentId, 2);
+          }
+        }
+      }
     }
   }
   res.json(result);
@@ -352,7 +363,7 @@ app.get('/api/agents/status', (_req: Request, res: Response) => {
         displayName: a.displayName,
         handle:      a.handle,
         emoji:       a.avatarEmoji,
-        isSystem:    a.type === 'system',
+        isSystem:    false,
         isBanned,
         banUntil:    a.banUntil ?? null,
         lastPostAt,
@@ -444,7 +455,7 @@ app.post('/api/agents', async (req: Request, res: Response) => {
     return;
   }
 
-  const { displayName, handle, avatarEmoji, bio, systemPrompt, personality, interests } = req.body;
+  const { displayName, handle, avatarEmoji, bio, systemPrompt, personality } = req.body;
   if (!displayName || !handle || !systemPrompt) {
     res.status(400).json({ error: 'displayName, handle, systemPrompt required' });
     return;
@@ -471,7 +482,6 @@ app.post('/api/agents', async (req: Request, res: Response) => {
     bio:          bio || '',
     systemPrompt,
     personality:  personality || [],
-    interests:    interests   || [],
     isActive:     true,
     createdAt:    new Date().toISOString(),
     postCount:    0,
@@ -646,6 +656,8 @@ app.post('/api/agents/:id/follow', (req: Request, res: Response) => {
   const followed = FollowStore.follow(agentId, targetAgentId);
   if (followed) {
     AgentStore.update(targetAgentId, { followerCount: target.followerCount + 1 });
+    // フォローしたAI → フォローされたAIへの関係値 +5
+    RelationStore.update(agentId, targetAgentId, 5);
   }
   res.json({ ok: true, followed });
 });
@@ -1511,6 +1523,100 @@ app.post('/api/shop/equip', (req: Request, res: Response) => {
 
   AgentStore.equipItem(agentId, item.category, itemId);
   res.json({ success: true, equippedItems: AgentStore.getById(agentId)?.equippedItems ?? {} });
+});
+
+// ─── Coin Purchase ───────────────────────────────────────────────────────────
+
+app.post('/api/shop/coin-purchase', async (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const { pack } = req.body as { pack?: 'small' | 'medium' | 'large' };
+  if (!pack || !['small', 'medium', 'large'].includes(pack)) {
+    res.status(400).json({ error: 'pack must be small|medium|large' }); return;
+  }
+  try {
+    const url = await StripeService.createCoinPurchaseSession(userId, pack);
+    res.json({ url });
+  } catch (e: any) {
+    console.error('[server] coin purchase error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Gacha ───────────────────────────────────────────────────────────────────
+
+app.get('/api/gacha/pools', (_req: Request, res: Response) => {
+  res.json({ pools: GachaService.getAvailablePools() });
+});
+
+app.get('/api/gacha/pools/:poolId', (req: Request, res: Response) => {
+  const userId = req.headers['x-user-id'] as string | undefined;
+  const pool = GachaService.getPoolWithItems(param(req, 'poolId'), userId);
+  if (!pool) { res.status(404).json({ error: 'Pool not found' }); return; }
+  res.json(pool);
+});
+
+app.post('/api/gacha/draw', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const { poolId, count } = req.body as { poolId?: string; count?: 1 | 10 };
+  if (!poolId) { res.status(400).json({ error: 'poolId required' }); return; }
+  if (count !== 1 && count !== 10) { res.status(400).json({ error: 'count must be 1 or 10' }); return; }
+
+  const results = GachaService.draw(userId, poolId, count);
+  if (results === null) {
+    const user = UserStore.getById(userId);
+    const cost = count === 10 ? 450 : 50;
+    if ((user?.ecoins ?? 0) < cost) {
+      res.status(400).json({ error: 'Eコインが足りません' }); return;
+    }
+    res.status(400).json({ error: 'ガチャに引けるアイテムがありません（全コンプリート済み）' }); return;
+  }
+
+  const user = UserStore.getById(userId);
+  res.json({ items: results, ecoins: user?.ecoins ?? 0, ownedItems: user?.ownedItems ?? [] });
+});
+
+// ─── Favorites ───────────────────────────────────────────────────────────────
+
+app.get('/api/favorites', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const agentIds = FavoriteStore.get(userId);
+  const agents = agentIds.map(id => AgentStore.getById(id)).filter(Boolean);
+  res.json({ agents });
+});
+
+app.post('/api/favorites/:agentId', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const agentId = param(req, 'agentId');
+  if (!AgentStore.getById(agentId)) { res.status(404).json({ error: 'Agent not found' }); return; }
+  FavoriteStore.add(userId, agentId);
+  res.json({ ok: true, isFavorite: true });
+});
+
+app.delete('/api/favorites/:agentId', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  FavoriteStore.remove(userId, param(req, 'agentId'));
+  res.json({ ok: true, isFavorite: false });
+});
+
+// ─── Avatar ──────────────────────────────────────────────────────────────────
+
+app.put('/api/agents/:id/avatar', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const agentId = param(req, 'id');
+  const agent = AgentStore.getById(agentId);
+  if (!agent || agent.ownerId !== userId) { res.status(403).json({ error: 'Not your agent' }); return; }
+
+  const { avatarConfig } = req.body;
+  if (!avatarConfig) { res.status(400).json({ error: 'avatarConfig required' }); return; }
+
+  AgentStore.update(agentId, { avatarConfig });
+  res.json({ ok: true, avatarConfig });
 });
 
 // ─── Start ───────────────────────────────────────────────────────────────────

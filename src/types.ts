@@ -1,15 +1,13 @@
-export type AccountType = 'official' | 'system' | 'user_ai';
+export type AccountType = 'official' | 'user_ai';
 export type AgentType   = 'official' | 'user';
 
 export interface BehaviorConfig {
-  // 既存フィールド（後方互換）
   gifProbability:    number;
   postLengthRatio:   number;
   timelineAwareness: number;
   trendSensitivity:  number;
   replyAggression:   number;
 
-  // 投稿行動
   replyBackProbability: number;
   postFrequencyBias:    number;
   topicDiversity:       number;
@@ -17,19 +15,16 @@ export interface BehaviorConfig {
   selfReferenceRate:    number;
   newsReactivity:       number;
 
-  // リプライ行動
   replyTargetBias:  'popular' | 'underdog' | 'random';
   controversySeek:  number;
   agreementRate:    number;
   gifUsageRate:     number;
   mentionRate:      number;
 
-  // 関係値
   followThreshold:     number;
   unfollowSensitivity: number;
   loyaltyBias:         number;
 
-  // コンテンツ
   toneSeriousness: number;
   emojiRate:       number;
   sentenceLength:  'short' | 'medium' | 'long';
@@ -66,23 +61,61 @@ export const DEFAULT_BEHAVIOR_CONFIG: BehaviorConfig = {
   opinionStrength: 0.50,
 };
 
-export type ShopItemCategory = 'icon_frame' | 'profile_bg' | 'post_effect';
+export type Rarity = 'N' | 'R' | 'SR' | 'SSR';
+
+export type ShopItemCategory =
+  | 'icon_frame'
+  | 'profile_bg'
+  | 'post_effect'
+  | 'hair'
+  | 'top'
+  | 'bottom'
+  | 'eyes'
+  | 'accessory';
 
 export interface ShopItem {
-  id:       string;
-  category: ShopItemCategory;
-  name:     string;
-  desc:     string;
-  price:    number;
-  css:      string;
+  id:             string;
+  category:       ShopItemCategory;
+  name:           string;
+  desc:           string;
+  price:          number;
+  rarity:         Rarity;
+  isDefault:      boolean;
+  isLimited:      boolean;
+  season?:        string;
+  availableFrom?: string;
+  availableTo?:   string;
+  css?:           string;
+  partFile?:      string;
 }
 
 export type EquippedItems = Partial<Record<ShopItemCategory, string>>;
 
+export interface HSLColor {
+  h: number;
+  s: number;
+  l: number;
+}
+
+export type AvatarPartCategory = 'hair' | 'top' | 'bottom' | 'eyes' | 'accessory';
+
+export interface AvatarConfig {
+  hairId:      string;
+  topId:       string;
+  bottomId:    string;
+  eyesId:      string;
+  accessoryId: string | null;
+  skinColor:   HSLColor;
+  hairColor:   HSLColor;
+  topColor:    HSLColor;
+  bottomColor: HSLColor;
+  eyeColor:    HSLColor;
+}
+
 export interface Agent {
   id:             string;
   type:           AccountType;
-  agentType:      AgentType;    // 'official' | 'user'
+  agentType:      AgentType;
   ownerId:        string | null;
   displayName:    string;
   handle:         string;
@@ -90,7 +123,6 @@ export interface Agent {
   bio:            string;
   systemPrompt:   string;
   personality:    PersonalityTag[];
-  interests:      string[];
   isActive:       boolean;
   createdAt:      string;
   postCount:      number;
@@ -102,11 +134,12 @@ export interface Agent {
   deleted?:             boolean;
   deletedAt?:           string;
   frozen?:              boolean;
-  rapidUntil?:          number; // UNIX ms timestamp: Rapidモード終了時刻
+  rapidUntil?:          number;
   nameBioChecked?:      boolean;
   equippedItems?:       EquippedItems;
   pendingShopEvent?:    string;
   shopHistory?:         string[];
+  avatarConfig?:        AvatarConfig;
 }
 
 export type PersonalityTag =
@@ -141,7 +174,14 @@ export interface Reaction {
   createdAt: string;
 }
 
-export type RelationStage = 'unknown' | 'aware' | 'engaged' | 'bonded' | 'iconic';
+export type RelationStage =
+  | 'hostile'
+  | 'dislike'
+  | 'unknown'
+  | 'aware'
+  | 'engaged'
+  | 'bonded'
+  | 'iconic';
 
 export interface Relation {
   fromAgentId: string;
@@ -249,11 +289,11 @@ export interface PostContext {
   ownerLastMessage: string | null;
   bannedAgents:     string[];
   relatedAgentPosts: Post[];
-  agentLabels?:     Record<string, string>; // agentId → "@handle（displayName）"
+  agentLabels?:     Record<string, string>;
 }
 
 export interface FeedItem extends Post {
-  agent:      Pick<Agent, 'id' | 'displayName' | 'handle' | 'avatarEmoji' | 'type'> & { verified: boolean; equippedItems?: EquippedItems };
+  agent:      Pick<Agent, 'id' | 'displayName' | 'handle' | 'avatarEmoji' | 'type' | 'avatarConfig'> & { verified: boolean; equippedItems?: EquippedItems };
   parent?:    Pick<Post, 'id' | 'content' | 'agentId'> | null;
   likedByMe?: boolean;
 }
@@ -262,7 +302,7 @@ export type NotificationType = 'reply' | 'mention' | 'like' | 'follow' | 'rankin
 
 export interface AgentSnapshot {
   agentId:       string;
-  date:          string; // YYYY-MM-DD
+  date:          string;
   followerCount: number;
   postCount:     number;
   likeCount24h:  number;
@@ -270,7 +310,7 @@ export interface AgentSnapshot {
 
 export interface DiaryEntry {
   agentId:   string;
-  date:      string; // YYYY-MM-DD
+  date:      string;
   content:   string;
   createdAt: string;
 }
@@ -286,4 +326,13 @@ export interface AppNotification {
   message:         string;
   read:            boolean;
   createdAt:       string;
+}
+
+export interface GachaPool {
+  id:            string;
+  name:          string;
+  isLimited:     boolean;
+  availableFrom: string | null;
+  availableTo:   string | null;
+  itemIds:       string[];
 }
