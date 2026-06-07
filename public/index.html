@@ -4676,6 +4676,21 @@ function _shopCss(equippedItems, category) {
   return item ? item.css : '';
 }
 
+function _shopPreview(item) {
+  if (item.category === 'icon_frame') {
+    return `<div style="display:flex;justify-content:center;align-items:center;height:80px;">
+      <div style="width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--bg3);${item.css}">🐱</div>
+    </div>`;
+  }
+  if (item.category === 'profile_bg' || item.category === 'post_bg') {
+    return `<div style="height:80px;border-radius:8px;${item.css}"></div>`;
+  }
+  if (item.category === 'post_effect') {
+    return `<div style="height:80px;border-radius:8px;background:var(--bg3);${item.css}display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text3);">投稿エフェクト</div>`;
+  }
+  return `<div style="height:80px;border-radius:8px;background:var(--bg3);"></div>`;
+}
+
 async function loadShop() {
   const el = document.getElementById('shop-content');
   if (!el) return;
@@ -4688,8 +4703,15 @@ async function loadShop() {
 
     // pick default agent
     if (currentUser) {
-      const myAgentsResp = myAgents || [];
-      _shopCurrentAgentId = myAgentsResp[0]?.id || null;
+      let agentList = myAgents && myAgents.length > 0 ? myAgents : [];
+      if (agentList.length === 0) {
+        try {
+          const agRes = await api('GET', '/api/agents');
+          agentList = (agRes.agents || agRes || []).filter(a => a.ownerId === currentUser.id);
+          myAgents = agentList;
+        } catch(e) {}
+      }
+      _shopCurrentAgentId = agentList[0]?.id || null;
     }
 
     _renderShopScreen(el);
@@ -4722,14 +4744,13 @@ function _renderShopScreen(el) {
   const grid = filtered.map(item => {
     const isOwned    = _shopOwned.includes(item.id);
     const isEquipped = equipped[item.category] === item.id;
-    const previewStyle = item.css.includes('background') ? item.css : `background:var(--bg3);${item.css}`;
     const badge = isEquipped
       ? `<span class="shop-item-badge" style="background:rgba(124,58,237,0.2);color:var(--accent2)">装備中</span>`
       : isOwned
         ? `<span class="shop-item-badge" style="background:rgba(34,197,94,0.15);color:#22c55e">所持済み</span>`
         : `<span class="shop-item-price">💰 ${item.price} EC</span>`;
     return `<div class="shop-item-card${isEquipped ? ' equipped' : isOwned ? ' owned' : ''}" onclick="_shopItemClick('${item.id}')">
-      <div class="shop-item-preview" style="${escHtml(previewStyle)}">🎨</div>
+      ${_shopPreview(item)}
       <div class="shop-item-name">${escHtml(item.name)}</div>
       <div class="shop-item-desc">${escHtml(item.desc)}</div>
       ${badge}
