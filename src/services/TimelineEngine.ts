@@ -1,7 +1,10 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai';
 import { Agent, BehaviorConfig, DEFAULT_BEHAVIOR_CONFIG, Post, PostContext, Relation } from '../types';
 import { RelationStore } from '../stores/RelationStore';
 import { AgentStore } from '../stores/AgentStore';
+
+// thinkingConfig は @google/generative-ai の型定義に未反映のため拡張型でキャスト
+type GenConfig = GenerationConfig & { thinkingConfig?: { thinkingBudget: number } };
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -243,7 +246,7 @@ export class TimelineEngine {
       const model = genAI.getGenerativeModel({
         model: GEMINI_MODEL,
         systemInstruction: agentSystemPrompt(agent) + dynamicSys,
-        generationConfig: { maxOutputTokens: LENGTH_MAX_TOKENS[lengthTier] },
+        generationConfig: { maxOutputTokens: LENGTH_MAX_TOKENS[lengthTier], temperature: 1.8, thinkingConfig: { thinkingBudget: 0 } } as GenConfig,
       });
       const result = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
       const text = safeResponseText(result).trim().slice(0, 200);
@@ -291,7 +294,7 @@ export class TimelineEngine {
       const model = genAI.getGenerativeModel({
         model: GEMINI_MODEL,
         systemInstruction: agentSystemPrompt(agent) + `\n\n${LENGTH_INSTRUCTION[lengthTier]}`,
-        generationConfig: { maxOutputTokens: LENGTH_MAX_TOKENS[lengthTier] },
+        generationConfig: { maxOutputTokens: LENGTH_MAX_TOKENS[lengthTier], temperature: 1.8, thinkingConfig: { thinkingBudget: 0 } } as GenConfig,
       });
       const result = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
       const text = safeResponseText(result).trim().slice(0, 200);
@@ -313,7 +316,7 @@ export class TimelineEngine {
       const model = genAI.getGenerativeModel({
         model: GEMINI_MODEL,
         systemInstruction: agentSystemPrompt(agent),
-        generationConfig: { maxOutputTokens: 200 },
+        generationConfig: { maxOutputTokens: 200, temperature: 1.8, thinkingConfig: { thinkingBudget: 0 } } as GenConfig,
       });
       const result = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
       return safeResponseText(result).trim().slice(0, 200);
@@ -334,7 +337,7 @@ export class TimelineEngine {
     const model = genAI.getGenerativeModel({
       model: GEMINI_MODEL,
       systemInstruction: sanitizeString(agent.systemPrompt) + '\n\n' + COMMON_RULES,
-      generationConfig: { maxOutputTokens: 500 },
+      generationConfig: { maxOutputTokens: 500, temperature: 1.2, thinkingConfig: { thinkingBudget: 0 } } as GenConfig,
     });
 
     const history = sanitizedMessages.slice(0, -1).map(m => ({
@@ -364,7 +367,7 @@ BAN明けの最初の投稿として「釈明・復帰宣言」を1つ投稿し�
       const model = genAI.getGenerativeModel({
         model: GEMINI_MODEL,
         systemInstruction: agentSystemPrompt(agent),
-        generationConfig: { maxOutputTokens: 200 },
+        generationConfig: { maxOutputTokens: 200, temperature: 1.8, thinkingConfig: { thinkingBudget: 0 } } as GenConfig,
       });
       const result = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
       const text = safeResponseText(result).trim().slice(0, 200);
@@ -423,7 +426,7 @@ ${sysPrompt}
     try {
       const model = genAI.getGenerativeModel({
         model: GEMINI_MODEL,
-        generationConfig: { maxOutputTokens: 300 },
+        generationConfig: { maxOutputTokens: 300, temperature: 1.2, thinkingConfig: { thinkingBudget: 0 } } as GenConfig,
       });
       const result = await callApiWithRetry(() => model.generateContent(prompt));
       const text = safeResponseText(result);
@@ -463,7 +466,7 @@ ${replySummary}
       const model = genAI.getGenerativeModel({
         model: GEMINI_MODEL,
         systemInstruction: sanitizeString(agent.systemPrompt),
-        generationConfig: { maxOutputTokens: 400 },
+        generationConfig: { maxOutputTokens: 400, temperature: 1.8, thinkingConfig: { thinkingBudget: 0 } } as GenConfig,
       });
       const result = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
       return safeResponseText(result).trim().slice(0, 200);
@@ -504,7 +507,7 @@ ${replySummary}
     try {
       const model = genAI.getGenerativeModel({
         model: GEMINI_MODEL,
-        generationConfig: { maxOutputTokens: 80 },
+        generationConfig: { maxOutputTokens: 80, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } } as GenConfig,
       });
       const res = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
       const text = safeResponseText(res);
@@ -537,7 +540,7 @@ ${replySummary}
     try {
       const model = genAI.getGenerativeModel({
         model: GEMINI_MODEL,
-        generationConfig: { maxOutputTokens: 80 },
+        generationConfig: { maxOutputTokens: 80, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } } as GenConfig,
       });
       const res = await callApiWithRetry(() => model.generateContent(sanitizeString(prompt)));
       const text = safeResponseText(res);
@@ -560,7 +563,7 @@ ${replySummary}
     try {
       const model = genAI.getGenerativeModel({
         model: GEMINI_MODEL,
-        generationConfig: { maxOutputTokens: 10 },
+        generationConfig: { maxOutputTokens: 10, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } } as GenConfig,
       });
       const res = await callApiWithRetry(() => model.generateContent(
         sanitizeString(`次の返信の感情トーンを1単語で答えてください。日本語SNSの通常のリプライはほとんどが「好意」か「普通」です。\n「共感」(強い共感・称賛) / 「好意」(友好的・ポジティブ) / 「普通」(中立的な会話) / 「批判」(明確な批判・否定) / 「攻撃」(侮辱・暴言)\n返信:「${reply.slice(0, 150)}」`)
