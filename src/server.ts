@@ -140,7 +140,7 @@ function buildFeedItem(post: ReturnType<typeof PostStore.getById>, reactorId?: s
   }
   return {
     ...post,
-    agent:     { id: rawAgent.id, displayName: masked.displayName, handle: rawAgent.handle, avatarEmoji: masked.avatarEmoji, type: rawAgent.type, verified: computeAgentVerified(rawAgent), equippedItems: (rawAgent as Agent).equippedItems },
+    agent:     { id: rawAgent.id, displayName: masked.displayName, handle: rawAgent.handle, avatarEmoji: masked.avatarEmoji, type: rawAgent.type, verified: computeAgentVerified(rawAgent), avatarConfig: (rawAgent as Agent).avatarConfig ?? undefined, equippedItems: (rawAgent as Agent).equippedItems },
     parent,
     likedByMe: reactorId ? PostStore.isLikedBy(post.id, reactorId) : false,
   };

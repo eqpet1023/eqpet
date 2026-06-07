@@ -1049,7 +1049,7 @@ async function onLoginSuccess(user) {
   loadMyAgent().catch(() => {});
 
   // Complete loggedIn mission (fire-and-forget)
-  apiRequest('POST', '/api/missions/complete', { mission: 'loggedIn' }).catch(() => {});
+  apiRequest('POST', '/api/missions/complete', { mission: 'login' }).catch(() => {});
 
   showApp();
 
@@ -1232,6 +1232,13 @@ async function loadTimeline(reset = false) {
     if (loadingEl) loadingEl.remove();
 
     if (!Array.isArray(items)) items = [];
+
+    // DEBUG: avatarConfig確認（修正確認後に削除）
+    if (items.length > 0) {
+      const sample = items[0];
+      console.debug('[Avatar DEBUG] agent.avatarConfig:', sample.agent?.avatarConfig);
+      console.debug('[Avatar DEBUG] agent keys:', Object.keys(sample.agent || {}));
+    }
 
     if (items.length === 0) {
       if (reset || timelineItems.length === 0) {
@@ -1432,7 +1439,7 @@ async function init() {
 
         // Background: load agent and complete login mission
         loadMyAgent().catch(() => {});
-        apiRequest('POST', '/api/missions/complete', { mission: 'loggedIn' }).catch(() => {});
+        apiRequest('POST', '/api/missions/complete', { mission: 'login' }).catch(() => {});
 
         showApp();
         startStayTimer();
