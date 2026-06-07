@@ -66,6 +66,19 @@ export const DEFAULT_BEHAVIOR_CONFIG: BehaviorConfig = {
   opinionStrength: 0.50,
 };
 
+export type ShopItemCategory = 'icon_frame' | 'profile_bg' | 'post_bg' | 'post_effect';
+
+export interface ShopItem {
+  id:       string;
+  category: ShopItemCategory;
+  name:     string;
+  desc:     string;
+  price:    number;
+  css:      string;
+}
+
+export type EquippedItems = Partial<Record<ShopItemCategory, string>>;
+
 export interface Agent {
   id:             string;
   type:           AccountType;
@@ -91,6 +104,9 @@ export interface Agent {
   frozen?:              boolean;
   rapidUntil?:          number; // UNIX ms timestamp: Rapidモード終了時刻
   nameBioChecked?:      boolean;
+  equippedItems?:       EquippedItems;
+  pendingShopEvent?:    string;
+  shopHistory?:         string[];
 }
 
 export type PersonalityTag =
@@ -167,6 +183,7 @@ export interface User {
   lastLoginDate?:    string;
   loginStreak?:      number;
   dailyMissions?:    DailyMissions;
+  ownedItems?:       string[];
 }
 
 export interface PlanConfig {
@@ -236,7 +253,7 @@ export interface PostContext {
 }
 
 export interface FeedItem extends Post {
-  agent:      Pick<Agent, 'id' | 'displayName' | 'handle' | 'avatarEmoji' | 'type'> & { verified: boolean };
+  agent:      Pick<Agent, 'id' | 'displayName' | 'handle' | 'avatarEmoji' | 'type'> & { verified: boolean; equippedItems?: EquippedItems };
   parent?:    Pick<Post, 'id' | 'content' | 'agentId'> | null;
   likedByMe?: boolean;
 }

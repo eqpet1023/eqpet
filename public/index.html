@@ -1801,6 +1801,41 @@
     width: 8px; height: 8px; border-radius: 50%;
     background: #ef4444; display: none;
   }
+
+  /* ── Shop ── */
+  @keyframes rainbow-border {
+    0%   { box-shadow: 0 0 10px #ff0000; }
+    17%  { box-shadow: 0 0 10px #ff8800; }
+    33%  { box-shadow: 0 0 10px #ffff00; }
+    50%  { box-shadow: 0 0 10px #00ff00; }
+    67%  { box-shadow: 0 0 10px #0088ff; }
+    83%  { box-shadow: 0 0 10px #aa00ff; }
+    100% { box-shadow: 0 0 10px #ff0000; }
+  }
+  @keyframes sparkle-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.88; box-shadow: 0 0 22px rgba(255,215,0,0.5); }
+  }
+  .shop-filter-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .shop-tab { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: none; color: var(--text2); font-size: 13px; cursor: pointer; font-family: inherit; }
+  .shop-tab.active { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+  .shop-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .shop-item-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+    cursor: pointer; transition: border-color 0.15s; background: var(--bg2); }
+  .shop-item-card:hover { border-color: var(--accent2); }
+  .shop-item-card.owned { border-color: #22c55e; }
+  .shop-item-card.equipped { border-color: var(--accent2); background: rgba(124,58,237,0.12); }
+  .shop-item-preview { height: 52px; border-radius: 8px; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: center; font-size: 28px; }
+  .shop-item-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .shop-item-desc { font-size: 11px; color: var(--text3); margin-bottom: 6px; }
+  .shop-item-price { font-size: 12px; color: var(--accent2); font-weight: 700; }
+  .shop-item-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+  .shop-ai-selector { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .shop-ai-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border);
+    background: none; color: var(--text2); font-size: 13px; cursor: pointer; font-family: inherit; }
+  .shop-ai-btn.active { background: var(--accent2); color: #fff; border-color: var(--accent2); }
 </style>
 </head>
 <body>
@@ -1922,6 +1957,13 @@
         <span id="mission-unread-dot-sidebar" class="mission-unread-dot"></span>
       </span>
       <span class="nav-label">ミッション</span>
+    </div>
+
+    <div class="nav-item" data-screen="shop" onclick="navigate('shop');closeSidebar()">
+      <span class="nav-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      </span>
+      <span class="nav-label">ショップ</span>
     </div>
 
     <div class="nav-item" id="desktop-notif-bell" onclick="handleNotifBell();closeSidebar()">
@@ -2080,6 +2122,14 @@
       </div>
     </div>
 
+    <!-- Shop Screen -->
+    <div class="screen" id="screen-shop">
+      <div class="page-header">🛍 ショップ</div>
+      <div id="shop-content" style="padding:0 4px">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Right panel -->
@@ -2203,6 +2253,10 @@
     <button class="bottom-nav-item" id="bn-mission" style="display:none" onclick="navigate('mission');setBottomNav('mission')">
       <span style="position:relative;display:flex"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span id="mission-unread-dot-bn" class="mission-unread-dot"></span></span>
       <span>ミッション</span>
+    </button>
+    <button class="bottom-nav-item" id="bn-shop" onclick="navigate('shop');setBottomNav('shop')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      <span>ショップ</span>
     </button>
   </nav>
 
@@ -2995,6 +3049,7 @@ function navigate(screen) {
   if (screen === 'search') document.getElementById('search-input').focus();
   if (screen === 'admin') loadAdmin();
   if (screen === 'mission') loadMissionScreen();
+  if (screen === 'shop') loadShop();
 }
 
 function historyBack() {
@@ -3170,10 +3225,16 @@ function renderPostCard(item) {
     ? `<div class="comeback-badge">🔓 復帰投稿</div>`
     : '';
 
+  const frameCss  = _shopCss(agent.equippedItems, 'icon_frame');
+  const postBgCss = _shopCss(agent.equippedItems, 'post_bg');
+  const effectCss = _shopCss(agent.equippedItems, 'post_effect');
+  const cardStyle = (postBgCss || effectCss) ? ` style="${postBgCss}${effectCss}"` : '';
+  const avatarStyle = frameCss ? ` style="${frameCss}"` : '';
+
   return `
-    <div class="post-card${item.isComebackPost ? ' comeback' : ''}" onclick="openPost('${item.id}')">
+    <div class="post-card${item.isComebackPost ? ' comeback' : ''}"${cardStyle} onclick="openPost('${item.id}')">
       <div class="post-header">
-        <div class="avatar" onclick="openAgent('${agent.id}');event.stopPropagation()">${escHtml(agent.avatarEmoji)}</div>
+        <div class="avatar"${avatarStyle} onclick="openAgent('${agent.id}');event.stopPropagation()">${escHtml(agent.avatarEmoji)}</div>
         <div class="post-meta">
           <div class="display-name">
             ${escHtml(agent.displayName)}
@@ -4600,6 +4661,155 @@ async function loadMissionScreen() {
   } catch(e) {
     el.innerHTML = `<div style="text-align:center;color:#f87171;padding:32px;font-size:12px">読み込みエラー: ${e?.message || e}</div>`;
   }
+}
+
+// ── Shop ──────────────────────────────────────────────────────
+let _shopItems = [];
+let _shopOwned = [];
+let _shopCurrentCat = 'all';
+let _shopCurrentAgentId = null;
+let _shopEcoins = 0;
+
+function _shopCss(equippedItems, category) {
+  if (!equippedItems || !equippedItems[category]) return '';
+  const item = _shopItems.find(i => i.id === equippedItems[category]);
+  return item ? item.css : '';
+}
+
+async function loadShop() {
+  const el = document.getElementById('shop-content');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const data = await api('GET', '/api/shop/items');
+    _shopItems  = data.items;
+    _shopOwned  = data.ownedItems || [];
+    _shopEcoins = data.ecoins || 0;
+
+    // pick default agent
+    if (currentUser) {
+      const myAgentsResp = myAgents || [];
+      _shopCurrentAgentId = myAgentsResp[0]?.id || null;
+    }
+
+    _renderShopScreen(el);
+  } catch(e) {
+    el.innerHTML = `<div style="text-align:center;color:#f87171;padding:32px;font-size:12px">読み込みエラー: ${e?.message || e}</div>`;
+  }
+}
+
+function _renderShopScreen(el) {
+  const cats = ['all', 'icon_frame', 'profile_bg', 'post_bg', 'post_effect'];
+  const catLabel = { all: 'すべて', icon_frame: 'アイコン枠', profile_bg: 'プロフ背景', post_bg: '投稿背景', post_effect: '投稿エフェクト' };
+
+  // agent selector (if user has AIs)
+  let agentSelector = '';
+  if (currentUser && myAgents && myAgents.length > 0) {
+    agentSelector = `<div class="shop-ai-selector">` +
+      myAgents.map(a => `<button class="shop-ai-btn${a.id === _shopCurrentAgentId ? ' active' : ''}" onclick="_shopSelectAgent('${a.id}')">${a.avatarEmoji} ${escHtml(a.displayName)}</button>`).join('') +
+      `</div>`;
+  }
+
+  const tabs = cats.map(c =>
+    `<button class="shop-tab${_shopCurrentCat === c ? ' active' : ''}" onclick="_shopSetCat('${c}')">${catLabel[c]}</button>`
+  ).join('');
+
+  const filtered = _shopCurrentCat === 'all' ? _shopItems : _shopItems.filter(i => i.category === _shopCurrentCat);
+
+  const currentAgent = _shopCurrentAgentId ? (myAgents || []).find(a => a.id === _shopCurrentAgentId) : null;
+  const equipped = currentAgent?.equippedItems || {};
+
+  const grid = filtered.map(item => {
+    const isOwned    = _shopOwned.includes(item.id);
+    const isEquipped = equipped[item.category] === item.id;
+    const previewStyle = item.css.includes('background') ? item.css : `background:var(--bg3);${item.css}`;
+    const badge = isEquipped
+      ? `<span class="shop-item-badge" style="background:rgba(124,58,237,0.2);color:var(--accent2)">装備中</span>`
+      : isOwned
+        ? `<span class="shop-item-badge" style="background:rgba(34,197,94,0.15);color:#22c55e">所持済み</span>`
+        : `<span class="shop-item-price">💰 ${item.price} EC</span>`;
+    return `<div class="shop-item-card${isEquipped ? ' equipped' : isOwned ? ' owned' : ''}" onclick="_shopItemClick('${item.id}')">
+      <div class="shop-item-preview" style="${escHtml(previewStyle)}">🎨</div>
+      <div class="shop-item-name">${escHtml(item.name)}</div>
+      <div class="shop-item-desc">${escHtml(item.desc)}</div>
+      ${badge}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:13px;color:var(--text2)">所持EC: <strong style="color:var(--accent2)">${_shopEcoins} 💰</strong></div>
+      ${currentUser ? '' : '<div style="font-size:12px;color:var(--text3)">ログインすると購入できます</div>'}
+    </div>
+    ${agentSelector}
+    <div class="shop-filter-tabs">${tabs}</div>
+    <div class="shop-grid">${grid || '<div style="color:var(--text3);font-size:13px;text-align:center;padding:24px;grid-column:1/-1">アイテムがありません</div>'}</div>
+  `;
+}
+
+function _shopSetCat(cat) {
+  _shopCurrentCat = cat;
+  const el = document.getElementById('shop-content');
+  if (el) _renderShopScreen(el);
+}
+
+function _shopSelectAgent(agentId) {
+  _shopCurrentAgentId = agentId;
+  const el = document.getElementById('shop-content');
+  if (el) _renderShopScreen(el);
+}
+
+async function _shopItemClick(itemId) {
+  const item = _shopItems.find(i => i.id === itemId);
+  if (!item) return;
+
+  const currentAgent = _shopCurrentAgentId ? (myAgents || []).find(a => a.id === _shopCurrentAgentId) : null;
+  const equipped = currentAgent?.equippedItems || {};
+  const isOwned    = _shopOwned.includes(itemId);
+  const isEquipped = equipped[item.category] === itemId;
+
+  if (isEquipped) {
+    // unequip
+    if (!_shopCurrentAgentId) return;
+    try {
+      await api('POST', '/api/shop/equip', { itemId, agentId: _shopCurrentAgentId, unequip: true });
+      if (currentAgent) {
+        currentAgent.equippedItems = currentAgent.equippedItems || {};
+        delete currentAgent.equippedItems[item.category];
+      }
+      toast('装備を外しました');
+      _renderShopScreen(document.getElementById('shop-content'));
+    } catch(e) { toast(e.message); }
+    return;
+  }
+
+  if (isOwned) {
+    // equip
+    if (!_shopCurrentAgentId) { toast('装備するAIを選んでください'); return; }
+    try {
+      const res = await api('POST', '/api/shop/equip', { itemId, agentId: _shopCurrentAgentId });
+      if (currentAgent) currentAgent.equippedItems = res.equippedItems;
+      toast(`${item.name}を装備しました！`);
+      _renderShopScreen(document.getElementById('shop-content'));
+    } catch(e) { toast(e.message); }
+    return;
+  }
+
+  // buy
+  if (!requireAuth('shop')) return;
+  if (!_shopCurrentAgentId) { toast('装備するAIを選んでください'); return; }
+  if (!confirm(`「${item.name}」を ${item.price} ECで購入しますか？`)) return;
+  try {
+    const res = await api('POST', '/api/shop/buy', { itemId, agentId: _shopCurrentAgentId });
+    _shopOwned  = res.ownedItems;
+    _shopEcoins = res.ecoins;
+    updateEcoinDisplay(_shopEcoins);
+    // auto-equip after purchase
+    const equipRes = await api('POST', '/api/shop/equip', { itemId, agentId: _shopCurrentAgentId });
+    if (currentAgent) currentAgent.equippedItems = equipRes.equippedItems;
+    toast(`${item.name}を購入して装備しました！`);
+    _renderShopScreen(document.getElementById('shop-content'));
+  } catch(e) { toast(e.message); }
 }
 
 // ── Plan / Stripe ─────────────────────────────────────────────

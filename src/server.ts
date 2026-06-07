@@ -24,6 +24,7 @@ import { TimelineEngine } from './services/TimelineEngine';
 import { EventBus } from './services/EventBus';
 import { PushService } from './services/PushService';
 import { Agent, DEFAULT_BEHAVIOR_CONFIG, FeedItem, PLAN_CONFIG, Post, Relation } from './types';
+import { SHOP_ITEMS } from './shopItems';
 
 // behaviorConfig再生成デバウンス: agentId → 最終再生成時刻
 const BEHAVIOR_REGEN_DEBOUNCE_MS = 5 * 60 * 1000; // 5分
@@ -138,7 +139,7 @@ function buildFeedItem(post: ReturnType<typeof PostStore.getById>, reactorId?: s
   }
   return {
     ...post,
-    agent:     { id: rawAgent.id, displayName: masked.displayName, handle: rawAgent.handle, avatarEmoji: masked.avatarEmoji, type: rawAgent.type, verified: computeAgentVerified(rawAgent) },
+    agent:     { id: rawAgent.id, displayName: masked.displayName, handle: rawAgent.handle, avatarEmoji: masked.avatarEmoji, type: rawAgent.type, verified: computeAgentVerified(rawAgent), equippedItems: (rawAgent as Agent).equippedItems },
     parent,
     likedByMe: reactorId ? PostStore.isLikedBy(post.id, reactorId) : false,
   };
@@ -1452,6 +1453,64 @@ app.get('/api/missions/status', (req: Request, res: Response) => {
     lastLoginDate: user.lastLoginDate ?? null,
     missions,
   });
+});
+
+// ─── Shop ────────────────────────────────────────────────────────────────────
+
+app.get('/api/shop/items', (req: Request, res: Response) => {
+  const userId = req.headers['x-user-id'] as string | undefined;
+  const user = userId ? UserStore.getById(userId) : null;
+  const ownedItems = user?.ownedItems ?? [];
+  res.json({ items: SHOP_ITEMS, ownedItems, ecoins: user?.ecoins ?? 0 });
+});
+
+app.post('/api/shop/buy', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const { itemId, agentId } = req.body as { itemId?: string; agentId?: string };
+  if (!itemId || !agentId) { res.status(400).json({ error: 'itemId・agentId必須' }); return; }
+
+  const item = SHOP_ITEMS.find(i => i.id === itemId);
+  if (!item) { res.status(404).json({ error: 'アイテムが存在しません' }); return; }
+
+  const agent = AgentStore.getById(agentId);
+  if (!agent || agent.ownerId !== userId) { res.status(403).json({ error: '対象AIが見つかりません' }); return; }
+
+  const result = UserStore.buyItem(userId, itemId, item.price);
+  if (!result.success) { res.status(400).json({ error: result.reason }); return; }
+
+  const eventText = `「${item.name}」を購入して装備した`;
+  AgentStore.setPendingShopEvent(agentId, eventText);
+
+  const user = UserStore.getById(userId);
+  res.json({ success: true, ecoins: user?.ecoins ?? 0, ownedItems: user?.ownedItems ?? [] });
+});
+
+app.post('/api/shop/equip', (req: Request, res: Response) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const { itemId, agentId, unequip } = req.body as { itemId?: string; agentId?: string; unequip?: boolean };
+  if (!agentId) { res.status(400).json({ error: 'agentId必須' }); return; }
+
+  const agent = AgentStore.getById(agentId);
+  if (!agent || agent.ownerId !== userId) { res.status(403).json({ error: '対象AIが見つかりません' }); return; }
+
+  if (unequip && itemId) {
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (!item) { res.status(404).json({ error: 'アイテムが存在しません' }); return; }
+    AgentStore.equipItem(agentId, item.category, null);
+    res.json({ success: true, equippedItems: AgentStore.getById(agentId)?.equippedItems ?? {} });
+    return;
+  }
+
+  if (!itemId) { res.status(400).json({ error: 'itemId必須' }); return; }
+
+  if (!UserStore.ownsItem(userId, itemId)) { res.status(403).json({ error: '未購入のアイテムです' }); return; }
+  const item = SHOP_ITEMS.find(i => i.id === itemId);
+  if (!item) { res.status(404).json({ error: 'アイテムが存在しません' }); return; }
+
+  AgentStore.equipItem(agentId, item.category, itemId);
+  res.json({ success: true, equippedItems: AgentStore.getById(agentId)?.equippedItems ?? {} });
 });
 
 // ─── Start ───────────────────────────────────────────────────────────────────

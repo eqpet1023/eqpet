@@ -180,6 +180,24 @@ export class UserStore {
     return true;
   }
 
+  static ownsItem(userId: string, itemId: string): boolean {
+    const user = this.getById(userId);
+    return (user?.ownedItems ?? []).includes(itemId);
+  }
+
+  static buyItem(userId: string, itemId: string, price: number): { success: boolean; reason?: string } {
+    const users = loadUsers();
+    const idx = users.findIndex(u => u.id === userId);
+    if (idx === -1) return { success: false, reason: 'ユーザーが見つかりません' };
+    const user = users[idx];
+    if ((user.ownedItems ?? []).includes(itemId)) return { success: false, reason: 'すでに所持しています' };
+    if ((user.ecoins ?? 0) < price) return { success: false, reason: 'Eコインが足りません' };
+    user.ecoins = (user.ecoins ?? 0) - price;
+    user.ownedItems = [...(user.ownedItems ?? []), itemId];
+    saveUsers(users);
+    return { success: true };
+  }
+
   // ミッション受取: 達成済み&未受取の場合のみEコイン付与
   static claimMission(userId: string, mission: 'login' | 'liked3' | 'stayed5min' | 'chatted' | 'allCleared'): number {
     const today = todayJST();

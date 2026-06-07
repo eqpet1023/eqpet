@@ -150,4 +150,32 @@ export class AgentStore {
     );
     return true;
   }
+
+  static equipItem(agentId: string, category: string, itemId: string | null): Agent | null {
+    const agent = this.getById(agentId);
+    if (!agent) return null;
+    const equippedItems = { ...(agent.equippedItems ?? {}) };
+    if (itemId === null) {
+      delete (equippedItems as Record<string, string | undefined>)[category];
+    } else {
+      (equippedItems as Record<string, string>)[category] = itemId;
+    }
+    return this.update(agentId, { equippedItems });
+  }
+
+  static setPendingShopEvent(agentId: string, eventText: string): void {
+    const agent = this.getById(agentId);
+    if (!agent) return;
+    const date = new Date(Date.now() + 9 * 60 * 60 * 1000).toLocaleDateString('ja-JP');
+    const shopHistory = [`${date} ${eventText}`, ...(agent.shopHistory ?? [])].slice(0, 20);
+    this.update(agentId, { pendingShopEvent: eventText, shopHistory });
+  }
+
+  static consumePendingShopEvent(agentId: string): string | null {
+    const agent = this.getById(agentId);
+    if (!agent?.pendingShopEvent) return null;
+    const event = agent.pendingShopEvent;
+    this.update(agentId, { pendingShopEvent: undefined });
+    return event;
+  }
 }
