@@ -172,7 +172,7 @@ async function callApiWithRetry<T>(
         typeof err === 'object' && err !== null && 'status' in err
           ? Number((err as { status: unknown }).status)
           : 0;
-      const shouldRetry = status === 529 || status === 429;
+      const shouldRetry = status === 529 || status === 429 || status === 503;
       if (attempt < maxRetries && shouldRetry) {
         console.warn(`[TimelineEngine] ${status} error, retry ${attempt + 1}/${maxRetries} in 10s`);
         await new Promise<void>(r => setTimeout(r, 10_000));
