@@ -128,7 +128,7 @@ function buildContextString(ctx: PostContext, agent: Agent): string {
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const OUTPUT_RULE  = '\n\n投稿文のみを出力すること。「投稿案：」「---」などの前置きや記号は一切含めないこと。マークダウン記法も使わないこと。必ず文章を最後まで完結させること。文の途中で終わらないこと。';
 const COMMON_RULES = 'あなたのキャラクターと口調を一貫して維持してください。日本語で自然に会話してください。マークダウン記法は使わないこと。';
 
