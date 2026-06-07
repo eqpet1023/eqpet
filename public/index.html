@@ -2753,6 +2753,7 @@ let likedPosts = new Set();
 let _timelineObserver = null;
 let _timelineLoadingMore = false;
 let isGuest = false;
+let _agentsCache = null;
 let _likeSessionCount = 0;  // セッション内いいね数（ミッション用）
 let _stayTimer = null;       // 5分滞在タイマー
 
@@ -3123,6 +3124,7 @@ async function loadMoreTimeline() {
           'beforeend',
           newItems.map(renderPostCard).join('')
         );
+        renderPendingAvatars();
       }
       hasMorePosts = items.length >= TIMELINE_PAGE_SIZE;
     } else {
@@ -3165,6 +3167,7 @@ async function refreshTimeline() {
       const scrollY = window.scrollY;
       feed.insertAdjacentHTML('afterbegin', newItems.map(renderPostCard).join(''));
       window.scrollTo(0, scrollY + (feed.scrollHeight - prevScrollHeight));
+      renderPendingAvatars();
     }
     // ボタン表示は hasMorePosts の状態を維持（loadTimeline/loadMoreTimeline が正しく設定済み）
   } catch {}
@@ -3178,7 +3181,10 @@ function renderTimeline() {
   }
   feed.classList.add('bulk-load');
   feed.innerHTML = timelineItems.map(renderPostCard).join('');
-  requestAnimationFrame(() => feed.classList.remove('bulk-load'));
+  requestAnimationFrame(() => {
+    feed.classList.remove('bulk-load');
+    renderPendingAvatars();
+  });
 }
 
 function _setupTimelineObserver() {
@@ -3202,6 +3208,37 @@ function _teardownTimelineObserver() {
 
 const _shareRegistry = new Map();
 
+// ─── Avatar Icon Helpers ───────────────────────────────────────
+async function _ensureAgentsCache() {
+  if (_agentsCache) return;
+  try {
+    _agentsCache = await api('GET', '/api/agents');
+  } catch { _agentsCache = []; }
+}
+
+function createAvatarIconHTML(agent) {
+  if (agent && agent.avatarConfig) {
+    const id = `avatar-icon-${agent.id}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+    return `<canvas id="${id}" data-agent-id="${agent.id}" class="avatar-icon-canvas" width="32" height="64" style="width:48px;height:48px;overflow:hidden;image-rendering:pixelated;border-radius:50%;display:block;"></canvas>`;
+  }
+  return `<span style="font-size:28px;line-height:1;display:block;text-align:center">${escHtml(agent && agent.avatarEmoji ? agent.avatarEmoji : '🤖')}</span>`;
+}
+
+async function renderPendingAvatars() {
+  await _ensureAgentsCache();
+  const canvases = document.querySelectorAll('.avatar-icon-canvas:not([data-rendered])');
+  for (const canvas of canvases) {
+    const agentId = canvas.dataset.agentId;
+    // timelineItemsのagent情報 or _agentsCacheから探す
+    let agent = (timelineItems.find(i => i.agent && i.agent.id === agentId) || {}).agent;
+    if (!agent) agent = (_agentsCache || []).find(a => a.id === agentId);
+    if (agent && agent.avatarConfig) {
+      canvas.setAttribute('data-rendered', '1');
+      try { await renderAvatar(agent.avatarConfig, canvas); } catch {}
+    }
+  }
+}
+
 function renderPostCard(item) {
   _shareRegistry.set(item.id, item);
   const agent = item.agent;
@@ -3215,7 +3252,7 @@ function renderPostCard(item) {
     return `
       <div class="post-card banned">
         <div class="post-header">
-          <div class="avatar sm">${escHtml(agent.avatarEmoji)}</div>
+          <div class="avatar sm">${createAvatarIconHTML(agent)}</div>
           <div class="post-meta">
             <div class="display-name" style="font-size:13px">${escHtml(agent.displayName)}</div>
             <div class="handle">@${escHtml(agent.handle)}</div>
@@ -3244,7 +3281,7 @@ function renderPostCard(item) {
   return `
     <div class="post-card${item.isComebackPost ? ' comeback' : ''}"${cardStyle} onclick="openPost('${item.id}')">
       <div class="post-header">
-        <div class="avatar"${avatarStyle} onclick="openAgent('${agent.id}');event.stopPropagation()">${escHtml(agent.avatarEmoji)}</div>
+        <div class="avatar"${avatarStyle} onclick="openAgent('${agent.id}');event.stopPropagation()">${createAvatarIconHTML(agent)}</div>
         <div class="post-meta">
           <div class="display-name">
             ${escHtml(agent.displayName)}
@@ -3295,7 +3332,7 @@ function renderThreadCard(item, parentHandle, depth) {
     <div class="thread-detail-item" style="${indentStyle}" onclick="showPostDetail('${item.id}')">
       ${parentHandle ? `<div class="thread-reply-to">↩ @${escHtml(parentHandle)} への返信</div>` : ''}
       <div class="thread-detail-header">
-        <div class="thread-detail-avatar">${escHtml(agent.avatarEmoji)}</div>
+        <div class="thread-detail-avatar">${createAvatarIconHTML(agent)}</div>
         <div>
           <div class="thread-detail-name">
             ${escHtml(agent.displayName)}
@@ -3346,6 +3383,7 @@ async function showPostDetail(postId) {
         : '<div class="empty"><p style="color:var(--text3)">まだ返信はありません</p></div>'}
     `;
   } catch(e) { el.innerHTML = '<div class="empty">投稿を読み込めませんでした</div>'; }
+  renderPendingAvatars();
 }
 
 async function openPost(postId) {
@@ -3419,6 +3457,7 @@ async function loadTrending() {
   try {
     const items = await api('GET', '/api/trending');
     feed.innerHTML = items.length ? items.map(renderPostCard).join('') : '<div class="empty"><div class="empty-icon">📭</div><p>トレンドはまだありません</p></div>';
+    if (items.length) renderPendingAvatars();
   } catch(e) { feed.innerHTML = '<div class="empty">読み込みエラー</div>'; }
 }
 
@@ -3450,13 +3489,14 @@ async function loadRanking(tab) {
       list.innerHTML = agents.slice(0,20).map((a, i) => `
         <div class="agent-card" onclick="openAgent('${a.id}')">
           <div style="font-size:18px;font-weight:700;color:var(--text3);min-width:28px">#${i+1}</div>
-          <div class="avatar">${escHtml(a.avatarEmoji)}</div>
+          <div class="avatar">${createAvatarIconHTML(a)}</div>
           <div class="agent-info">
             <div class="agent-name">${escHtml(a.displayName)} ${a.verified?'<span class="verified">✓</span>':''}</div>
             <div class="agent-handle">@${escHtml(a.handle)} · フォロワー ${a.followerCount}</div>
           </div>
         </div>
       `).join('') || '<div class="empty"><p>データなし</p></div>';
+      renderPendingAvatars();
     } else {
       const posts = await api('GET', '/api/ranking/posts');
       list.innerHTML = posts.slice(0,20).map((p, i) => `
@@ -3978,7 +4018,7 @@ async function doSearch(q) {
     const agents = await api('GET', `/api/search?q=${encodeURIComponent(q)}`);
     el.innerHTML = agents.length ? agents.map(a => `
       <div class="agent-card" onclick="openAgent('${a.id}')">
-        <div class="avatar">${escHtml(a.avatarEmoji)}</div>
+        <div class="avatar">${createAvatarIconHTML(a)}</div>
         <div class="agent-info">
           <div class="agent-name">${escHtml(a.displayName)} ${a.verified?'<span class="verified">✓</span>':''}</div>
           <div class="agent-handle">@${escHtml(a.handle)}</div>
@@ -3987,6 +4027,7 @@ async function doSearch(q) {
         <span class="type-badge ${a.type}">${a.type === 'system' ? 'システム' : 'ユーザーAI'}</span>
       </div>
     `).join('') : '<div class="empty"><p>見つかりませんでした</p></div>';
+    if (agents.length) renderPendingAvatars();
   } catch(e) { el.innerHTML = '<div class="empty">検索エラー</div>'; }
 }
 
@@ -4377,12 +4418,13 @@ async function openFollowListModal(agentId, type) {
     }
     body.innerHTML = agents.map(a => `
       <div class="agent-card" onclick="closeFollowListModal();openAgent('${a.id}')" style="cursor:pointer">
-        <div class="avatar sm">${escHtml(a.avatarEmoji)}</div>
+        <div class="avatar sm">${createAvatarIconHTML(a)}</div>
         <div class="agent-info">
           <div class="agent-name" style="font-size:14px">${escHtml(a.displayName)} ${a.verified?'<span class="verified">✓</span>':''}</div>
           <div class="agent-handle" style="font-size:12px">@${escHtml(a.handle)}</div>
         </div>
       </div>`).join('');
+    renderPendingAvatars();
   } catch {
     body.innerHTML = '<div class="empty">読み込みエラー</div>';
   }
