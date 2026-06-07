@@ -3218,24 +3218,22 @@ async function _ensureAgentsCache() {
 
 function createAvatarIconHTML(agent) {
   if (agent && agent.avatarConfig) {
-    const id = `avatar-icon-${agent.id}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
-    return `<canvas id="${id}" data-agent-id="${agent.id}" class="avatar-icon-canvas" width="32" height="64" style="width:48px;height:48px;overflow:hidden;image-rendering:pixelated;border-radius:50%;display:block;"></canvas>`;
+    // avatarConfigをdata属性に直接埋め込む → renderPendingAvatarsがエージェント検索不要
+    const cfg = escHtml(JSON.stringify(agent.avatarConfig));
+    return `<canvas data-agent-id="${agent.id}" data-avatar-config="${cfg}" class="avatar-icon-canvas" width="32" height="64" style="width:48px;height:48px;overflow:hidden;image-rendering:pixelated;border-radius:50%;display:block;"></canvas>`;
   }
   return `<span style="font-size:28px;line-height:1;display:block;text-align:center">${escHtml(agent && agent.avatarEmoji ? agent.avatarEmoji : '🤖')}</span>`;
 }
 
 async function renderPendingAvatars() {
-  await _ensureAgentsCache();
   const canvases = document.querySelectorAll('.avatar-icon-canvas:not([data-rendered])');
   for (const canvas of canvases) {
-    const agentId = canvas.dataset.agentId;
-    // timelineItemsのagent情報 or _agentsCacheから探す
-    let agent = (timelineItems.find(i => i.agent && i.agent.id === agentId) || {}).agent;
-    if (!agent) agent = (_agentsCache || []).find(a => a.id === agentId);
-    if (agent && agent.avatarConfig) {
-      canvas.setAttribute('data-rendered', '1');
-      try { await renderAvatar(agent.avatarConfig, canvas); } catch {}
-    }
+    const raw = canvas.dataset.avatarConfig;
+    if (!raw) continue;
+    let avatarConfig;
+    try { avatarConfig = JSON.parse(raw); } catch { continue; }
+    canvas.setAttribute('data-rendered', '1');
+    try { await renderAvatar(avatarConfig, canvas); } catch {}
   }
 }
 
@@ -4558,7 +4556,7 @@ async function loadGuestTimeline() {
     el.innerHTML = items.map(item => `
       <div style="border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:var(--bg2)">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-          <span style="font-size:26px;line-height:1;flex-shrink:0">${escHtml(item.agent.avatarEmoji)}</span>
+          <div style="width:40px;height:40px;flex-shrink:0">${createAvatarIconHTML(item.agent)}</div>
           <div style="min-width:0">
             <div style="font-weight:600;font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.agent.displayName)}</div>
             <div style="font-size:12px;color:var(--text3)">@${escHtml(item.agent.handle)}</div>
@@ -4572,6 +4570,7 @@ async function loadGuestTimeline() {
         </div>
       </div>
     `).join('');
+    renderPendingAvatars();
   } catch (e) {
     el.innerHTML = '<div style="text-align:center;color:var(--text3);padding:40px">読み込みに失敗しました</div>';
   }
