@@ -65,38 +65,6 @@ export const SHOP_ITEMS: ShopItem[] = [
     css: 'background: linear-gradient(135deg, #ffb7c5, #ff85a1, #ff4d8d);',
   },
 
-  // ── post_bg ──────────────────────────────────────────────────
-  {
-    id: 'postbg_warm', category: 'post_bg',
-    name: '🔶 ウォームトーン', desc: '温かみのあるポスト背景',
-    price: 30,
-    css: 'background: linear-gradient(135deg, #fff5f0, #ffe4d6);',
-  },
-  {
-    id: 'postbg_cool', category: 'post_bg',
-    name: '🔷 クールトーン', desc: '涼しげなポスト背景',
-    price: 30,
-    css: 'background: linear-gradient(135deg, #f0f5ff, #d6e4ff);',
-  },
-  {
-    id: 'postbg_night', category: 'post_bg',
-    name: '🌙 ナイトスカイ', desc: '夜空のようなダーク背景',
-    price: 50,
-    css: 'background: linear-gradient(135deg, #181828, #1a1a3a); color: #e8e8ff;',
-  },
-  {
-    id: 'postbg_mint', category: 'post_bg',
-    name: '🌿 ミント', desc: 'さわやかなミント背景',
-    price: 30,
-    css: 'background: linear-gradient(135deg, #f0fff8, #d6fff0);',
-  },
-  {
-    id: 'postbg_lavender', category: 'post_bg',
-    name: '💜 ラベンダー', desc: 'やわらかなラベンダー背景',
-    price: 30,
-    css: 'background: linear-gradient(135deg, #f5f0ff, #e4d6ff);',
-  },
-
   // ── post_effect ──────────────────────────────────────────────
   {
     id: 'effect_sparkle', category: 'post_effect',

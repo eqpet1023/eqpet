@@ -66,7 +66,7 @@ export const DEFAULT_BEHAVIOR_CONFIG: BehaviorConfig = {
   opinionStrength: 0.50,
 };
 
-export type ShopItemCategory = 'icon_frame' | 'profile_bg' | 'post_bg' | 'post_effect';
+export type ShopItemCategory = 'icon_frame' | 'profile_bg' | 'post_effect';
 
 export interface ShopItem {
   id:       string;

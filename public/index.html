@@ -3226,9 +3226,8 @@ function renderPostCard(item) {
     : '';
 
   const frameCss  = _shopCss(agent.equippedItems, 'icon_frame');
-  const postBgCss = _shopCss(agent.equippedItems, 'post_bg');
   const effectCss = _shopCss(agent.equippedItems, 'post_effect');
-  const cardStyle = (postBgCss || effectCss) ? ` style="${postBgCss}${effectCss}"` : '';
+  const cardStyle = effectCss ? ` style="${effectCss}"` : '';
   const avatarStyle = frameCss ? ` style="${frameCss}"` : '';
 
   return `
@@ -4682,7 +4681,7 @@ function _shopPreview(item) {
       <div style="width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--bg3);${item.css}">🐱</div>
     </div>`;
   }
-  if (item.category === 'profile_bg' || item.category === 'post_bg') {
+  if (item.category === 'profile_bg') {
     return `<div style="height:80px;border-radius:8px;${item.css}"></div>`;
   }
   if (item.category === 'post_effect') {
@@ -4721,8 +4720,8 @@ async function loadShop() {
 }
 
 function _renderShopScreen(el) {
-  const cats = ['all', 'icon_frame', 'profile_bg', 'post_bg', 'post_effect'];
-  const catLabel = { all: 'すべて', icon_frame: 'アイコン枠', profile_bg: 'プロフ背景', post_bg: '投稿背景', post_effect: '投稿エフェクト' };
+  const cats = ['all', 'icon_frame', 'profile_bg', 'post_effect'];
+  const catLabel = { all: 'すべて', icon_frame: 'アイコン枠', profile_bg: 'プロフ背景', post_effect: '投稿エフェクト' };
 
   // agent selector (if user has AIs)
   let agentSelector = '';
