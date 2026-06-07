@@ -6029,14 +6029,23 @@ async function renderAvatar(avatarConfig, canvasEl) {
   const ctx = canvasEl.getContext('2d');
   ctx.clearRect(0, 0, W, H);
 
+  // IDは数字のみ("02")に正規化（"hair_02"等プレフィックス付きも吸収）
+  const numId = (id, prefix) => id
+    ? id.startsWith(prefix) ? id.slice(prefix.length) : id
+    : '01';
+  const eyesId   = numId(avatarConfig.eyesId,   'eyes_');
+  const hairId   = numId(avatarConfig.hairId,   'hair_');
+  const topId    = numId(avatarConfig.topId,    'top_');
+  const bottomId = numId(avatarConfig.bottomId, 'bottom_');
+
   const base = '/assets/avatar/';
   const layers = [
-    { file: base + 'body/body_default.png',                              hsl: avatarConfig.skinColor   },
-    { file: base + `eyes/eyes_${avatarConfig.eyesId}.png`,              hsl: avatarConfig.eyeColor    },
-    { file: base + `hair/hair_back_${avatarConfig.hairId}.png`,         hsl: avatarConfig.hairColor   },
-    { file: base + `bottom/bottom_${avatarConfig.bottomId}.png`,        hsl: avatarConfig.bottomColor },
-    { file: base + `top/top_${avatarConfig.topId}.png`,                 hsl: avatarConfig.topColor    },
-    { file: base + `hair/hair_front_${avatarConfig.hairId}.png`,        hsl: avatarConfig.hairColor   },
+    { file: base + 'body/body_default.png',                       hsl: avatarConfig.skinColor   },
+    { file: base + `eyes/eyes_${eyesId}.png`,                     hsl: avatarConfig.eyeColor    },
+    { file: base + `hair/hair_back_${hairId}.png`,                hsl: avatarConfig.hairColor   },
+    { file: base + `bottom/bottom_${bottomId}.png`,               hsl: avatarConfig.bottomColor },
+    { file: base + `top/top_${topId}.png`,                        hsl: avatarConfig.topColor    },
+    { file: base + `hair/hair_front_${hairId}.png`,               hsl: avatarConfig.hairColor   },
   ];
   if (avatarConfig.accessoryId) {
     layers.push({ file: base + `accessory/${avatarConfig.accessoryId}.png`, hsl: { h: 0, s: 0, l: 100 } });

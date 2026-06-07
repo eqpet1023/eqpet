@@ -6,11 +6,14 @@ const path = require('path');
 
 const AGENTS_DIR = path.join(__dirname, '../data/agents');
 
+const pad = (n) => String(n).padStart(2, '0');
+const ri  = (max) => Math.floor(Math.random() * max) + 1;
+
 const randomAvatarConfig = () => ({
-  hairId:      `hair_${String(Math.floor(Math.random() * 10) + 1).padStart(2, '0')}`,
-  topId:       `top_${String(Math.floor(Math.random() * 5) + 1).padStart(2, '0')}`,
-  bottomId:    `bottom_${String(Math.floor(Math.random() * 5) + 1).padStart(2, '0')}`,
-  eyesId:      `eyes_${String(Math.floor(Math.random() * 5) + 1).padStart(2, '0')}`,
+  hairId:      pad(ri(10)),   // 数字のみ: "01"〜"10"
+  topId:       pad(ri(5)),    // 数字のみ: "01"〜"05"
+  bottomId:    pad(ri(5)),
+  eyesId:      pad(ri(5)),
   accessoryId: null,
   skinColor:   { h: 25, s: 60, l: 70 },
   hairColor:   { h: Math.floor(Math.random() * 360), s: 60, l: 40 },
