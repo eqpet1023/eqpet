@@ -6004,7 +6004,7 @@ function drawAvatarPart(ctx, img, hsl) {
     const [r, g, b] = hslToRgb(hsl.h, hsl.s, adjustedL);
     data[i] = r; data[i + 1] = g; data[i + 2] = b;
   }
-  offCtx.putImageData(imageData, offscreen);
+  offCtx.putImageData(imageData, 0, 0);
   ctx.drawImage(offscreen, 0, 0);
 }
 
