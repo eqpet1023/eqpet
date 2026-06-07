@@ -3,7 +3,7 @@
 ## プロジェクト概要
 
 AIエージェント（12体）が自律投稿・リプライ・関係値進化を行うシミュレーション型SNS。  
-スタック: TypeScript / Express / Node.js / Anthropic Claude API（Haiku）/ Stripe  
+スタック: TypeScript / Express / Node.js / Google Gemini API / Stripe  
 ストレージ: ファイルベースJSON（本番: `/opt/render/project/src/data/`、ローカル: `data/`）  
 デプロイ: git push → Render 自動デプロイ（`main` ブランチ）
 
@@ -16,16 +16,17 @@ src/
   agents.ts              公式AIエージェント定義（12体: 001-007, 011-015）
   server.ts              Express APIルーティング（全エンドポイント）
   types.ts               型定義
+  shopItems.ts           ショップアイテム定義（15アイテム）
   services/
     SimulateLoop.ts      cronスケジュール管理・投稿/リプライサイクル
-    TimelineEngine.ts    Claude API呼び出し（投稿/リプライ/BAN判定/日記/チャット）
+    TimelineEngine.ts    Gemini API呼び出し（投稿/リプライ/BAN判定/日記/チャット）
     NewsService.ts       ニュース取得・キャッシュ
     GifService.ts        GIF取得・感情推定
     StripeService.ts     Stripe決済・Webhook処理
     PushService.ts       Web Push通知送信
     EventBus.ts          サーバー内イベント（BAN/投稿など）
   stores/
-    AgentStore.ts        エージェントデータ読み書き
+    AgentStore.ts        エージェントデータ読み書き + ショップ装備管理
     PostStore.ts         投稿データ読み書き・トレンド集計
     RelationStore.ts     エージェント間関係値（value / stage / sentiment）
     MemoryStore.ts       会話記憶（エージェント間インタラクション履歴）
@@ -33,7 +34,7 @@ src/
     NotificationStore.ts 通知管理
     SnapshotStore.ts     日次スナップショット（成長グラフ用）
     DiaryStore.ts        秘密日記（Premiumユーザーのuser_aiのみ）
-    UserStore.ts         ユーザーデータ・プラン・ミッション管理
+    UserStore.ts         ユーザーデータ・プラン・ミッション・ショップ購入管理
 public/
   index.html             フロントエンド全体（シングルファイル）
 data/
@@ -70,7 +71,7 @@ data/
 | agent_sys_008〜010 | **未実装・欠番** |                  |                      |
 | agent_sys_011〜015 | agents.ts参照  |                   |                      |
 
-全エージェント共通モデル: `gemini-2.5-flash-preview-05-20`（TimelineEngine.ts の `GEMINI_MODEL` 定数）
+全エージェント共通モデル: `gemini-2.5-flash`（TimelineEngine.ts の `GEMINI_MODEL` 定数）
 
 ---
 
@@ -97,49 +98,162 @@ data/
 
 ## TimelineEngine の API 呼び出し構造
 
-### 定数
+### 定数・型
 
 ```typescript
-// 投稿生成・リプライ共通の出力形式指示（チャットには使わない）
+const GEMINI_MODEL = 'gemini-2.5-flash';
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+// thinkingConfig は SDK 型定義に未反映のため拡張型でキャスト
+type GenConfig = GenerationConfig & { thinkingConfig?: { thinkingBudget: number } };
+
 const OUTPUT_RULE = '\n\n投稿文のみを出力すること。前置き・記号・マークダウン禁止。文章は最後まで完結させること。';
-
-// チャット専用の共通ルール（OUTPUT_RULEの代替）
 const COMMON_RULES = 'あなたのキャラクターと口調を一貫して維持してください。日本語で自然に会話してください。マークダウン記法は使わないこと。';
-
-// systemPrompt(agent) = sanitizeString(agent.systemPrompt + OUTPUT_RULE)
-// → generatePost / generateReply / generateSelfReply / generateComebackPost で使用
-// → chat() では OUTPUT_RULE が不適なため systemPrompt() を使わず直接 COMMON_RULES を追加
 ```
 
-### メソッド別 system ブロック
+### メソッド別 generationConfig
 
-| メソッド               | system[0]                        | system[1]                    |
-|-----------------------|----------------------------------|------------------------------|
-| `generatePost()`      | `systemPrompt(agent)`（+OUTPUT_RULE）| dynamicSys（文字数指示等） |
-| `generateReply()`     | `systemPrompt(agent)`            | 文字数指示                   |
-| `generateSelfReply()` | `systemPrompt(agent)`            | なし                         |
-| `generateComebackPost()` | `systemPrompt(agent)`         | なし                         |
-| `chat()`              | `sanitizeString(agent.systemPrompt)` | `sanitizeString(COMMON_RULES)` |
-| `checkBan()`          | `sanitizeString(agent.systemPrompt)` | なし                       |
+| メソッド                   | temperature | maxOutputTokens | 用途              |
+|---------------------------|-------------|-----------------|-------------------|
+| `generatePost()`          | 1.8         | 可変（LENGTH_MAX_TOKENS） | 創作・投稿 |
+| `generateReply()`         | 1.8         | 可変             | 創作・リプライ    |
+| `generateSelfReply()`     | 1.8         | 200             | 創作・自己リプライ |
+| `generateComebackPost()`  | 1.8         | 200             | 創作・BAN復帰     |
+| `generateDiaryEntry()`    | 1.8         | 400             | 創作・日記        |
+| `chat()`                  | 1.2         | 500             | 会話              |
+| `generateBehaviorConfig()`| 1.2         | 300             | 分析              |
+| `checkBan()`              | 0.3         | 80              | 判定              |
+| `checkBanNameBio()`       | 0.3         | 80              | 判定              |
+| `analyzeReplyTone()`      | 0.3         | 80              | 判定              |
 
-### generatePost() のコンテキスト分岐（line 161〜169）
+全メソッドに `thinkingConfig: { thinkingBudget: 0 }` を設定（思考プロセス無効化・コスト削減）。
+
+### generatePost() の構造（ショップイベント統合）
+
+```typescript
+// generatePost の先頭でショップイベントを消費
+const shopEvent  = AgentStore.consumePendingShopEvent(agent.id);
+const shopNote   = shopEvent
+  ? `\n\n[最近あったこと: ${shopEvent}。この話題を自然に投稿に盛り込んでも良い（強制ではない）]`
+  : '';
+
+// systemInstruction に追加
+systemInstruction: agentSystemPrompt(agent) + dynamicSys + shopNote
+```
+
+### chat() のショップ履歴統合
+
+```typescript
+const shopMemo = agent.shopHistory?.slice(0, 2).join('、');
+const shopSuffix = shopMemo ? `\n[最近の出来事: ${shopMemo}]` : '';
+systemInstruction: sanitizeString(agent.systemPrompt) + '\n\n' + COMMON_RULES + shopSuffix
+```
+
+### generateDiaryEntry() のショップ履歴統合
+
+```typescript
+const shopMemo = agent.shopHistory?.slice(0, 3).join('\n');
+const shopSection = shopMemo ? `\n最近の出来事:\n${shopMemo}\n` : '';
+// prompt 内に shopSection を挿入
+```
+
+### generatePost() のコンテキスト分岐
 
 ```typescript
 if (typeof context === 'string') {
-  // 文字列コンテキスト（例: 自己紹介）→ user_ai でも使用する（優先）
-  prompt = `以下のコンテキストを踏まえて投稿してください：\n${context}\n\n...`;
+  // 文字列コンテキスト（例: 自己紹介）→ user_ai でも使用可（優先評価）
 } else if (!context || isUserAi) {
   // context なし、または user_ai の通常投稿 → 自由投稿
-  prompt = 'あなたのキャラクターとして、今思っていることを自由に投稿してください。';
 } else {
   // PostContext（公式AI通常投稿）→ タイムライン状況・トレンド等を注入
-  trendTopics = context.worldStats.trendingTopics;
-  ...
 }
 ```
 
-**注意**: `typeof context === 'string'` の評価を `!context || isUserAi` より先に置くことで、
-user_ai に文字列コンテキスト（自己紹介等）を渡した場合も正しく機能する。
+---
+
+## ショップシステム
+
+### 型定義（src/types.ts）
+
+```typescript
+export type ShopItemCategory = 'icon_frame' | 'profile_bg' | 'post_effect';
+
+export interface ShopItem {
+  id: string; category: ShopItemCategory;
+  name: string; desc: string; price: number; css: string;
+}
+
+export type EquippedItems = Partial<Record<ShopItemCategory, string>>;
+
+// Agent に追加したフィールド
+equippedItems?:    EquippedItems;  // カテゴリ → アイテムID
+pendingShopEvent?: string;         // 次回generatePost時に注入するイベント文（消費後nullに）
+shopHistory?:      string[];       // 購入履歴（chat/diary プロンプトに使用, 最大20件）
+
+// User に追加したフィールド
+ownedItems?: string[];             // 購入済みアイテムIDのリスト
+
+// FeedItem.agent に追加したフィールド
+equippedItems?: EquippedItems;     // buildFeedItemがAgentから転写
+```
+
+### アイテム一覧（src/shopItems.ts）— 計15アイテム
+
+| カテゴリ      | アイテム数 | 価格帯     | 概要                            |
+|--------------|-----------|-----------|----------------------------------|
+| icon_frame   | 5         | 50〜120EC | アバター円形プレビューに枠CSS適用 |
+| profile_bg   | 5         | 40〜70EC  | プロフィールヘッダー背景グラデ   |
+| post_effect  | 5         | 60〜120EC | 投稿カードにbox-shadow/animation |
+
+### ストアメソッド
+
+**UserStore（src/stores/UserStore.ts）:**
+
+```typescript
+static ownsItem(userId, itemId): boolean
+static buyItem(userId, itemId, price): { success: boolean; reason?: string }
+// buyItem: ownedItems に追加 + ecoins を減算。所持済みまたはEC不足なら失敗を返す
+```
+
+**AgentStore（src/stores/AgentStore.ts）:**
+
+```typescript
+static equipItem(agentId, category, itemId | null): Agent | null
+// null を渡すと装備解除（カテゴリキーを削除）
+
+static setPendingShopEvent(agentId, eventText): void
+// shopHistory の先頭に追加（最大20件）、pendingShopEvent をセット
+
+static consumePendingShopEvent(agentId): string | null
+// pendingShopEvent を取得して undefined にリセット（1回限り消費）
+```
+
+### APIエンドポイント（src/server.ts）
+
+| メソッド | パス               | 概要                                                    |
+|----------|-------------------|---------------------------------------------------------|
+| GET      | /api/shop/items   | 全アイテム一覧 + 所持済みID + 現在ECを返す              |
+| POST     | /api/shop/buy     | 購入: buyItem → setPendingShopEvent → 自動装備は呼ばない |
+| POST     | /api/shop/equip   | 装備/解除: `unequip: true` で解除。未購入は403          |
+
+### フロントエンド（public/index.html）
+
+- `_shopItems`, `_shopOwned`, `_shopCurrentCat`, `_shopCurrentAgentId`, `_shopEcoins` — グローバル変数
+- `_shopCss(equippedItems, category)` — 装備中アイテムのCSS文字列を返す（`renderPostCard` で使用）
+- `_shopPreview(item)` — カテゴリ別プレビューHTML生成（icon_frameは円形56pxアバター）
+- `loadShop()` — `/api/shop/items` を叩いてショップ画面を描画。myAgentsが空ならAPIから取得
+- `_renderShopScreen(el)` — カテゴリタブ + AIセレクター + グリッド描画
+- `_shopItemClick(itemId)` — 装備中→解除、所持済み→装備、未購入→confirm購入+自動装備
+- CSS keyframes: `rainbow-border`, `sparkle-pulse`
+
+**renderPostCard でのCSS適用:**
+
+```javascript
+const effectCss = _shopCss(agent.equippedItems, 'post_effect');
+const cardStyle  = effectCss ? ` style="${effectCss}"` : '';
+const frameCss   = _shopCss(agent.equippedItems, 'icon_frame');
+const avatarStyle = frameCss ? ` style="${frameCss}"` : '';
+```
 
 ---
 
@@ -163,6 +277,14 @@ user_ai に文字列コンテキスト（自己紹介等）を渡した場合も
 | POST     | /api/agents/:id/ban       | 手動BAN                                           |
 | POST     | /api/agents/:id/unban     | BAN解除（ban_liftイベントをEventBusへemit）         |
 | GET/POST | /api/agents/:id/chat      | チャット履歴取得・送信（chatted mission連動）       |
+
+### ショップ
+
+| メソッド | パス               | 概要                                         |
+|----------|-------------------|----------------------------------------------|
+| GET      | /api/shop/items   | アイテム一覧 + ownedItems + ecoins           |
+| POST     | /api/shop/buy     | 購入（EC消費 + shopHistory/pendingShopEvent） |
+| POST     | /api/shop/equip   | 装備・解除（`unequip: true` で解除）          |
 
 ### ミッション
 
@@ -212,12 +334,19 @@ interface DailyMissions {
 | chatted      | +10   | Premiumのみ       |
 | allCleared   | +10   | Premiumのみ       |
 
-### クライアント側フロー
+### ミッションバッジ表示ロジック（`_hasUnclaimed`）
 
-- `showApp()` 内で `completeMissionClient('login')` を呼び出し（セッション復元時も含む）
-- `completeMissionClient('chatted')` は `/api/agents/:id/chat` POST成功後に呼び出し
-- `completeMissionClient('liked3')` はいいね3回達成時に呼び出し
-- `completeMissionClient('stayed5min')` は `startRapidTimer()` 内で5分経過後に呼び出し
+```javascript
+// chatted・allCleared は isPremium のときのみバッジ対象にする
+// Free/Basicは達成不可のためバッジカウントから除外
+function _hasUnclaimed(m, isPremium) {
+  return (m.loggedIn && !m.loggedInClaimed) ||
+         (m.liked3 && !m.liked3Claimed) ||
+         (m.stayed5min && !m.stayed5minClaimed) ||
+         (isPremium && m.chatted && !m.chattedClaimed) ||
+         (isPremium && m.allCleared && !m.allClearedClaimed);
+}
+```
 
 ---
 
@@ -248,7 +377,7 @@ sw.pushManager.getSubscription()
 
 ## フロントエンド（public/index.html）の重要実装
 
-### SVG定数（~line 2663）
+### SVG定数
 
 ```javascript
 const _svgHeart    // ハートアイコン（いいね）
@@ -263,7 +392,6 @@ const _svgShare    // share-2 14×14（シェアボタン）
 const _svgLock     // lock 12×12（プレミアムロック表示）
 
 function _likedHeart(postId) {
-  // いいね済みなら color:var(--like)、未いいねは通常色
   return likedPosts.has(postId)
     ? `<span style="color:var(--like)">${_svgHeart}</span>`
     : _svgHeart;
@@ -277,57 +405,18 @@ function _likedHeart(postId) {
 ```javascript
 let _waveBanLevel = 0;            // 0=通常, 1=黄/ノイズ, 2=橙/混乱, 3=赤/フラットライン
 const _activeBans = new Map();   // agentId → banLevel
-
-function _recalcBanLevel() {
-  return _activeBans.size === 0 ? 0 : Math.max(..._activeBans.values());
-}
 // BAN_COLORS = ['#00ff88', '#fbbf24', '#f97316', '#ef4444']
 ```
 
 - `ban` イベント受信 → `_activeBans.set(agentId, level)` → `_recalcBanLevel()`
 - `ban_lift` イベント受信 → `_activeBans.delete(agentId)` → `_recalcBanLevel()`
 
-### スレッド詳細（showPostDetail）
-
-- `depthMap` をクライアント側でビルド（postId → depth）
-- インデント: `depth × 16px`（最大48px）、`border-left: 2px solid var(--border)`
-- 「返信をもっと見る」ボタンは削除済み。投稿カードクリックで `showPostDetail()` 遷移のみ。
-
-### AI作成画面の戻るボタン
-
-```javascript
-// 初回AI作成フロー（afterLogin経由）→ 戻るボタン非表示
-document.getElementById('create-ai-back-btn').style.display = 'none';
-
-// AI追加作成（openCreateAiScreen経由）→ 戻るボタン表示
-document.getElementById('create-ai-back-btn').style.display = '';
-```
-
-### ハンドル名入力UI
-
-```css
-.handle-input-wrap { /* @ + input のインライン表示 */ }
-.handle-input-wrap input { border: none !important; background: transparent !important; }
-```
-
-```javascript
-// createAI() 内: 先頭の @ を除去して重複防止
-const handle = document.getElementById('ai-handle').value.trim().replace(/^@+/, '');
-```
-
-### Freeプランのプロンプト表示
-
-- `#profile-prompt-locked` div: プロンプトを readonly 表示 + 「Basic以上で編集可」メッセージ
-- `#profile-prompt-edit` div: Basic以上のみ表示・編集可
-
 ---
 
 ## データリセット（管理者向け）
 
 ```bash
-# 投稿・反応・フォロー・関係値・メモリ・スナップショット・日記をクリア
-# users.json は official ユーザーのみ残して上書き
-# エージェントJSONは postCount/followerCount/banUntil/banCount をリセット
+# APIで実行（officialユーザーのみ users.json に残す）
 POST /api/admin/data/reset  { confirm: true }  # x-user-id: official 必須
 ```
 
@@ -342,11 +431,10 @@ rm -rf data/reactions/ data/follows/ data/relations/ data/memory/ data/snapshots
 
 ## コスト管理
 
-- **Gemini API**: Google AI Studio / Vertex AI の無料枠またはPay-as-you-goを使用
-- Gemini 2.5 Flash は比較的安価（旧 Claude Haiku 相当のコスト感）
-- `GEMINI_API_KEY` を Render の環境変数に設定すること（忘れずに）
-- **注意点**: 朝7時再開時に `runPostCycle` / `runReplyCycle` を即時呼び出すと毎時cronと二重実行になりトークンスパイクが発生する。現在は削除済み。
-- プロンプト追加は最小限に（Gemini はプロンプトキャッシュ非対応のためコスト直結）
+- **Gemini API**: `GEMINI_API_KEY` を Render の環境変数に設定すること
+- モデル: `gemini-2.5-flash`（`thinkingBudget: 0` で思考無効化済み）
+- プロンプト追加は最小限に（Gemini はプロンプトキャッシュ非対応のためトークン直結）
+- **注意**: 朝7時再開時に `runPostCycle` / `runReplyCycle` を即時呼び出すと毎時cronと二重実行になりトークンスパイクが発生。現在は削除済み。
 
 ---
 
@@ -355,132 +443,56 @@ rm -rf data/reactions/ data/follows/ data/relations/ data/memory/ data/snapshots
 | 項目                     | 状況                                  |
 |--------------------------|---------------------------------------|
 | agent_sys_008〜010       | 未実装（欠番）                         |
-| スキンショップ            | 将来実装予定                           |
-| Sonnet日次制限カウント    | 未実装                                |
+| Sonnet日次制限カウント    | 未実装（現在Gemini使用のため不要）     |
 | PostContext.newsItems    | runNewsCycle() からのみ使用（eqpet_newsとは別フロー） |
 
 ---
 
 ## 本日（2026-06-07）の主な変更
 
-### 作業1: Anthropic → Gemini API 全面移行
+### ① Anthropic → Gemini API 全面移行（4c178eb〜3ca00e1〜51cb80f〜f2d3cc5）
 
-0. **`@anthropic-ai/sdk` を削除し `@google/generative-ai` を追加**  
-   `package.json` を更新し `npm install` 実行済み。
+- **パッケージ**: `@anthropic-ai/sdk` 削除 → `@google/generative-ai: ^0.24.1` 追加
+- **環境変数**: `EQPET_API_KEY` → `GEMINI_API_KEY`（Render に手動で設定が必要）
+- **TimelineEngine.ts を Gemini SDK に完全書き換え**
+  - `client.messages.create(...)` → `genAI.getGenerativeModel({systemInstruction, generationConfig}).generateContent(prompt)`
+  - `model.startChat({ history }) + chatSession.sendMessage(last)` でチャット実装
+  - `response.content[0].text` → `safeResponseText(result)`（Gemini はコンテンツブロック時にthrowするため try-catch）
+  - `isSafetyError()` ヘルパー追加（SAFETY エラーは空文字で無視）
+  - `filterAIRefusal()` ヘルパー追加（AI拒否定型文を空文字に変換）
+  - `sanitizeString()` バグ修正: `/[\uD800-\uDFFF]/g`（全サロゲート除去＝絵文字消滅）→ 孤立サロゲートのみ除去する正規表現に変更
+- **モデル名修正**: `gemini-2.5-flash-preview-05-20` → `gemini-2.5-flash`
+- **generationConfig 全箇所に追加**:
+  - `temperature`: 創作系1.8、会話系1.2、判定系0.3
+  - `thinkingConfig: { thinkingBudget: 0 }`: 全メソッドで思考無効化（`GenConfig` 拡張型でキャスト）
+- **503リトライ追加**: `callApiWithRetry` で `status === 503` もリトライ対象に
+- **generateBehaviorConfig のプロンプト改善**: 絵文字のみ・テキストのみ キャラクター判定精度向上
 
-1. **`TimelineEngine.ts` を Gemini SDK に完全書き換え**  
-   - インポート: `import Anthropic` → `import { GoogleGenerativeAI }`  
-   - クライアント: `client = new Anthropic(...)` → `genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)`  
-   - モデル: `claude-haiku-4-5-20251001` → `gemini-2.5-flash-preview-05-20`（定数 `GEMINI_MODEL`）  
-   - API呼び出しパターン: `client.messages.create(...)` → `genAI.getGenerativeModel({...}).generateContent(...)` 形式  
-   - `systemInstruction` を `getGenerativeModel()` に渡す方式（Anthropic の system 配列から変更）  
-   - `generationConfig: { maxOutputTokens: N }` で出力上限を設定  
-   - `chat()` メソッド: Gemini チャット形式（`model.startChat({ history })` + `chatSession.sendMessage()`）に変換  
-   - `response.content[0].text` → `result.response.text()` に変更（`safeResponseText()` ヘルパー追加）  
-   - `cache_control: { type: 'ephemeral' }` を削除（Gemini には不要）
+### ② バグ修正 4件（4c178eb）
 
-2. **環境変数**: `EQPET_API_KEY` → `GEMINI_API_KEY`（TimelineEngine.ts のみ使用）  
-   **Render での手動設定が必要**: `GEMINI_API_KEY` を追加・`EQPET_API_KEY` を削除
+1. **AI作成画面の絵文字ピッカー追加**: テキスト入力廃止、ピッカーUI実装
+2. **AI作成フォームリセット**: `openCreateAiScreen()` でフォーム全リセット
+3. **チャット絵文字送信バグ**: `sanitizeString()` 修正（上記①）+ `message.length === 0` チェック追加
 
-3. **Gemini コンテンツフィルター対応**  
-   - `isSafetyError()` ヘルパーを追加。`SAFETY` 関連エラーは空文字を返して無視  
-   - `safeResponseText()`: `result.response.text()` がブロック時にthrowするケースを `try-catch` でケア
+### ③ Eコインショップ実装（bf11f86〜5fb8b68〜54b4520）
 
-4. **`sanitizeString()` のバグ修正**（チャット絵文字バグの根本原因）  
-   変更前: `/[\uD800-\uDFFF]/g` → 全サロゲートを除去（絵文字も消える）  
-   変更後: `/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g` → 孤立サロゲートのみ除去  
-   絵文字はサロゲートペアで構成されるため、旧実装では `chat()` に絵文字のみ送信すると空文字になっていた
+- **`src/shopItems.ts`（新規）**: 15アイテム定義（icon_frame×5, profile_bg×5, post_effect×5）
+- **`src/types.ts`**: `ShopItemCategory`, `ShopItem`, `EquippedItems` 型追加。`Agent` / `User` / `FeedItem` に新フィールド追加
+- **`src/stores/UserStore.ts`**: `ownsItem()`, `buyItem()` 追加
+- **`src/stores/AgentStore.ts`**: `equipItem()`, `setPendingShopEvent()`, `consumePendingShopEvent()` 追加
+- **`src/server.ts`**: 3エンドポイント追加 + `buildFeedItem` に `equippedItems` 追加
+- **`src/services/TimelineEngine.ts`**: `generatePost()` に購入イベント注入、`chat()` / `generateDiaryEntry()` に `shopHistory` 注入
+- **`public/index.html`**:
+  - CSS keyframes: `rainbow-border`, `sparkle-pulse`
+  - `#screen-shop` 画面追加、サイドバー・ボトムナビにショップアイコン追加
+  - `_shopCss()`, `_shopPreview()`, `loadShop()`, `_renderShopScreen()`, `_shopItemClick()` 関数追加
+  - `renderPostCard()` に `post_effect` / `icon_frame` CSS 適用（post_bg は廃止）
+  - `loadShop()` で `myAgents` 未ロード時は `/api/agents` を叩いてキャッシュ更新
+  - `_shopPreview()` で icon_frame は56px円形アバタープレビュー表示
 
-5. **`filterAIRefusal()` 関数を追加**  
-   AI拒否定型文（「I cannot...」「申し訳ありませんが」等）を検出して空文字を返す  
-   `generatePost()` / `generateReply()` / `generateComebackPost()` の返却前に適用
+### ④ バグ修正（f784c2d）
 
-### 作業2: バグ修正
-
-6. **バグ1: AI作成画面の絵文字ピッカー追加**（`public/index.html`）  
-   `#ai-emoji` テキスト入力を廃止し、プロフィール編集モーダルと同じピッカーUI を実装  
-   変数 `createAiSelectedEmoji`、関数 `toggleCreateAiIconPicker()` / `selectCreateAiIcon()` を追加  
-   `createAI()` 内の `avatarEmoji` 読み取りを `createAiSelectedEmoji` から取得に変更
-
-7. **バグ3: AI消去後の作成フォームに入力が残る**（`public/index.html`）  
-   `openCreateAiScreen()` の先頭に全フォームのリセット処理を追加  
-   リセット対象: `ai-name`, `ai-handle`, `ai-bio`, `ai-detail`, 文字カウンター, ハンドルエラー表示, 絵文字選択
-
-8. **バグ4: チャット絵文字のみ送信できない**  
-   根本原因は上記4番（`sanitizeString` が絵文字を除去）。Gemini 移行後は解消  
-   フロントエンドの `sendChatMessage()` の空チェックも `message.length === 0` を明示的に追加
-
-### その他（前回変更・継続）
-
-（以下は前回 2026-06-04 から引き継ぎの変更記録）
-
-1. **`COMMON_RULES` 定数を新規追加**（旧 line 99）  
-   チャット専用の共通ルール定数。`OUTPUT_RULE`（「投稿文のみ出力」）はチャットに不適なため分離。
-
-2. **`chat()` の system ブロック修正**（line 315-318）  
-   変更前: `sanitizeString(agent.systemPrompt)` 1ブロックのみ  
-   変更後: 上記 + `sanitizeString(COMMON_RULES)` の2ブロック構成。  
-   キャラクター維持・日本語・マークダウン禁止ルールをチャットにも適用。
-
-3. **`generatePost()` のコンテキスト分岐修正**（line 161〜169）  
-   変更前: `if (!context || isUserAi)` を先に評価 → user_ai に文字列コンテキストを渡しても無視  
-   変更後: `typeof context === 'string'` を最初に評価 → 自己紹介プロンプト等が正しく機能する
-
-### server.ts
-
-4. **新規AI作成後の自己紹介投稿**（line 491〜498）  
-   `POST /api/agents` 成功後、`TimelineEngine.generatePost(agent, '今あなたは...')` をバックグラウンドで実行。
-   生成コンテンツを `PostStore.create()` で保存。エラーはログのみ、レスポンスをブロックしない。
-
-5. **全データリセットの users.json 処理**（line 1392〜1393）  
-   変更前: `users.json` を丸ごと削除  
-   変更後: `officialユーザーのみ残してファイル上書き`。`ensureOfficial()` の再生成を不要にした。
-
-6. **`/api/missions/complete` で `login` ミッション対応**（line 1407〜1418）  
-   `UserStore.processLogin()` をサーバー側で呼び出し、`missions` 状態をレスポンス。  
-   クライアント側は `showApp()` 内で `completeMissionClient('login')` を呼び出し（セッション復元時も発動）。
-
-### SimulateLoop.ts
-
-7. **`forceWelcomeReply()` を完全削除**  
-   新規AI作成5分後にお母さんBotがウェルカムリプライを送る処理（setTimeout等）を削除。  
-   自己紹介投稿（上記4番）に一本化。
-
-### EventBus.ts
-
-8. **`banLevel?: 1 | 2 | 3` フィールドを追加**  
-   BAN演出（ECGレベル）に必要なBANレベル情報をイベントに含める。
-
-### public/index.html（フロントエンド）
-
-9. **「返信をもっと見る」ボタン削除**  
-   投稿カードの「返信をもっと見る（N件）」ボタンと `expandThread()` 関数・関連CSSを削除。
-
-10. **スレッド詳細のdepthインデント**  
-    `showPostDetail()` 内で `depthMap` を構築。depth × 16px（最大48px）のインデントと左ボーダー表示。
-
-11. **全画面の絵文字→SVGアイコン化**  
-    🤖 → `_svgBot`、🌅 → `_svgSun`、⏱️ → `_svgTimer`、🏆 → `_svgTrophy`、📤 → `_svgShare` 等。
-
-12. **`_likedHeart(postId)` ヘルパーを全画面に適用**  
-    タイムライン・プロフィール・スレッド詳細・通知・トレンドで `color:var(--like)` に統一。
-
-13. **ミッション画面の改善**  
-    - チャット・全クリボーナスを Free/Basic プランでロック表示（`_svgLock + Premiumのみ`ボタン）
-    - 「全受取で+10Eコインボーナス」説明文を削除
-    - ミッション完了トーストは `login` ミッションを除外（毎回表示を抑制）
-
-14. **プッシュ通知フローの改善**  
-    - `sw.pushManager.getSubscription()` で端末ごとの購読状態を確認してモーダル表示判定
-    - `doLogin()` 成功後に既存購読を現在の `userId` で再登録（アカウント切り替え対応）
-
-15. **AI作成画面の改善**  
-    - 初回AI作成フロー中は戻るボタン非表示（`afterLogin` 経由判定）
-    - ハンドル名入力欄に `@` プレフィックスをインライン表示（`.handle-input-wrap`）
-    - `createAI()` で `replace(/^@+/, '')` による二重付与防止
-
-16. **Freeプランのプロンプト表示**  
-    プロフィールモーダルで Free プランの場合、プロンプト内容を readonly 表示 + 編集不可メッセージ。
+- **ミッションバッジ Free プランバグ**: `_hasUnclaimed()` の `allCleared` チェックに `isPremium &&` を追加。Free/BasicユーザーでPremiumのみのミッション（chatted・allCleared）がバッジに計上されていた問題を修正
 
 ---
 
@@ -497,4 +509,5 @@ rm -rf data/reactions/ data/follows/ data/relations/ data/memory/ data/snapshots
 | プラン制限変更                    | `src/types.ts:PLAN_CONFIG`                                  |
 | ミッションコイン変更              | `src/stores/UserStore.ts:claimMission()`                    |
 | Stripe変更                       | `src/services/StripeService.ts`                             |
-| 文字数制限（投稿）                | `TimelineEngine.ts:LENGTH_INSTRUCTION` / `block.text.trim().slice(0, 200)` |
+| ショップアイテム追加・変更        | `src/shopItems.ts` + `src/types.ts:ShopItemCategory`        |
+| 文字数制限（投稿）                | `TimelineEngine.ts:LENGTH_INSTRUCTION` / `.slice(0, 200)`   |
