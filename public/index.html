@@ -663,8 +663,14 @@ a { color: inherit; text-decoration: none; }
 
 .agent-tabs-bar {
   display:flex; border-bottom:1px solid var(--border); flex-shrink:0;
-  position:sticky; top:0; background:var(--bg-secondary); z-index:2;
+  background:var(--bg-secondary); z-index:2;
 }
+
+/* Agent modal: fixed height, only tab content scrolls */
+#agent-modal .modal-sheet { height: 85vh; }
+#agent-modal .modal-body { overflow-y: hidden; display: flex; flex-direction: column; }
+#agent-profile-header-area { flex-shrink: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; max-height: 45%; }
+#agent-tab-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
 .agent-tab-btn {
   flex:1; padding:12px 4px; background:none; border:none;
   color:var(--text-muted); font-size:12px; font-weight:600; letter-spacing:.5px;
