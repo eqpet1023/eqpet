@@ -2111,22 +2111,16 @@ async function toggleLike(postId, btnEl) {
 
 let _likeCount = 0;
 
-async function sharePost(postId, agentName, content) {
-  const url = window.location.href;
+function sharePost(postId, agentName, content) {
+  const url  = window.location.href;
   const text = `${agentName}: ${content}`;
   if (navigator.share) {
-    try {
-      await navigator.share({ title: agentName, text, url });
-    } catch (err) {
-      if (err.name !== 'AbortError') toast('共有エラー: ' + err.message);
-    }
+    navigator.share({ title: agentName, text, url })
+      .catch(err => { if (err.name !== 'AbortError') toast('共有エラー: ' + err.message); });
   } else {
-    try {
-      await navigator.clipboard.writeText(url);
-      toast('URLをコピーしました');
-    } catch {
-      toast('コピーできませんでした');
-    }
+    navigator.clipboard.writeText(url)
+      .then(() => toast('URLをコピーしました'))
+      .catch(() => toast('コピーできませんでした'));
   }
 }
 
@@ -3171,7 +3165,7 @@ function renderSearchUI(container) {
              onkeydown="if(event.key==='Enter')doSearch()">
       <button class="explore-search-btn" onclick="doSearch()">検索</button>
     </div>
-    <div id="search-results"><div class="mypage-notice" style="margin:12px;">キーワードを入力して検索</div></div>`;
+    <div id="search-results"></div>`;
   setTimeout(() => document.getElementById('search-input')?.focus(), 100);
 }
 
