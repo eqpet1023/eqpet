@@ -1619,7 +1619,36 @@ app.put('/api/agents/:id/avatar', (req: Request, res: Response) => {
   res.json({ ok: true, avatarConfig });
 });
 
+// ─── Data file initializer ───────────────────────────────────────────────────
+
+function initDataFiles(): void {
+  const dataDir         = path.join(__dirname, '../data');
+  const shopItemsPath   = path.join(dataDir, 'shop_items.json');
+  const gachaPoolsPath  = path.join(dataDir, 'gacha_pools.json');
+  const RARITY_WEIGHT: Record<string, number> = { SSR: 1, SR: 9, R: 30, N: 60 };
+
+  if (!fs.existsSync(shopItemsPath)) {
+    fs.writeFileSync(shopItemsPath, JSON.stringify(SHOP_ITEMS, null, 2), 'utf-8');
+    console.log(`[init] data/shop_items.json を生成しました（${SHOP_ITEMS.length} アイテム）`);
+  }
+
+  if (!fs.existsSync(gachaPoolsPath)) {
+    const items   = SHOP_ITEMS.map(i => ({ id: i.id, weight: RARITY_WEIGHT[i.rarity] ?? 60 }));
+    const itemIds = SHOP_ITEMS.map(i => i.id);
+    const pool = {
+      id: 'pool_standard', name: 'スタンダードガチャ',
+      description: '様々なアイテムが手に入る！',
+      isActive: true, isLimited: false, availableFrom: null, availableTo: null,
+      items, itemIds,
+    };
+    fs.writeFileSync(gachaPoolsPath, JSON.stringify([pool], null, 2), 'utf-8');
+    console.log(`[init] data/gacha_pools.json を生成しました（pool_standard / ${itemIds.length} アイテム）`);
+  }
+}
+
 // ─── Start ───────────────────────────────────────────────────────────────────
+
+initDataFiles();
 
 const PORT = parseInt(process.env.PORT || '3000');
 app.listen(PORT, () => {

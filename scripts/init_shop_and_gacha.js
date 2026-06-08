@@ -1,0 +1,61 @@
+// scripts/init_shop_and_gacha.js
+// data/shop_items.json と data/gacha_pools.json が存在しない場合に初期データを生成する
+// Usage: node scripts/init_shop_and_gacha.js
+
+const fs   = require('fs');
+const path = require('path');
+
+const SHOP_ITEMS_PATH  = path.join(__dirname, '../data/shop_items.json');
+const GACHA_POOLS_PATH = path.join(__dirname, '../data/gacha_pools.json');
+
+// ── src/shopItems.ts の SHOP_ITEMS をハードコード ─────────────
+const SHOP_ITEMS = [
+  // icon_frame
+  { id: 'frame_gold',    category: 'icon_frame',  name: '✨ ゴールドフレーム',   desc: '輝く金色のフレーム',              price: 80,  rarity: 'R',   isDefault: false, isLimited: false, css: 'outline: 3px solid gold; outline-offset: 2px; border-radius: 50%;' },
+  { id: 'frame_rainbow', category: 'icon_frame',  name: '🌈 レインボーフレーム', desc: '虹色に輝くアニメーションフレーム', price: 200, rarity: 'SR',  isDefault: false, isLimited: false, css: 'animation: rainbow-border 2s linear infinite; border-radius: 50%;' },
+  { id: 'frame_neon',    category: 'icon_frame',  name: '💚 ネオングリーン',     desc: 'ネオンカラーが光るフレーム',      price: 80,  rarity: 'R',   isDefault: false, isLimited: false, css: 'box-shadow: 0 0 8px #00ff88, 0 0 2px #00ff88; border-radius: 50%;' },
+  { id: 'frame_sakura',  category: 'icon_frame',  name: '🌸 サクラ',             desc: '桜色のやさしいフレーム',          price: 30,  rarity: 'N',   isDefault: false, isLimited: false, css: 'outline: 3px solid #ffb7c5; outline-offset: 2px; border-radius: 50%;' },
+  { id: 'frame_cyber',   category: 'icon_frame',  name: '🔵 サイバーブルー',     desc: 'サイバーパンク風の青いフレーム',  price: 200, rarity: 'SR',  isDefault: false, isLimited: false, css: 'outline: 2px solid #00cfff; outline-offset: 3px; box-shadow: 0 0 10px #00cfff; border-radius: 50%;' },
+  // profile_bg
+  { id: 'bg_sunset',     category: 'profile_bg',  name: '🌅 サンセット',         desc: '夕焼けのグラデーション背景',       price: 30,  rarity: 'N',   isDefault: false, isLimited: false, css: 'background: linear-gradient(135deg, #ff6b35, #f7931e, #ffd700);' },
+  { id: 'bg_ocean',      category: 'profile_bg',  name: '🌊 オーシャン',         desc: '海のグラデーション背景',           price: 30,  rarity: 'N',   isDefault: false, isLimited: false, css: 'background: linear-gradient(135deg, #1a6b9a, #22c1c3, #70e0ff);' },
+  { id: 'bg_galaxy',     category: 'profile_bg',  name: '🌌 ギャラクシー',       desc: '宇宙的なダークグラデーション',     price: 80,  rarity: 'R',   isDefault: false, isLimited: false, css: 'background: linear-gradient(135deg, #0d0d1a, #1a0033, #3d1a6b, #6b35a8);' },
+  { id: 'bg_forest',     category: 'profile_bg',  name: '🌿 フォレスト',         desc: '深緑の森グラデーション背景',       price: 30,  rarity: 'N',   isDefault: false, isLimited: false, css: 'background: linear-gradient(135deg, #1a3a1a, #2d6a2d, #4caf50);' },
+  { id: 'bg_cherry',     category: 'profile_bg',  name: '🌸 チェリーブロッサム', desc: '桜色のグラデーション背景',         price: 80,  rarity: 'R',   isDefault: false, isLimited: false, css: 'background: linear-gradient(135deg, #ffb7c5, #ff85a1, #ff4d8d);' },
+  // post_effect
+  { id: 'effect_sparkle',category: 'post_effect', name: '✨ キラキラ',           desc: '投稿がキラキラ輝くアニメーション', price: 80,  rarity: 'R',   isDefault: false, isLimited: false, css: 'animation: sparkle-pulse 2s ease-in-out infinite;' },
+  { id: 'effect_glow',   category: 'post_effect', name: '🌟 ゴールドグロー',     desc: '金色の輝きエフェクト',            price: 80,  rarity: 'R',   isDefault: false, isLimited: false, css: 'box-shadow: 0 0 14px rgba(255, 215, 0, 0.6);' },
+  { id: 'effect_neon',   category: 'post_effect', name: '💚 ネオングロー',       desc: 'ネオンカラーのグローエフェクト',   price: 80,  rarity: 'R',   isDefault: false, isLimited: false, css: 'box-shadow: 0 0 16px rgba(0, 255, 136, 0.5);' },
+  { id: 'effect_sakura', category: 'post_effect', name: '🌸 サクラグロー',       desc: '桜色のやさしいグロー',            price: 30,  rarity: 'N',   isDefault: false, isLimited: false, css: 'box-shadow: 0 0 14px rgba(255, 183, 197, 0.7);' },
+  { id: 'effect_rainbow',category: 'post_effect', name: '🌈 レインボーグロー',   desc: '虹色に光るアニメーション',        price: 200, rarity: 'SR',  isDefault: false, isLimited: false, css: 'animation: rainbow-border 3s linear infinite;' },
+];
+
+const RARITY_WEIGHT = { SSR: 1, SR: 9, R: 30, N: 60 };
+
+// ── shop_items.json ────────────────────────────────────────────
+if (fs.existsSync(SHOP_ITEMS_PATH)) {
+  console.log('[skip] data/shop_items.json は既に存在します。');
+} else {
+  fs.writeFileSync(SHOP_ITEMS_PATH, JSON.stringify(SHOP_ITEMS, null, 2), 'utf-8');
+  console.log(`[done] data/shop_items.json を生成しました（${SHOP_ITEMS.length} アイテム）`);
+}
+
+// ── gacha_pools.json ───────────────────────────────────────────
+if (fs.existsSync(GACHA_POOLS_PATH)) {
+  console.log('[skip] data/gacha_pools.json は既に存在します。');
+} else {
+  const sourceItems = JSON.parse(fs.readFileSync(SHOP_ITEMS_PATH, 'utf-8'));
+  const pool = {
+    id:            'pool_standard',
+    name:          'スタンダードガチャ',
+    description:   '様々なアイテムが手に入る！',
+    isActive:      true,
+    isLimited:     false,
+    availableFrom: null,
+    availableTo:   null,
+    items:   sourceItems.map(i => ({ id: i.id, weight: RARITY_WEIGHT[i.rarity] ?? 60 })),
+    itemIds: sourceItems.map(i => i.id),
+  };
+  fs.writeFileSync(GACHA_POOLS_PATH, JSON.stringify([pool], null, 2), 'utf-8');
+  console.log(`[done] data/gacha_pools.json を生成しました（pool_standard / ${pool.itemIds.length} アイテム）`);
+}
