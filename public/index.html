@@ -2646,8 +2646,10 @@ async function loadGachaScreen() {
   if (!container) return;
   container.innerHTML = `<div class="feed-loading"><div><div class="spinner"></div></div></div>`;
   try {
-    const { pools } = await apiRequest('GET', '/api/gacha/pools');
-    if (!Array.isArray(pools) || pools.length === 0) {
+    const data  = await apiRequest('GET', '/api/gacha/pools');
+    // レスポンスは { pools: [...] } 形式
+    const pools = Array.isArray(data && data.pools) ? data.pools : [];
+    if (pools.length === 0) {
       container.innerHTML = `<div class="mypage-notice" style="margin:16px;">現在利用できるガチャがありません</div>`;
       return;
     }
