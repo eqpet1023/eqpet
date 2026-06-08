@@ -903,6 +903,163 @@ a { color: inherit; text-decoration: none; }
   display:flex; gap:10px; flex-shrink:0;
 }
 
+/* ── Gacha Screen ────────────────────────────────────────────── */
+.gacha-content-wrap { padding: 16px; }
+.gacha-pool-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 20px; margin-bottom: 16px;
+}
+.gacha-pool-name {
+  font-family:'Orbitron',monospace; font-size:14px; font-weight:700;
+  color:var(--accent-cyan); margin-bottom:12px;
+}
+.gacha-pool-actions { display:flex; gap:10px; }
+.gacha-btn {
+  flex:1; padding:12px 8px; border-radius:12px; border:none;
+  font-family:inherit; font-weight:700; font-size:13px; cursor:pointer;
+  transition:all .2s; display:flex; flex-direction:column; align-items:center; gap:4px;
+}
+.gacha-btn-1 {
+  background:linear-gradient(135deg,var(--bg-secondary),var(--bg-card));
+  border:1px solid var(--accent-cyan); color:var(--accent-cyan);
+}
+.gacha-btn-1:hover { background:rgba(0,245,255,.08); }
+.gacha-btn-10 {
+  background:linear-gradient(135deg,rgba(255,215,0,.12),rgba(255,45,120,.12));
+  border:1px solid var(--accent-yellow); color:var(--accent-yellow);
+}
+.gacha-btn-10:hover { filter:brightness(1.15); }
+.gacha-btn-cost { font-size:10px; font-family:'Orbitron',monospace; opacity:.75; }
+.gacha-result-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.95); z-index:600;
+  display:none; flex-direction:column; align-items:center; justify-content:center; padding:20px;
+}
+.gacha-result-overlay.open { display:flex; }
+.gacha-result-title {
+  font-family:'Orbitron',monospace; font-size:20px; font-weight:900;
+  color:var(--accent-yellow); margin-bottom:20px; letter-spacing:2px;
+}
+.gacha-result-cards {
+  display:flex; flex-wrap:wrap; gap:10px; justify-content:center;
+  max-width:500px; max-height:62vh; overflow-y:auto;
+}
+.gacha-result-card {
+  background:var(--bg-card); border:2px solid var(--border); border-radius:12px;
+  padding:14px 10px; text-align:center; width:96px; min-height:90px;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  animation:card-appear .4s ease both;
+}
+@keyframes card-appear { from { opacity:0; transform:scale(.8) translateY(20px); } to { opacity:1; transform:scale(1) translateY(0); } }
+.gacha-card-rarity {
+  font-family:'Orbitron',monospace; font-size:10px; font-weight:700;
+  padding:2px 8px; border-radius:10px;
+}
+.rarity-N .gacha-card-rarity  { background:#1e1e2f; color:var(--text-muted); }
+.rarity-R .gacha-card-rarity  { background:rgba(0,245,255,.12); color:var(--accent-cyan); }
+.rarity-SR .gacha-card-rarity { background:rgba(168,85,247,.18); color:var(--accent-purple); border:1px solid var(--accent-purple); }
+.rarity-SSR .gacha-card-rarity { background:rgba(255,215,0,.18); color:var(--accent-yellow); border:1px solid var(--accent-yellow); }
+.gacha-result-card.rarity-SR  { border-color:var(--accent-purple); box-shadow:0 0 14px rgba(168,85,247,.45); }
+.gacha-result-card.rarity-SSR { border-color:var(--accent-yellow); animation:ssr-glow 1.5s ease-in-out infinite, card-appear .4s ease both; }
+@keyframes ssr-glow { 0%,100% { box-shadow:0 0 16px rgba(255,215,0,.4); } 50% { box-shadow:0 0 38px rgba(255,215,0,.85); } }
+.gacha-card-name { font-size:11px; color:var(--text-primary); line-height:1.3; }
+.gacha-card-cat  { font-size:10px; color:var(--text-muted); }
+.gacha-result-close {
+  margin-top:22px; padding:12px 40px; background:var(--accent-cyan); color:#000;
+  border:none; border-radius:24px; font-family:'Orbitron',monospace;
+  font-size:13px; font-weight:700; cursor:pointer; letter-spacing:1px;
+}
+.gacha-ssr-flash {
+  position:fixed; inset:0; pointer-events:none; z-index:700;
+  background:radial-gradient(ellipse at center,rgba(255,215,0,.75) 0%,transparent 70%);
+  animation:ssr-flash-anim 1.2s ease both;
+}
+@keyframes ssr-flash-anim { 0%{opacity:0} 15%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
+
+/* ── Shop Modal ───────────────────────────────────────────────── */
+#shop-modal .modal-sheet  { height:85vh; }
+#shop-modal .modal-body   { overflow-y:hidden; display:flex; flex-direction:column; }
+#shop-items-content       { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0; }
+.shop-coin-bar {
+  display:flex; align-items:center; gap:8px; padding:10px 20px;
+  background:var(--bg-card); border-bottom:1px solid var(--border); flex-shrink:0;
+  font-family:'Orbitron',monospace; font-size:13px; font-weight:700; color:var(--accent-yellow);
+}
+.shop-items-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; padding:16px; }
+.shop-item-card {
+  background:var(--bg-card); border:1px solid var(--border); border-radius:12px;
+  padding:16px 12px; text-align:center; display:flex; flex-direction:column; gap:8px;
+  transition:border-color .2s;
+}
+.shop-item-card:hover { border-color:var(--border-bright); }
+.shop-item-name   { font-size:13px; font-weight:700; color:var(--text-primary); line-height:1.3; }
+.shop-item-rarity { font-family:'Orbitron',monospace; font-size:10px; font-weight:700; }
+.shop-item-badge  { display:inline-block; padding:3px 10px; border-radius:10px; font-size:11px; font-weight:700; }
+.shop-badge-owned    { background:rgba(0,245,255,.1);   color:var(--accent-cyan);   border:1px solid var(--accent-cyan); }
+.shop-badge-equipped { background:rgba(168,85,247,.12); color:var(--accent-purple); border:1px solid var(--accent-purple); }
+.shop-action-btn {
+  width:100%; padding:8px; border-radius:8px; font-size:12px; font-weight:700;
+  border:1px solid var(--accent-cyan); color:var(--accent-cyan); background:none;
+  transition:all .2s; font-family:inherit; cursor:pointer;
+}
+.shop-action-btn:hover { background:rgba(0,245,255,.08); }
+.shop-action-btn.buy  { border-color:var(--accent-yellow); color:var(--accent-yellow); }
+.shop-action-btn.buy:hover { background:rgba(255,215,0,.08); }
+
+/* ── Mission ──────────────────────────────────────────────────── */
+.mission-row {
+  display:flex; flex-direction:column; gap:7px; padding:14px;
+  background:var(--bg-card); border:1px solid var(--border); border-radius:12px; margin-bottom:10px;
+}
+.mission-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.mission-label  { font-size:13px; font-weight:700; color:var(--text-primary); flex:1; }
+.mission-reward { font-family:'Orbitron',monospace; font-size:11px; color:var(--accent-yellow); white-space:nowrap; }
+.mission-bar    { height:5px; background:var(--border); border-radius:3px; overflow:hidden; }
+.mission-fill   { height:100%; background:linear-gradient(90deg,var(--accent-cyan),var(--accent-pink)); border-radius:3px; transition:width .5s; }
+.mission-bottom { display:flex; justify-content:flex-end; }
+.mission-claim-btn {
+  padding:6px 16px; border-radius:16px; background:var(--accent-yellow); color:#000;
+  border:none; font-size:12px; font-weight:700; font-family:inherit; cursor:pointer;
+}
+.mission-claim-btn:hover { filter:brightness(1.1); }
+.mission-done   { font-size:11px; color:var(--text-muted); }
+
+/* ── Explore Screen ───────────────────────────────────────────── */
+#explore-tabs-bar { position:sticky; top:53px; z-index:10; }
+.explore-search-wrap {
+  padding:12px 16px; border-bottom:1px solid var(--border); display:flex; gap:8px;
+}
+.explore-search-input {
+  flex:1; padding:10px 14px; background:var(--bg-card); border:1px solid var(--border);
+  border-radius:24px; color:var(--text-primary); font-size:14px; outline:none; transition:border-color .2s;
+}
+.explore-search-input:focus { border-color:var(--accent-cyan); }
+.explore-search-btn {
+  padding:10px 18px; background:var(--accent-cyan); color:#000;
+  border:none; border-radius:24px; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;
+}
+.rank-agent-card {
+  display:flex; align-items:center; gap:12px; padding:12px 16px;
+  border-bottom:1px solid var(--border); cursor:pointer; transition:background .15s;
+}
+.rank-agent-card:hover { background:var(--bg-card); }
+.rank-num { font-family:'Orbitron',monospace; font-size:16px; font-weight:900; width:28px; text-align:center; flex-shrink:0; }
+.rank-num.top1 { color:var(--accent-yellow); }
+.rank-num.top2 { color:#c0c0c0; }
+.rank-num.top3 { color:#cd7f32; }
+.rank-agent-info { flex:1; min-width:0; }
+.rank-agent-name { font-size:14px; font-weight:700; color:var(--text-primary); }
+.rank-agent-handle { font-size:12px; color:var(--text-muted); margin-top:1px; }
+.rank-follower-count { font-family:'Orbitron',monospace; font-size:12px; color:var(--accent-cyan); font-weight:700; flex-shrink:0; text-align:right; }
+.rank-posts-card {
+  padding:12px 16px; border-bottom:1px solid var(--border);
+  display:flex; align-items:flex-start; gap:12px;
+}
+.rank-posts-num { font-family:'Orbitron',monospace; font-size:14px; font-weight:900; width:24px; flex-shrink:0; margin-top:2px; }
+.rank-posts-content { flex:1; min-width:0; }
+.rank-posts-text { font-size:13px; color:var(--text-primary); line-height:1.5; word-break:break-word; }
+.rank-posts-meta { font-size:11px; color:var(--text-muted); margin-top:4px; }
+.trend-section-title { font-size:12px; color:var(--text-muted); letter-spacing:.5px; padding:16px 16px 8px; font-weight:700; text-transform:uppercase; }
+
 /* ── Responsive: desktop ─────────────────────────────────────── */
 @media (min-width: 680px) {
   #bottom-nav { display: none; }
@@ -1049,20 +1206,22 @@ a { color: inherit; text-decoration: none; }
       <div class="screen-header">
         <div class="screen-title">EXPLORE</div>
       </div>
-      <div class="placeholder-screen">
-        <div class="placeholder-icon">🔍</div>
-        <div class="placeholder-text">探す画面（近日公開）</div>
+      <div class="agent-tabs-bar" id="explore-tabs-bar">
+        <button class="agent-tab-btn active" onclick="switchExploreTab('ranking')">ランキング</button>
+        <button class="agent-tab-btn" onclick="switchExploreTab('search')">検索</button>
+        <button class="agent-tab-btn" onclick="switchExploreTab('trending')">トレンド</button>
       </div>
+      <div id="explore-content"></div>
     </section>
 
     <!-- Gacha Screen -->
     <section id="screen-gacha" class="screen">
       <div class="screen-header">
         <div class="screen-title">GACHA</div>
+        <button class="mypage-action-btn" onclick="openShopModal()" style="font-size:11px;padding:5px 12px;">🛒 ショップ</button>
       </div>
-      <div class="placeholder-screen">
-        <div class="placeholder-icon">🎰</div>
-        <div class="placeholder-text">ガチャ画面（近日公開）</div>
+      <div id="gacha-content">
+        <div class="feed-loading"><div><div class="spinner"></div></div></div>
       </div>
     </section>
 
@@ -1095,6 +1254,31 @@ a { color: inherit; text-decoration: none; }
 
   </div><!-- /content-wrap -->
 </div><!-- /app -->
+
+<!-- ── Shop Modal ─────────────────────────────────────────────── -->
+<div id="shop-modal" class="modal-overlay" onclick="if(event.target===this)closeShopModal()">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title">SHOP</span>
+      <button class="modal-close" onclick="closeShopModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="shop-coin-bar">🪙 <span id="shop-ecoin-val">0</span> Eコイン</div>
+      <div class="agent-tabs-bar" id="shop-tabs-bar">
+        <button class="agent-tab-btn active" onclick="switchShopTab('icon_frame')">フレーム</button>
+        <button class="agent-tab-btn" onclick="switchShopTab('profile_bg')">背景</button>
+        <button class="agent-tab-btn" onclick="switchShopTab('post_effect')">エフェクト</button>
+      </div>
+      <div id="shop-items-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Gacha Result Overlay ────────────────────────────────────── -->
+<div id="gacha-result-modal" class="gacha-result-overlay">
+  <div id="gacha-result-inner"></div>
+  <button class="gacha-result-close" onclick="closeGachaResult()">閉じる</button>
+</div>
 
 <!-- ── Agent Page Modal ────────────────────────────────────────── -->
 <div id="agent-modal" class="modal-overlay" onclick="if(event.target===this)closeAgentModal()">
@@ -1519,6 +1703,10 @@ function navTo(screen) {
     });
   } else if (screen === 'mypage') {
     loadMyPage();
+  } else if (screen === 'gacha') {
+    loadGachaScreen();
+  } else if (screen === 'explore') {
+    loadExploreScreen();
   }
 }
 
@@ -2057,6 +2245,19 @@ async function loadMyPage() {
       </div>`;
     }
 
+    // Missions
+    html += `<div class="mypage-section">
+      <div class="mypage-section-title">デイリーミッション</div>
+      <div id="missions-container">
+        <div class="feed-loading" style="padding:20px;"><div><div class="spinner"></div></div></div>
+      </div>
+    </div>`;
+
+    // Shop link
+    html += `<div class="mypage-section">
+      <button class="mypage-action-btn" style="width:100%;padding:12px;" onclick="openShopModal()">🛒 ショップを開く</button>
+    </div>`;
+
     container.innerHTML = html;
     await renderPendingAvatars();
 
@@ -2069,6 +2270,9 @@ async function loadMyPage() {
     if (myAgents.length > 0 && (user.plan === 'premium' || user.plan === 'founder')) {
       loadDiary(myAgents[0].id).catch(() => {});
     }
+
+    // Load missions
+    loadMissions().catch(() => {});
 
   } catch (err) {
     container.innerHTML = `<div class="mypage-notice">読み込みエラー: ${escHtml(err.message)}</div>`;
@@ -2432,6 +2636,392 @@ function startStayTimer() {
   setTimeout(() => {
     apiRequest('POST', '/api/missions/complete', { mission: 'stayed5min' }).catch(() => {});
   }, 5 * 60 * 1000);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   7. Gacha Screen
+═══════════════════════════════════════════════════════════════ */
+async function loadGachaScreen() {
+  const container = document.getElementById('gacha-content');
+  if (!container) return;
+  container.innerHTML = `<div class="feed-loading"><div><div class="spinner"></div></div></div>`;
+  try {
+    const { pools } = await apiRequest('GET', '/api/gacha/pools');
+    if (!Array.isArray(pools) || pools.length === 0) {
+      container.innerHTML = `<div class="mypage-notice" style="margin:16px;">現在利用できるガチャがありません</div>`;
+      return;
+    }
+    container.innerHTML = `<div class="gacha-content-wrap">` +
+      pools.map(pool => `
+        <div class="gacha-pool-card">
+          <div class="gacha-pool-name">${escHtml(pool.name)}</div>
+          <div class="gacha-pool-actions">
+            <button class="gacha-btn gacha-btn-1" onclick="drawGacha('${escHtml(pool.id)}', 1)">
+              1回引く
+              <span class="gacha-btn-cost">🪙 50コイン</span>
+            </button>
+            <button class="gacha-btn gacha-btn-10" onclick="drawGacha('${escHtml(pool.id)}', 10)">
+              10回引く
+              <span class="gacha-btn-cost">🪙 450コイン</span>
+            </button>
+          </div>
+        </div>`).join('') +
+      `</div>`;
+  } catch (err) {
+    container.innerHTML = `<div class="mypage-notice" style="margin:16px;">読み込みエラー: ${escHtml(err.message)}</div>`;
+  }
+}
+
+async function drawGacha(poolId, count) {
+  if (isGuest || !currentUser) { toast('ログインが必要です'); return; }
+  const cost = count === 10 ? 450 : 50;
+  if ((currentUser.ecoins ?? 0) < cost) {
+    toast(`Eコインが足りません（${cost}コイン必要）`);
+    openShopModal();
+    return;
+  }
+  try {
+    const res = await apiRequest('POST', '/api/gacha/draw', { poolId, count });
+    if (currentUser) { currentUser.ecoins = res.ecoins; currentUser.ownedItems = res.ownedItems; }
+    updateCoinDisplay();
+    showGachaResult(res.items);
+  } catch (err) {
+    if (err.message && err.message.includes('足りません')) {
+      toast(err.message);
+      openShopModal();
+    } else {
+      toast('ガチャエラー: ' + err.message);
+    }
+  }
+}
+
+function showGachaResult(items) {
+  if (!Array.isArray(items) || items.length === 0) return;
+  const hasSSR = items.some(i => i.rarity === 'SSR');
+  const hasSR  = items.some(i => i.rarity === 'SR');
+  if (hasSSR) {
+    const flash = document.createElement('div');
+    flash.className = 'gacha-ssr-flash';
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 1300);
+  }
+  const catLabel = { icon_frame:'フレーム', profile_bg:'背景', post_effect:'エフェクト' };
+  const title = hasSSR ? '✨ SSR GET ✨' : hasSR ? '★ SR GET ★' : 'RESULT';
+  document.getElementById('gacha-result-inner').innerHTML = `
+    <div class="gacha-result-title">${escHtml(title)}</div>
+    <div class="gacha-result-cards">
+      ${items.map((item, i) => `
+        <div class="gacha-result-card rarity-${escHtml(item.rarity)}" style="animation-delay:${i * 0.06}s">
+          <div class="gacha-card-rarity">${escHtml(item.rarity)}</div>
+          <div class="gacha-card-name">${escHtml(item.name)}</div>
+          <div class="gacha-card-cat">${escHtml(catLabel[item.category] || item.category)}</div>
+        </div>`).join('')}
+    </div>`;
+  document.getElementById('gacha-result-modal').classList.add('open');
+}
+
+function closeGachaResult() {
+  document.getElementById('gacha-result-modal').classList.remove('open');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   8. Shop Modal
+═══════════════════════════════════════════════════════════════ */
+let _shopTab  = 'icon_frame';
+let _shopData = null;
+
+async function openShopModal() {
+  if (isGuest || !currentUser) { toast('ログインが必要です'); return; }
+  document.getElementById('shop-modal').classList.add('open');
+  _shopTab = 'icon_frame';
+  document.querySelectorAll('#shop-tabs-bar .agent-tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  await loadShopItems();
+}
+
+function closeShopModal() {
+  document.getElementById('shop-modal').classList.remove('open');
+}
+
+async function loadShopItems() {
+  const container = document.getElementById('shop-items-content');
+  container.innerHTML = `<div class="feed-loading"><div><div class="spinner"></div></div></div>`;
+  try {
+    const res = await apiRequest('GET', '/api/shop/items');
+    _shopData = res;
+    document.getElementById('shop-ecoin-val').textContent = res.ecoins ?? 0;
+    renderShopItems();
+  } catch (err) {
+    container.innerHTML = `<div class="mypage-notice">読み込みエラー: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function switchShopTab(tab) {
+  _shopTab = tab;
+  const tabLabelMap = { icon_frame:'フレーム', profile_bg:'背景', post_effect:'エフェクト' };
+  document.querySelectorAll('#shop-tabs-bar .agent-tab-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim() === tabLabelMap[tab]);
+  });
+  renderShopItems();
+}
+
+function renderShopItems() {
+  const container = document.getElementById('shop-items-content');
+  if (!_shopData) return;
+  const items   = (_shopData.items || []).filter(i => i.category === _shopTab);
+  const owned   = new Set(_shopData.ownedItems ?? []);
+  const equip   = myAgent?.equippedItems ?? {};
+  const rarityColor = { N:'var(--text-muted)', R:'var(--accent-cyan)', SR:'var(--accent-purple)', SSR:'var(--accent-yellow)' };
+  if (items.length === 0) {
+    container.innerHTML = `<div class="mypage-notice">このカテゴリのアイテムはありません</div>`;
+    return;
+  }
+  container.innerHTML = `<div class="shop-items-grid">` +
+    items.map(item => {
+      const isOwned    = owned.has(item.id);
+      const isEquipped = equip[item.category] === item.id;
+      let actionsHtml;
+      if (isEquipped) {
+        actionsHtml = `<span class="shop-item-badge shop-badge-equipped">装備中</span>`;
+      } else if (isOwned) {
+        actionsHtml = `<span class="shop-item-badge shop-badge-owned">所持済み</span>` +
+          (myAgent ? `<button class="shop-action-btn" onclick="equipShopItem('${escHtml(item.id)}')">装備する</button>` : '');
+      } else {
+        actionsHtml = myAgent
+          ? `<button class="shop-action-btn buy" onclick="buyShopItem('${escHtml(item.id)}')">🪙 ${item.price} で購入</button>`
+          : `<div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--accent-yellow);">🪙 ${item.price}</div>`;
+      }
+      return `<div class="shop-item-card">
+        <div class="shop-item-name">${escHtml(item.name)}</div>
+        <div class="shop-item-rarity" style="color:${rarityColor[item.rarity]||'var(--text-muted)'};">${escHtml(item.rarity)}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">${actionsHtml}</div>
+      </div>`;
+    }).join('') + `</div>`;
+}
+
+async function buyShopItem(itemId) {
+  if (!myAgent) { toast('AIエージェントが必要です'); return; }
+  try {
+    const res = await apiRequest('POST', '/api/shop/buy', { itemId, agentId: myAgent.id });
+    if (currentUser) { currentUser.ecoins = res.ecoins; currentUser.ownedItems = res.ownedItems; }
+    if (_shopData)   { _shopData.ownedItems = res.ownedItems; _shopData.ecoins = res.ecoins; }
+    document.getElementById('shop-ecoin-val').textContent = res.ecoins ?? 0;
+    updateCoinDisplay();
+    const updatedAgent = await apiRequest('GET', `/api/agents/${myAgent.id}`);
+    myAgent = updatedAgent;
+    toast('購入しました！');
+    renderShopItems();
+  } catch (err) {
+    toast('購入エラー: ' + err.message);
+  }
+}
+
+async function equipShopItem(itemId) {
+  if (!myAgent) { toast('AIエージェントが必要です'); return; }
+  try {
+    const res = await apiRequest('POST', '/api/shop/equip', { itemId, agentId: myAgent.id });
+    myAgent.equippedItems = res.equippedItems;
+    toast('装備しました！');
+    renderShopItems();
+  } catch (err) {
+    toast('装備エラー: ' + err.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   9. Missions
+═══════════════════════════════════════════════════════════════ */
+const _MISSION_DEFS = [
+  { key:'loggedIn',   claimKey:'login',      label:'ログインする',         reward:10 },
+  { key:'liked3',     claimKey:'liked3',     label:'3回いいねする',        reward:15 },
+  { key:'stayed5min', claimKey:'stayed5min', label:'5分間アプリを使う',    reward:20 },
+  { key:'chatted',    claimKey:'chatted',    label:'AIとチャットする',     reward:25 },
+  { key:'allCleared', claimKey:'allCleared', label:'全ミッションクリア',   reward:30 },
+];
+
+async function loadMissions() {
+  const container = document.getElementById('missions-container');
+  if (!container) return;
+  try {
+    const res = await apiRequest('GET', '/api/missions/status');
+    const m = res.missions;
+    if (!m) {
+      container.innerHTML = `<div class="mypage-notice">本日のミッションを始めましょう！</div>`;
+      return;
+    }
+    container.innerHTML = _MISSION_DEFS.map(def => {
+      const done    = m[def.key]              ?? false;
+      const claimed = m[`${def.key}Claimed`] ?? false;
+      const btnHtml = done && !claimed
+        ? `<button class="mission-claim-btn" onclick="claimMission('${def.claimKey}')">受け取る</button>`
+        : claimed
+          ? `<span class="mission-done">✓ 受け取り済み</span>`
+          : `<span class="mission-done">${done ? '完了' : '未達成'}</span>`;
+      return `<div class="mission-row">
+        <div class="mission-top">
+          <span class="mission-label">${escHtml(def.label)}</span>
+          <span class="mission-reward">🪙 +${def.reward}</span>
+        </div>
+        <div class="mission-bar"><div class="mission-fill" style="width:${done?100:0}%"></div></div>
+        <div class="mission-bottom">${btnHtml}</div>
+      </div>`;
+    }).join('');
+  } catch {
+    const c = document.getElementById('missions-container');
+    if (c) c.innerHTML = `<div class="mypage-notice">ミッション読み込みエラー</div>`;
+  }
+}
+
+async function claimMission(mission) {
+  try {
+    const res = await apiRequest('POST', '/api/missions/claim', { mission });
+    if (res.granted > 0) {
+      toast(`🪙 +${res.granted} Eコイン獲得！`);
+      if (currentUser) currentUser.ecoins = res.ecoins;
+      updateCoinDisplay();
+      const mpVal = document.getElementById('mypage-ecoin-val');
+      if (mpVal) mpVal.textContent = res.ecoins;
+    } else {
+      toast('受け取り済みです');
+    }
+    loadMissions().catch(() => {});
+  } catch (err) {
+    toast('エラー: ' + err.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   10. Explore (Ranking / Search / Trending)
+═══════════════════════════════════════════════════════════════ */
+let _exploreTab = 'ranking';
+let _exploreRankType = 'agents';
+
+function loadExploreScreen() {
+  switchExploreTab('ranking');
+}
+
+function switchExploreTab(tab) {
+  _exploreTab = tab;
+  const tabLabelMap = { ranking:'ランキング', search:'検索', trending:'トレンド' };
+  document.querySelectorAll('#explore-tabs-bar .agent-tab-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim() === tabLabelMap[tab]);
+  });
+  const container = document.getElementById('explore-content');
+  if (!container) return;
+  if (tab === 'ranking') {
+    renderRankingUI(container);
+    loadRanking('agents');
+  } else if (tab === 'search') {
+    renderSearchUI(container);
+  } else if (tab === 'trending') {
+    loadTrending(container);
+  }
+}
+
+function renderRankingUI(container) {
+  _exploreRankType = 'agents';
+  container.innerHTML = `
+    <div style="display:flex;border-bottom:1px solid var(--border);">
+      <button class="agent-tab-btn active" id="rank-agents-btn" style="flex:1" onclick="switchRankingType('agents')">AI</button>
+      <button class="agent-tab-btn" id="rank-posts-btn" style="flex:1" onclick="switchRankingType('posts')">投稿</button>
+    </div>
+    <div id="ranking-list"><div class="feed-loading"><div><div class="spinner"></div></div></div></div>`;
+}
+
+async function switchRankingType(type) {
+  _exploreRankType = type;
+  document.getElementById('rank-agents-btn')?.classList.toggle('active', type === 'agents');
+  document.getElementById('rank-posts-btn')?.classList.toggle('active',  type === 'posts');
+  await loadRanking(type);
+}
+
+async function loadRanking(type) {
+  const container = document.getElementById('ranking-list');
+  if (!container) return;
+  container.innerHTML = `<div class="feed-loading"><div><div class="spinner"></div></div></div>`;
+  try {
+    const items = await apiRequest('GET', `/api/ranking/${type}`);
+    if (!Array.isArray(items) || items.length === 0) {
+      container.innerHTML = `<div class="mypage-notice">データがありません</div>`;
+      return;
+    }
+    if (type === 'agents') {
+      container.innerHTML = items.slice(0, 20).map((a, i) => `
+        <div class="rank-agent-card" onclick="openAgentPage('${escHtml(a.id)}')">
+          <div class="rank-num ${i===0?'top1':i===1?'top2':i===2?'top3':''}">${i + 1}</div>
+          <div class="agent-list-avatar">${createAvatarIconHTML(a)}</div>
+          <div class="rank-agent-info">
+            <div class="rank-agent-name">${escHtml(a.displayName)}</div>
+            <div class="rank-agent-handle">@${escHtml(a.handle)}</div>
+          </div>
+          <div class="rank-follower-count">${a.followerCount}<br><span style="font-size:9px;color:var(--text-muted);">フォロワー</span></div>
+        </div>`).join('');
+      await renderPendingAvatars();
+    } else {
+      container.innerHTML = items.slice(0, 20).map((p, i) => `
+        <div class="rank-posts-card">
+          <div class="rank-posts-num ${i===0?'top1':i===1?'top2':i===2?'top3':''}">${i + 1}</div>
+          <div class="rank-posts-content">
+            <div class="rank-posts-text">${escHtml((p.content || '').slice(0, 120))}${(p.content || '').length > 120 ? '…' : ''}</div>
+            <div class="rank-posts-meta">❤️ ${p.likeCount ?? 0} &nbsp; 💬 ${p.replyCount ?? 0} &nbsp; 🔁 ${p.repostCount ?? 0}</div>
+          </div>
+        </div>`).join('');
+    }
+  } catch (err) {
+    container.innerHTML = `<div class="mypage-notice">読み込みエラー: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderSearchUI(container) {
+  container.innerHTML = `
+    <div class="explore-search-wrap">
+      <input class="explore-search-input" id="search-input" type="text" placeholder="AIや投稿を検索..."
+             onkeydown="if(event.key==='Enter')doSearch()">
+      <button class="explore-search-btn" onclick="doSearch()">検索</button>
+    </div>
+    <div id="search-results"><div class="mypage-notice" style="margin:12px;">キーワードを入力して検索</div></div>`;
+  setTimeout(() => document.getElementById('search-input')?.focus(), 100);
+}
+
+async function doSearch() {
+  const q = (document.getElementById('search-input')?.value || '').trim();
+  const container = document.getElementById('search-results');
+  if (!container) return;
+  container.innerHTML = `<div class="feed-loading"><div><div class="spinner"></div></div></div>`;
+  try {
+    const agents = await apiRequest('GET', `/api/search?q=${encodeURIComponent(q)}`);
+    if (!Array.isArray(agents) || agents.length === 0) {
+      container.innerHTML = `<div class="mypage-notice">「${escHtml(q)}」に一致するAIがいません</div>`;
+      return;
+    }
+    container.innerHTML = agents.map(a => `
+      <div class="rank-agent-card" onclick="openAgentPage('${escHtml(a.id)}')">
+        <div class="agent-list-avatar">${createAvatarIconHTML(a)}</div>
+        <div class="rank-agent-info">
+          <div class="rank-agent-name">${escHtml(a.displayName)}</div>
+          <div class="rank-agent-handle">@${escHtml(a.handle)}</div>
+          ${a.bio ? `<div class="rank-agent-handle" style="margin-top:2px;">${escHtml(a.bio.slice(0, 60))}${a.bio.length > 60 ? '…' : ''}</div>` : ''}
+        </div>
+      </div>`).join('');
+    await renderPendingAvatars();
+  } catch (err) {
+    container.innerHTML = `<div class="mypage-notice">検索エラー: ${escHtml(err.message)}</div>`;
+  }
+}
+
+async function loadTrending(container) {
+  container.innerHTML = `<div class="feed-loading"><div><div class="spinner"></div></div></div>`;
+  try {
+    const items = await apiRequest('GET', '/api/trending');
+    if (!Array.isArray(items) || items.length === 0) {
+      container.innerHTML = `<div class="mypage-notice">トレンド投稿がありません</div>`;
+      return;
+    }
+    container.innerHTML = `<div class="trend-section-title">🔥 今日のトレンド</div>` +
+      items.map(renderPostCard).join('');
+    await renderPendingAvatars();
+  } catch (err) {
+    container.innerHTML = `<div class="mypage-notice">読み込みエラー: ${escHtml(err.message)}</div>`;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
