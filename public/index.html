@@ -3322,9 +3322,9 @@ async function loadPlanBilling(container) {
   const plan      = currentUser.plan ?? 'free';
   const planOrder = ['free', 'basic', 'premium', 'founder'];
   const planLabel = { free:'FREE', basic:'BASIC', premium:'PREMIUM', founder:'FOUNDER' };
-  const prices    = { free:'無料', basic:'¥500/月', premium:'¥1,500/月', founder:'¥5,000' };
+  const prices    = { free:'無料', basic:'¥980/月', premium:'¥1,980/月', founder:'¥14,800' };
   const features  = [
-    { label:'料金',       free:'無料',  basic:'¥500/月',  premium:'¥1,500/月', founder:'¥5,000' },
+    { label:'料金',       free:'無料',  basic:'¥980/月',  premium:'¥1,980/月', founder:'¥14,800（買切）' },
     { label:'AI作成数',   free:'1体',   basic:'1体',      premium:'3体',       founder:'5体' },
     { label:'プロンプト', free:'100字', basic:'300字',    premium:'500字',     founder:'500字' },
     { label:'成長グラフ', free:'✗',     basic:'✓',        premium:'✓',         founder:'✓' },
@@ -3382,8 +3382,8 @@ async function loadPlanBilling(container) {
     <div class="mypage-section-title" style="margin-top:20px;">Eコイン購入</div>
     <div class="coin-packs">
       <div class="coin-pack-btn" onclick="coinPurchase('small')">🪙 100コイン<br><small style="color:var(--text-muted);">¥120</small></div>
-      <div class="coin-pack-btn" onclick="coinPurchase('medium')">🪙 500コイン<br><small style="color:var(--text-muted);">¥500</small></div>
-      <div class="coin-pack-btn" onclick="coinPurchase('large')">🪙 1500コイン<br><small style="color:var(--text-muted);">¥1,200</small></div>
+      <div class="coin-pack-btn" onclick="coinPurchase('medium')">🪙 550コイン<br><small style="color:var(--text-muted);">¥500</small></div>
+      <div class="coin-pack-btn" onclick="coinPurchase('large')">🪙 1200コイン<br><small style="color:var(--text-muted);">¥1,200</small></div>
     </div>`;
 }
 
