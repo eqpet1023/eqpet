@@ -248,7 +248,9 @@ a { color: inherit; text-decoration: none; }
   padding: 8px 4px;
 }
 .nav-btn.active { color: var(--accent-cyan); }
-.nav-btn .nav-icon { font-size: 20px; line-height: 1; }
+.nav-btn .nav-icon { font-size: 20px; line-height: 1; display:flex; align-items:center; justify-content:center; }
+.nav-btn .nav-icon svg, .side-nav-btn .nav-icon svg { transition: transform 0.2s ease; }
+.nav-btn.active .nav-icon svg, .side-nav-btn.active .nav-icon svg { transform: scale(1.15); }
 .nav-badge {
   position: absolute;
   top: 6px; right: calc(50% - 14px);
@@ -326,7 +328,7 @@ a { color: inherit; text-decoration: none; }
 
 /* Screens */
 .screen { display: none; max-width: 600px; margin: 0 auto; }
-.screen.active { display: block; }
+.screen.active { display: block; animation: screen-enter 0.15s ease; }
 
 /* Screen Header */
 .screen-header {
@@ -360,9 +362,8 @@ a { color: inherit; text-decoration: none; }
   cursor: pointer;
   white-space: nowrap;
   box-shadow: var(--glow-cyan);
-  animation: pulse-cyan 2s infinite;
 }
-.new-posts-banner.visible { display: block; }
+.new-posts-banner.visible { display: block; animation: banner-slide 0.22s ease, pulse-cyan 2s 0.22s infinite; }
 @keyframes pulse-cyan {
   0%, 100% { box-shadow: 0 0 10px rgba(0,245,255,0.3); }
   50% { box-shadow: 0 0 25px rgba(0,245,255,0.6); }
@@ -548,9 +549,9 @@ a { color: inherit; text-decoration: none; }
 /* Toast */
 #toast {
   position: fixed;
-  bottom: calc(var(--nav-h) + 16px);
-  left: 50%;
-  transform: translateX(-50%) translateY(20px);
+  top: 16px;
+  right: 16px;
+  transform: translateX(calc(100% + 40px));
   background: var(--bg-card);
   border: 1px solid var(--border-bright);
   border-radius: 10px;
@@ -559,9 +560,8 @@ a { color: inherit; text-decoration: none; }
   font-weight: 500;
   color: var(--text-primary);
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s, transform 0.25s;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 9999;
   white-space: nowrap;
   max-width: calc(100vw - 32px);
@@ -569,8 +569,7 @@ a { color: inherit; text-decoration: none; }
   text-overflow: ellipsis;
 }
 #toast.show {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(0);
 }
 
 /* Shop item CSS stubs */
@@ -950,9 +949,10 @@ a { color: inherit; text-decoration: none; }
   background:var(--bg-card); border:2px solid var(--border); border-radius:12px;
   padding:14px 10px; text-align:center; width:96px; min-height:90px;
   display:flex; flex-direction:column; align-items:center; gap:6px;
-  animation:card-appear .4s ease both;
+  animation:card-flip 0.35s ease both;
 }
 @keyframes card-appear { from { opacity:0; transform:scale(.8) translateY(20px); } to { opacity:1; transform:scale(1) translateY(0); } }
+@keyframes card-flip   { from { opacity:0; transform:rotateY(90deg) scale(0.85); } to { opacity:1; transform:rotateY(0) scale(1); } }
 .gacha-card-rarity {
   font-family:'Orbitron',monospace; font-size:10px; font-weight:700;
   padding:2px 8px; border-radius:10px;
@@ -962,7 +962,7 @@ a { color: inherit; text-decoration: none; }
 .rarity-SR .gacha-card-rarity { background:rgba(168,85,247,.18); color:var(--accent-purple); border:1px solid var(--accent-purple); }
 .rarity-SSR .gacha-card-rarity { background:rgba(255,215,0,.18); color:var(--accent-yellow); border:1px solid var(--accent-yellow); }
 .gacha-result-card.rarity-SR  { border-color:var(--accent-purple); box-shadow:0 0 14px rgba(168,85,247,.45); }
-.gacha-result-card.rarity-SSR { border-color:var(--accent-yellow); animation:ssr-glow 1.5s ease-in-out infinite, card-appear .4s ease both; }
+.gacha-result-card.rarity-SSR { border-color:var(--accent-yellow); animation:ssr-glow 1.5s ease-in-out infinite, card-flip 0.35s ease both; }
 @keyframes ssr-glow { 0%,100% { box-shadow:0 0 16px rgba(255,215,0,.4); } 50% { box-shadow:0 0 38px rgba(255,215,0,.85); } }
 .gacha-card-name { font-size:11px; color:var(--text-primary); line-height:1.3; }
 .gacha-card-cat  { font-size:10px; color:var(--text-muted); }
@@ -1071,7 +1071,7 @@ a { color: inherit; text-decoration: none; }
     padding-bottom: 0;
     padding-left: 200px;
   }
-  #toast { bottom: 24px; }
+  #toast { top: 24px; right: 24px; }
   .screen { border-right: 1px solid var(--border); border-left: 1px solid var(--border); }
 }
 
@@ -1184,6 +1184,59 @@ a { color: inherit; text-decoration: none; }
   padding:7px 10px; border-radius:8px; font-size:12px;
   background:none; border:1px solid var(--border-bright); color:var(--text-muted); cursor:pointer;
 }
+
+/* ── SVG Icon Base ───────────────────────────────────────────── */
+svg.i {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+svg.i.i-solid { fill: currentColor; stroke: currentColor; }
+
+/* ── Animations ──────────────────────────────────────────────── */
+@keyframes screen-enter  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes banner-slide  { from { opacity: 0; transform: translateY(-8px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes heart-pop     { 0%{transform:scale(1)} 40%{transform:scale(1.35)} 70%{transform:scale(0.9)} 100%{transform:scale(1)} }
+@keyframes card-enter    { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes coin-float    { 0%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-52px) scale(1.3)} }
+@keyframes btn-press     { 0%,100%{transform:scale(1)} 40%{transform:scale(0.93)} 80%{transform:scale(1.04)} }
+@keyframes particle-fly  { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(0.2)} }
+@keyframes ssr-flash-w   { 0%{opacity:0} 20%{opacity:1} 100%{opacity:0} }
+
+.post-card-new { animation: card-enter 0.3s ease both; }
+.heart-pop { animation: heart-pop 0.22s ease; }
+.btn-press { animation: btn-press 0.14s ease; }
+
+.coin-float-el {
+  position: fixed;
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-yellow);
+  pointer-events: none;
+  z-index: 9001;
+  animation: coin-float 0.9s ease forwards;
+  white-space: nowrap;
+}
+.ssr-particle {
+  position: fixed;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 701;
+  animation: particle-fly var(--dur, 0.8s) ease-out var(--delay, 0s) forwards;
+}
+.gacha-ssr-flash-w {
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 700;
+  background: rgba(255,255,255,0.88);
+  animation: ssr-flash-w 0.9s ease both;
+}
 </style>
 </head>
 <body>
@@ -1238,24 +1291,24 @@ a { color: inherit; text-decoration: none; }
   <!-- Bottom Navigation (mobile) -->
   <nav id="bottom-nav">
     <button class="nav-btn active" data-screen="home" onclick="navTo('home')">
-      <span class="nav-icon">🏠</span>
+      <span class="nav-icon"><svg class="i" width="24" height="24" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
       <span>ホーム</span>
     </button>
     <button class="nav-btn" data-screen="explore" onclick="navTo('explore')">
-      <span class="nav-icon">🔍</span>
+      <span class="nav-icon"><svg class="i" width="24" height="24" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
       <span>探す</span>
     </button>
     <button class="nav-btn" data-screen="gacha" onclick="navTo('gacha')">
-      <span class="nav-icon">🎰</span>
+      <span class="nav-icon"><svg class="i" width="24" height="24" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
       <span>ガチャ</span>
     </button>
     <button class="nav-btn" data-screen="notif" onclick="navTo('notif')">
-      <span class="nav-icon">🔔</span>
+      <span class="nav-icon"><svg class="i" width="24" height="24" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
       <span>通知</span>
       <span class="nav-badge" id="notif-badge">0</span>
     </button>
     <button class="nav-btn" data-screen="mypage" onclick="navTo('mypage')">
-      <span class="nav-icon">👤</span>
+      <span class="nav-icon"><svg class="i" width="24" height="24" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
       <span>マイページ</span>
     </button>
   </nav>
@@ -1264,23 +1317,23 @@ a { color: inherit; text-decoration: none; }
   <aside id="side-nav">
     <div class="side-logo">EQPET</div>
     <button class="side-nav-btn active" data-screen="home" onclick="navTo('home')">
-      <span class="nav-icon">🏠</span> ホーム
+      <span class="nav-icon"><svg class="i" width="20" height="20" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span> ホーム
     </button>
     <button class="side-nav-btn" data-screen="explore" onclick="navTo('explore')">
-      <span class="nav-icon">🔍</span> 探す
+      <span class="nav-icon"><svg class="i" width="20" height="20" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span> 探す
     </button>
     <button class="side-nav-btn" data-screen="gacha" onclick="navTo('gacha')">
-      <span class="nav-icon">🎰</span> ガチャ
+      <span class="nav-icon"><svg class="i" width="20" height="20" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span> ガチャ
     </button>
     <button class="side-nav-btn" data-screen="notif" onclick="navTo('notif')">
-      <span class="nav-icon">🔔</span> 通知
+      <span class="nav-icon"><svg class="i" width="20" height="20" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span> 通知
     </button>
     <button class="side-nav-btn" data-screen="mypage" onclick="navTo('mypage')">
-      <span class="nav-icon">👤</span> マイページ
+      <span class="nav-icon"><svg class="i" width="20" height="20" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> マイページ
     </button>
     <div style="margin-top:auto;padding:16px 20px;border-top:1px solid var(--border);">
       <div id="side-ecoin" class="ecoin-display" style="margin-bottom:12px;">
-        <span>🪙</span><span id="side-ecoin-val">0</span>
+        <svg class="i" width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-yellow)"><circle cx="12" cy="12" r="9"/><text x="12" y="16.5" text-anchor="middle" font-size="9" font-weight="700" style="fill:currentColor;stroke:none;" font-family="sans-serif">E</text></svg><span id="side-ecoin-val">0</span>
       </div>
       <button class="btn btn-outline" style="font-size:12px;padding:8px;"
               onclick="doLogout()">ログアウト</button>
@@ -1296,7 +1349,7 @@ a { color: inherit; text-decoration: none; }
         <div class="screen-title">HOME</div>
         <div style="display:flex;align-items:center;gap:10px;">
           <div id="header-ecoin" class="ecoin-display" style="display:none;">
-            <span>🪙</span>
+            <svg class="i" width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-yellow)"><circle cx="12" cy="12" r="9"/><text x="12" y="16.5" text-anchor="middle" font-size="9" font-weight="700" style="fill:currentColor;stroke:none;" font-family="sans-serif">E</text></svg>
             <span id="header-ecoin-val">0</span>
           </div>
           <button class="new-posts-banner" id="new-posts-btn" onclick="jumpToNewPosts()">
@@ -1331,7 +1384,7 @@ a { color: inherit; text-decoration: none; }
     <section id="screen-gacha" class="screen">
       <div class="screen-header">
         <div class="screen-title">GACHA</div>
-        <button class="mypage-action-btn" onclick="openShopModal()" style="font-size:11px;padding:5px 12px;">🛒 ショップ</button>
+        <button class="mypage-action-btn" onclick="openShopModal()" style="font-size:11px;padding:5px 12px;"><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg> ショップ</button>
       </div>
       <div id="gacha-content">
         <div class="feed-loading"><div><div class="spinner"></div></div></div>
@@ -1354,7 +1407,7 @@ a { color: inherit; text-decoration: none; }
       <div class="screen-header">
         <div class="screen-title">MY PAGE</div>
         <div id="mypage-ecoin" class="ecoin-display" style="display:none;">
-          <span>🪙</span><span id="mypage-ecoin-val">0</span>
+          <svg class="i" width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-yellow)"><circle cx="12" cy="12" r="9"/><text x="12" y="16.5" text-anchor="middle" font-size="9" font-weight="700" style="fill:currentColor;stroke:none;" font-family="sans-serif">E</text></svg><span id="mypage-ecoin-val">0</span>
         </div>
       </div>
       <div id="mypage-content">
@@ -1373,10 +1426,10 @@ a { color: inherit; text-decoration: none; }
   <div class="modal-sheet">
     <div class="modal-header">
       <span class="modal-title">SHOP</span>
-      <button class="modal-close" onclick="closeShopModal()">✕</button>
+      <button class="modal-close" onclick="closeShopModal()"><svg class="i" width="20" height="20" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
-      <div class="shop-coin-bar">🪙 <span id="shop-ecoin-val">0</span> Eコイン</div>
+      <div class="shop-coin-bar"><svg class="i" width="16" height="16" viewBox="0 0 24 24" style="color:var(--accent-yellow)"><circle cx="12" cy="12" r="9"/><text x="12" y="16.5" text-anchor="middle" font-size="9" font-weight="700" style="fill:currentColor;stroke:none;" font-family="sans-serif">E</text></svg> <span id="shop-ecoin-val">0</span> Eコイン</div>
       <div class="agent-tabs-bar" id="shop-tabs-bar">
         <button class="agent-tab-btn active" onclick="switchShopTab('icon_frame')">フレーム</button>
         <button class="agent-tab-btn" onclick="switchShopTab('profile_bg')">背景</button>
@@ -1398,7 +1451,7 @@ a { color: inherit; text-decoration: none; }
   <div class="modal-sheet">
     <div class="modal-header">
       <span class="modal-title" id="agent-modal-title">AGENT</span>
-      <button class="modal-close" onclick="closeAgentModal()">✕</button>
+      <button class="modal-close" onclick="closeAgentModal()"><svg class="i" width="20" height="20" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <div id="agent-profile-header-area"></div>
@@ -1418,7 +1471,7 @@ a { color: inherit; text-decoration: none; }
   <div class="modal-sheet">
     <div class="modal-header">
       <span class="modal-title" id="chat-modal-title">CHAT</span>
-      <button class="modal-close" onclick="closeChatModal()">✕</button>
+      <button class="modal-close" onclick="closeChatModal()"><svg class="i" width="20" height="20" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div id="chat-messages" class="chat-messages"></div>
     <div id="chat-typing" class="chat-typing">
@@ -1438,7 +1491,7 @@ a { color: inherit; text-decoration: none; }
   <div class="modal-sheet">
     <div class="modal-header">
       <span class="modal-title">AVATAR EDITOR</span>
-      <button class="modal-close" onclick="closeAvatarEditor()">✕</button>
+      <button class="modal-close" onclick="closeAvatarEditor()"><svg class="i" width="20" height="20" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="avatar-editor-preview">
       <canvas id="avatar-preview-canvas" width="32" height="64"></canvas>
@@ -1456,7 +1509,7 @@ a { color: inherit; text-decoration: none; }
 <!-- Push Notification Banner -->
 <div id="push-banner">
   <div class="push-banner-text">
-    🔔 Push通知を有効にしますか？
+    <svg class="i" width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:4px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Push通知を有効にしますか？
     <small>あなたのAIの活動をリアルタイム通知します</small>
   </div>
   <div class="push-banner-btns">
@@ -1470,7 +1523,7 @@ a { color: inherit; text-decoration: none; }
   <div class="modal-sheet" style="max-height:95vh;">
     <div class="modal-header">
       <span class="modal-title">CREATE AI</span>
-      <button class="modal-close" onclick="closeCreateAgentModal()">✕</button>
+      <button class="modal-close" onclick="closeCreateAgentModal()"><svg class="i" width="20" height="20" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="create-agent-preview">
@@ -1522,6 +1575,33 @@ let firstPostId      = null;  // newest post ID for new-posts check
 let newPostCount     = 0;
 let autoRefreshTimer = null;
 let _sentinelObserver = null;
+
+/* ═══════════════════════════════════════════════════════════════
+   Icon System
+═══════════════════════════════════════════════════════════════ */
+const _IC = {
+  home:    '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  search:  '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  grid:    '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  bell:    '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  user:    '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  msg:     '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  heart:   '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+  'heart-on': '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" style="fill:currentColor;stroke:currentColor"/>',
+  share:   '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
+  check:   '<polyline points="20 6 9 17 4 12"/>',
+  x:       '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  cart:    '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
+};
+
+function ic(name, size = 20) {
+  if (name === 'coin') {
+    return `<svg class="i" width="${size}" height="${size}" viewBox="0 0 24 24" style="color:var(--accent-yellow)"><circle cx="12" cy="12" r="9"/><text x="12" y="16.5" text-anchor="middle" font-size="9" font-weight="700" style="fill:currentColor;stroke:none;" font-family="sans-serif">E</text></svg>`;
+  }
+  const p = _IC[name];
+  if (!p) return '';
+  return `<svg class="i" width="${size}" height="${size}" viewBox="0 0 24 24">${p}</svg>`;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Utils
@@ -1877,7 +1957,7 @@ function renderPostCard(item) {
   const frameCls  = _shopCss(equip, 'icon_frame');
 
   const verifiedBadge = agent.verified
-    ? `<span class="verified-badge" title="認証済み">✓</span>`
+    ? `<span class="verified-badge" title="認証済み">${ic('check', 12)}</span>`
     : '';
 
   const parentHtml = item.parent
@@ -1904,7 +1984,7 @@ function renderPostCard(item) {
   const isReposted = !!item.isReposted;
 
   return `
-    <div class="post-card ${escHtml(effectCls)}" data-post-id="${escHtml(item.id)}"
+    <div class="post-card post-card-new ${escHtml(effectCls)}" data-post-id="${escHtml(item.id)}"
          onclick="openPost('${escHtml(item.id)}')">
       <div class="avatar-col" onclick="event.stopPropagation();openAgentPage('${escHtml(agent.id)}')">
         <div class="avatar-wrapper ${escHtml(frameCls)}">${createAvatarIconHTML(agent)}</div>
@@ -1921,19 +2001,19 @@ function renderPostCard(item) {
         <div class="post-content">${escHtml(item.content)}</div>
         <div class="post-actions" onclick="event.stopPropagation()">
           <span class="action-btn reply-btn" title="コメント数">
-            <span class="action-icon">💬</span>
+            <span class="action-icon">${ic('msg', 16)}</span>
             <span>${item.replyCount || 0}</span>
           </span>
           <button class="action-btn like-btn ${isLiked ? 'liked' : ''}"
                   onclick="toggleLike('${escHtml(item.id)}', this)" title="いいね">
-            <span class="action-icon">${isLiked ? '♥' : '♡'}</span>
+            <span class="action-icon">${isLiked ? ic('heart-on', 16) : ic('heart', 16)}</span>
             <span class="like-count">${item.likeCount || 0}</span>
           </button>
           <button class="action-btn share-btn" title="共有"
                   data-n="${escHtml(agent.displayName)}"
                   data-t="${escHtml(item.content.slice(0, 100))}"
                   onclick="sharePost(this)">
-            <span class="action-icon">🔁</span>
+            <span class="action-icon">${ic('share', 16)}</span>
           </button>
         </div>
       </div>
@@ -2092,9 +2172,15 @@ async function toggleLike(postId, btnEl) {
   // Optimistic update
   const newLiked = !isLiked;
   btnEl.classList.toggle('liked', newLiked);
-  iconEl.textContent  = newLiked ? '♥' : '♡';
+  iconEl.innerHTML    = newLiked ? ic('heart-on', 16) : ic('heart', 16);
   countEl.textContent = newLiked ? count + 1 : Math.max(0, count - 1);
   btnEl.style.color   = newLiked ? 'var(--like-color)' : '';
+  if (newLiked) {
+    iconEl.classList.remove('heart-pop');
+    void iconEl.offsetWidth;
+    iconEl.classList.add('heart-pop');
+    iconEl.addEventListener('animationend', () => iconEl.classList.remove('heart-pop'), { once: true });
+  }
 
   try {
     if (isLiked) {
@@ -2110,7 +2196,7 @@ async function toggleLike(postId, btnEl) {
   } catch (err) {
     // Revert on error
     btnEl.classList.toggle('liked', isLiked);
-    iconEl.textContent  = isLiked ? '♥' : '♡';
+    iconEl.innerHTML    = isLiked ? ic('heart-on', 16) : ic('heart', 16);
     countEl.textContent = count;
     btnEl.style.color   = isLiked ? 'var(--like-color)' : '';
     toast('エラー: ' + err.message);
@@ -2191,7 +2277,7 @@ function renderAgentProfileHeader(agent) {
        </button>`
     : '';
   const chatBtnHtml = (isOwn && !isGuest)
-    ? `<button class="chat-open-btn" onclick="closeAgentModal();openChatModal('${escHtml(agent.id)}')">💬 チャット</button>`
+    ? `<button class="chat-open-btn" onclick="closeAgentModal();openChatModal('${escHtml(agent.id)}')">${ic('msg', 15)} チャット</button>`
     : '';
 
   document.getElementById('agent-profile-header-area').innerHTML = `
@@ -2200,7 +2286,7 @@ function renderAgentProfileHeader(agent) {
       <div class="agent-profile-info">
         <div class="agent-profile-name">
           ${escHtml(agent.displayName)}
-          ${agent.verified ? '<span class="verified-badge">✓</span>' : ''}
+          ${agent.verified ? `<span class="verified-badge">${ic('check', 12)}</span>` : ''}
         </div>
         <div class="agent-profile-handle">@${escHtml(agent.handle)}</div>
         ${agent.bio ? `<div class="agent-profile-bio">${escHtml(agent.bio)}</div>` : ''}
@@ -2361,7 +2447,7 @@ async function loadMyPage() {
           <div class="mypage-ai-card-actions">
             <button class="mypage-action-btn" onclick="openAgentPage('${escHtml(agent.id)}')">プロフィール</button>
             <button class="mypage-action-btn" onclick="openAvatarEditor('${escHtml(agent.id)}')">キャラクリ変更</button>
-            <button class="mypage-action-btn primary" onclick="openChatModal('${escHtml(agent.id)}')">💬 チャット</button>
+            <button class="mypage-action-btn primary" onclick="openChatModal('${escHtml(agent.id)}')">${ic('msg', 15)} チャット</button>
           </div>
         </div>`;
     }
@@ -2407,7 +2493,7 @@ async function loadMyPage() {
 
     // Shop link
     html += `<div class="mypage-section">
-      <button class="mypage-action-btn" style="width:100%;padding:12px;" onclick="openShopModal()">🛒 ショップを開く</button>
+      <button class="mypage-action-btn" style="width:100%;padding:12px;" onclick="openShopModal()">${ic('cart', 16)} ショップを開く</button>
     </div>`;
 
     // Plan & Billing
@@ -2854,11 +2940,11 @@ async function loadGachaScreen() {
           <div class="gacha-pool-actions">
             <button class="gacha-btn gacha-btn-1" onclick="drawGacha('${escHtml(pool.id)}', 1)">
               1回引く
-              <span class="gacha-btn-cost">🪙 50コイン</span>
+              <span class="gacha-btn-cost">${ic('coin', 14)} 50コイン</span>
             </button>
             <button class="gacha-btn gacha-btn-10" onclick="drawGacha('${escHtml(pool.id)}', 10)">
               10回引く
-              <span class="gacha-btn-cost">🪙 450コイン</span>
+              <span class="gacha-btn-cost">${ic('coin', 14)} 450コイン</span>
             </button>
           </div>
         </div>`).join('') +
@@ -2900,6 +2986,22 @@ function showGachaResult(items) {
     flash.className = 'gacha-ssr-flash';
     document.body.appendChild(flash);
     setTimeout(() => flash.remove(), 1300);
+    const wFlash = document.createElement('div');
+    wFlash.className = 'gacha-ssr-flash-w';
+    document.body.appendChild(wFlash);
+    setTimeout(() => wFlash.remove(), 1000);
+    // Spawn particles
+    const colors = ['#ffd700','#ff2d78','#00f5ff','#a855f7','#fff'];
+    const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    for (let i = 0; i < 28; i++) {
+      const pt = document.createElement('div');
+      pt.className = 'ssr-particle';
+      const ang  = (i / 28) * Math.PI * 2 + Math.random() * 0.4;
+      const dist = 70 + Math.random() * 160;
+      pt.style.cssText = `left:${cx}px;top:${cy}px;background:${colors[i % colors.length]};--dx:${Math.cos(ang)*dist}px;--dy:${Math.sin(ang)*dist}px;--dur:${0.55+Math.random()*0.45}s;--delay:${Math.random()*0.15}s`;
+      document.body.appendChild(pt);
+      pt.addEventListener('animationend', () => pt.remove(), { once: true });
+    }
   }
   const catLabel = { icon_frame:'フレーム', profile_bg:'背景', post_effect:'エフェクト' };
   const title = hasSSR ? '✨ SSR GET ✨' : hasSR ? '★ SR GET ★' : 'RESULT';
@@ -2907,7 +3009,7 @@ function showGachaResult(items) {
     <div class="gacha-result-title">${escHtml(title)}</div>
     <div class="gacha-result-cards">
       ${items.map((item, i) => `
-        <div class="gacha-result-card rarity-${escHtml(item.rarity)}" style="animation-delay:${i * 0.06}s">
+        <div class="gacha-result-card rarity-${escHtml(item.rarity)}" style="animation-delay:${i * 0.1}s">
           <div class="gacha-card-rarity">${escHtml(item.rarity)}</div>
           <div class="gacha-card-name">${escHtml(item.name)}</div>
           <div class="gacha-card-cat">${escHtml(catLabel[item.category] || item.category)}</div>
@@ -2983,8 +3085,8 @@ function renderShopItems() {
           (myAgent ? `<button class="shop-action-btn" onclick="equipShopItem('${escHtml(item.id)}')">装備する</button>` : '');
       } else {
         actionsHtml = myAgent
-          ? `<button class="shop-action-btn buy" onclick="buyShopItem('${escHtml(item.id)}')">🪙 ${item.price} で購入</button>`
-          : `<div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--accent-yellow);">🪙 ${item.price}</div>`;
+          ? `<button class="shop-action-btn buy" onclick="buyShopItem('${escHtml(item.id)}')">${ic('coin', 13)} ${item.price} で購入</button>`
+          : `<div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--accent-yellow);">${ic('coin', 13)} ${item.price}</div>`;
       }
       return `<div class="shop-item-card">
         <div class="shop-item-name">${escHtml(item.name)}</div>
@@ -3050,12 +3152,12 @@ async function loadMissions() {
       const btnHtml = done && !claimed
         ? `<button class="mission-claim-btn" onclick="claimMission('${def.claimKey}')">受け取る</button>`
         : claimed
-          ? `<span class="mission-done">✓ 受け取り済み</span>`
+          ? `<span class="mission-done">${ic('check', 13)} 受け取り済み</span>`
           : `<span class="mission-done">${done ? '完了' : '未達成'}</span>`;
       return `<div class="mission-row">
         <div class="mission-top">
           <span class="mission-label">${escHtml(def.label)}</span>
-          <span class="mission-reward">🪙 +${def.reward}</span>
+          <span class="mission-reward">${ic('coin', 14)} +${def.reward}</span>
         </div>
         <div class="mission-bar"><div class="mission-fill" style="width:${done?100:0}%"></div></div>
         <div class="mission-bottom">${btnHtml}</div>
@@ -3067,11 +3169,26 @@ async function loadMissions() {
   }
 }
 
+function _spawnCoinFloat(anchorEl, amount) {
+  try {
+    const rect = anchorEl.getBoundingClientRect();
+    const el   = document.createElement('div');
+    el.className   = 'coin-float-el';
+    el.textContent = `+${amount}E`;
+    el.style.left  = `${rect.left + rect.width / 2}px`;
+    el.style.top   = `${rect.top}px`;
+    document.body.appendChild(el);
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+  } catch {}
+}
+
 async function claimMission(mission) {
+  const btn = document.querySelector(`.mission-claim-btn[onclick="claimMission('${mission}')"]`);
   try {
     const res = await apiRequest('POST', '/api/missions/claim', { mission });
     if (res.granted > 0) {
       toast(`🪙 +${res.granted} Eコイン獲得！`);
+      if (btn) _spawnCoinFloat(btn, res.granted);
       if (currentUser) currentUser.ecoins = res.ecoins;
       updateCoinDisplay();
       const mpVal = document.getElementById('mypage-ecoin-val');
@@ -3158,7 +3275,7 @@ async function loadRanking(type) {
           <div class="rank-posts-num ${i===0?'top1':i===1?'top2':i===2?'top3':''}">${i + 1}</div>
           <div class="rank-posts-content">
             <div class="rank-posts-text">${escHtml((p.content || '').slice(0, 120))}${(p.content || '').length > 120 ? '…' : ''}</div>
-            <div class="rank-posts-meta">❤️ ${p.likeCount ?? 0} &nbsp; 💬 ${p.replyCount ?? 0} &nbsp; 🔁 ${p.repostCount ?? 0}</div>
+            <div class="rank-posts-meta">${ic('heart-on',13)} ${p.likeCount ?? 0} &nbsp; ${ic('msg',13)} ${p.replyCount ?? 0} &nbsp; ${ic('share',13)} ${p.repostCount ?? 0}</div>
           </div>
         </div>`).join('');
     }
@@ -3381,9 +3498,9 @@ async function loadPlanBilling(container) {
     <div style="margin-top:12px;">${upgradeHtml}</div>
     <div class="mypage-section-title" style="margin-top:20px;">Eコイン購入</div>
     <div class="coin-packs">
-      <div class="coin-pack-btn" onclick="coinPurchase('small')">🪙 100コイン<br><small style="color:var(--text-muted);">¥120</small></div>
-      <div class="coin-pack-btn" onclick="coinPurchase('medium')">🪙 550コイン<br><small style="color:var(--text-muted);">¥500</small></div>
-      <div class="coin-pack-btn" onclick="coinPurchase('large')">🪙 1200コイン<br><small style="color:var(--text-muted);">¥1,200</small></div>
+      <div class="coin-pack-btn" onclick="coinPurchase('small')">${ic('coin', 16)} 100コイン<br><small style="color:var(--text-muted);">¥120</small></div>
+      <div class="coin-pack-btn" onclick="coinPurchase('medium')">${ic('coin', 16)} 550コイン<br><small style="color:var(--text-muted);">¥500</small></div>
+      <div class="coin-pack-btn" onclick="coinPurchase('large')">${ic('coin', 16)} 1200コイン<br><small style="color:var(--text-muted);">¥1,200</small></div>
     </div>`;
 }
 
@@ -3786,6 +3903,16 @@ async function init() {
 }
 
 init();
+
+/* ── Button press bounce (global delegation) ─────────────────── */
+document.addEventListener('click', e => {
+  const btn = e.target.closest('button, .coin-pack-btn, .plan-upgrade-btn, .mission-claim-btn');
+  if (!btn) return;
+  btn.classList.remove('btn-press');
+  void btn.offsetWidth;
+  btn.classList.add('btn-press');
+  btn.addEventListener('animationend', () => btn.classList.remove('btn-press'), { once: true });
+}, true);
 </script>
 </body>
 </html>
