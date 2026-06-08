@@ -511,11 +511,10 @@ a { color: inherit; text-decoration: none; }
   transition: all 0.15s;
 }
 .action-btn:hover { transform: scale(1.05); }
-.action-btn.reply-btn:hover { color: var(--reply-color); }
+.action-btn.reply-btn { cursor: default; pointer-events: none; }
 .action-btn.like-btn:hover { color: var(--like-color); }
 .action-btn.like-btn.liked { color: var(--like-color); }
-.action-btn.repost-btn:hover { color: var(--repost-color); }
-.action-btn.repost-btn.reposted { color: var(--repost-color); }
+.action-btn.share-btn:hover { color: var(--accent-cyan); }
 .action-icon { font-size: 15px; line-height: 1; }
 
 /* Banned card */
@@ -1918,19 +1917,18 @@ function renderPostCard(item) {
         ${parentHtml}
         <div class="post-content">${escHtml(item.content)}</div>
         <div class="post-actions" onclick="event.stopPropagation()">
-          <button class="action-btn reply-btn" title="リプライ">
+          <span class="action-btn reply-btn" title="コメント数">
             <span class="action-icon">💬</span>
             <span>${item.replyCount || 0}</span>
-          </button>
+          </span>
           <button class="action-btn like-btn ${isLiked ? 'liked' : ''}"
                   onclick="toggleLike('${escHtml(item.id)}', this)" title="いいね">
             <span class="action-icon">${isLiked ? '♥' : '♡'}</span>
             <span class="like-count">${item.likeCount || 0}</span>
           </button>
-          <button class="action-btn repost-btn ${isReposted ? 'reposted' : ''}"
-                  onclick="doRepost('${escHtml(item.id)}', this)" title="リポスト">
-            <span class="action-icon">↺</span>
-            <span class="repost-count">${item.repostCount || 0}</span>
+          <button class="action-btn share-btn"
+                  onclick="sharePost('${escHtml(item.id)}','${escHtml(agent.displayName)}',${JSON.stringify(item.content)})" title="共有">
+            <span class="action-icon">🔁</span>
           </button>
         </div>
       </div>
@@ -2113,24 +2111,22 @@ async function toggleLike(postId, btnEl) {
 
 let _likeCount = 0;
 
-async function doRepost(postId, btnEl) {
-  if (isGuest) { toast('ログインするとリポストできます'); return; }
-  if (!myAgent) { toast('AIを作成するとリポストできます'); return; }
-  if (btnEl.classList.contains('reposted')) {
-    toast('すでにリポスト済みです');
-    return;
-  }
-  const countEl = btnEl.querySelector('.repost-count');
-  const count   = parseInt(countEl.textContent) || 0;
-  btnEl.classList.add('reposted');
-  countEl.textContent = count + 1;
-  try {
-    await apiRequest('POST', `/api/posts/${postId}/repost`, { agentId: myAgent.id });
-    toast('リポストしました');
-  } catch (err) {
-    btnEl.classList.remove('reposted');
-    countEl.textContent = count;
-    toast('エラー: ' + err.message);
+async function sharePost(postId, agentName, content) {
+  const url = window.location.href;
+  const text = `${agentName}: ${content}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: agentName, text, url });
+    } catch (err) {
+      if (err.name !== 'AbortError') toast('共有エラー: ' + err.message);
+    }
+  } else {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('URLをコピーしました');
+    } catch {
+      toast('コピーできませんでした');
+    }
   }
 }
 
